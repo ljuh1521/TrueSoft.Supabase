@@ -31,7 +31,7 @@ namespace Truesoft.Supabase
 
             var req = new SignInWithPasswordRequest
             {
-                email = email,
+                email = email.Trim().ToLowerInvariant(),
                 password = password
             };
 
@@ -40,13 +40,13 @@ namespace Truesoft.Supabase
             if (!response.Success)
                 return new SupabaseResult<SupabaseSession>(response.Error);
 
-            var dto = SupabaseJson.FromJson<AuthSessionResponse>(response.Data);
+            var dto = SupabaseJson.FromJson<AuthTokenResponse>(response.Data);
             if (dto == null || string.IsNullOrEmpty(dto.access_token))
             {
                 return new SupabaseResult<SupabaseSession>(new SupabaseError
                 {
                     Code = "parse_error",
-                    Message = "Failed to parse auth response.",
+                    Message = "Failed to parse sign-in response.",
                     Raw = response.Data
                 });
             }
@@ -59,6 +59,48 @@ namespace Truesoft.Supabase
                 expires_in = dto.expires_in,
                 user_id = dto.user?.id,
                 email = dto.user?.email
+            };
+
+            if (_settings.SaveSessionToPlayerPrefs)
+                _store.Save(CurrentSession);
+
+            return new SupabaseResult<SupabaseSession>(CurrentSession);
+        }
+        
+        public async Task<SupabaseResult<SupabaseSession>> SignUpWithPasswordAsync(string email, string password)
+        {
+            var url = $"{_settings.ProjectUrl}/auth/v1/signup";
+
+            var req = new SignInWithPasswordRequest
+            {
+                email = email.Trim().ToLowerInvariant(),
+                password = password
+            };
+
+            var response = await _http.SendAsync("POST", url, SupabaseJson.ToJson(req));
+
+            if (!response.Success)
+                return new SupabaseResult<SupabaseSession>(response.Error);
+
+            var dto = SupabaseJson.FromJson<SignUpResponse>(response.Data);
+            if (dto == null || dto.user == null)
+            {
+                return new SupabaseResult<SupabaseSession>(new SupabaseError
+                {
+                    Code = "parse_error",
+                    Message = "Failed to parse sign-up response.",
+                    Raw = response.Data
+                });
+            }
+
+            CurrentSession = new SupabaseSession
+            {
+                access_token = dto.session?.access_token,
+                refresh_token = dto.session?.refresh_token,
+                token_type = dto.session?.token_type,
+                expires_in = dto.session?.expires_in ?? 0,
+                user_id = dto.user.id,
+                email = dto.user.email
             };
 
             if (_settings.SaveSessionToPlayerPrefs)

@@ -23,12 +23,28 @@ namespace Truesoft.Supabase
     }
 
     [Serializable]
-    public sealed class AuthSessionResponse
+    public sealed class AuthTokenResponse
     {
         public string access_token;
         public string refresh_token;
         public string token_type;
         public int expires_in;
         public SupabaseUserDto user;
+    }
+
+    [Serializable]
+    public sealed class AuthSessionDto
+    {
+        public string access_token;
+        public string refresh_token;
+        public string token_type;
+        public int expires_in;
+    }
+
+    [Serializable]
+    public sealed class SignUpResponse
+    {
+        public SupabaseUserDto user;
+        public AuthSessionDto session;
     }
 }
