@@ -27,7 +27,7 @@ namespace Truesoft.Supabase
             if (options.Limit > 0)
                 sb.Append($"&limit={options.Limit}");
 
-            var response = await _http.SendAsync("GET", sb.ToString(), bearerToken: _auth.AccessToken);
+            var response = await _http.SendAsync("GET", sb.ToString(), userAccessToken: _auth.AccessToken);
             if (!response.Success)
                 return new SupabaseResult<T[]>(response.Error);
 
@@ -47,7 +47,7 @@ namespace Truesoft.Supabase
             if (options.Limit > 0)
                 url += $"&limit={options.Limit}";
 
-            var response = await _http.SendAsync("GET", url, bearerToken: _auth.AccessToken);
+            var response = await _http.SendAsync("GET", url, userAccessToken: _auth.AccessToken);
             if (!response.Success)
                 return new SupabaseResult<T[]>(response.Error);
 
