@@ -28,6 +28,7 @@ namespace Truesoft.Supabase
         public async Task<SupabaseResult<SupabaseSession>> SignInWithPasswordAsync(string email, string password)
         {
             var url = $"{_settings.ProjectUrl}/auth/v1/token?grant_type=password";
+
             var req = new SignInWithPasswordRequest
             {
                 email = email,
@@ -35,6 +36,7 @@ namespace Truesoft.Supabase
             };
 
             var response = await _http.SendAsync("POST", url, SupabaseJson.ToJson(req));
+
             if (!response.Success)
                 return new SupabaseResult<SupabaseSession>(response.Error);
 
@@ -77,12 +79,14 @@ namespace Truesoft.Supabase
             }
 
             var url = $"{_settings.ProjectUrl}/auth/v1/token?grant_type=refresh_token";
+
             var req = new RefreshTokenRequest
             {
                 refresh_token = CurrentSession.refresh_token
             };
 
             var response = await _http.SendAsync("POST", url, SupabaseJson.ToJson(req));
+
             if (!response.Success)
                 return new SupabaseResult<SupabaseSession>(response.Error);
 

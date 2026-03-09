@@ -24,8 +24,8 @@ namespace Truesoft.Supabase
             if (string.IsNullOrWhiteSpace(settings.ProjectUrl))
                 throw new Exception("SupabaseSettings.ProjectUrl is empty.");
 
-            if (string.IsNullOrWhiteSpace(settings.AnonKey))
-                throw new Exception("SupabaseSettings.AnonKey is empty.");
+            if (string.IsNullOrWhiteSpace(settings.PublishableKey))
+                throw new Exception("SupabaseSettings.PublishableKey is empty.");
 
             Settings = settings;
 
@@ -38,7 +38,7 @@ namespace Truesoft.Supabase
 
             if (settings.VerboseLog)
                 Debug.Log("[Truesoft.Supabase] Initialized.");
-            
+
             await Task.CompletedTask;
         }
     }

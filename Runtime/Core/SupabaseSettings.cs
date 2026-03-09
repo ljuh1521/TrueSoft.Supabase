@@ -7,7 +7,7 @@ namespace Truesoft.Supabase
     {
         [Header("Project")]
         public string ProjectUrl;
-        public string AnonKey;
+        public string PublishableKey;
 
         [Header("Runtime")]
         public bool InitializeOnAwake = true;

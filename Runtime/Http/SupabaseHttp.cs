@@ -1,6 +1,5 @@
 using System.Text;
 using System.Threading.Tasks;
-using UnityEngine;
 using UnityEngine.Networking;
 
 namespace Truesoft.Supabase
@@ -18,7 +17,7 @@ namespace Truesoft.Supabase
             string method,
             string url,
             string bodyJson = null,
-            string bearerToken = null,
+            string userAccessToken = null,
             string contentType = SupabaseConstants.ContentTypeJson)
         {
             using var request = new UnityWebRequest(url, method);
@@ -32,12 +31,16 @@ namespace Truesoft.Supabase
                 request.SetRequestHeader("Content-Type", contentType);
             }
 
-            request.SetRequestHeader(SupabaseConstants.ApiKeyHeader, _settings.AnonKey);
+            // 최신 방식: apikey에는 publishable key
+            request.SetRequestHeader(SupabaseConstants.ApiKeyHeader, _settings.PublishableKey);
 
-            if (!string.IsNullOrEmpty(bearerToken))
-                request.SetRequestHeader(SupabaseConstants.AuthorizationHeader, SupabaseConstants.BearerPrefix + bearerToken);
-            else
-                request.SetRequestHeader(SupabaseConstants.AuthorizationHeader, SupabaseConstants.BearerPrefix + _settings.AnonKey);
+            // 로그인 후에만 사용자 JWT를 Authorization에 넣음
+            if (!string.IsNullOrEmpty(userAccessToken))
+            {
+                request.SetRequestHeader(
+                    SupabaseConstants.AuthorizationHeader,
+                    SupabaseConstants.BearerPrefix + userAccessToken);
+            }
 
             var operation = request.SendWebRequest();
 
