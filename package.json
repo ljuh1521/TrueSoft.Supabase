@@ -1,0 +1,17 @@
+{
+  "name": "com.truesoft.supabase",
+  "version": "0.1.0",
+  "displayName": "Truesoft Supabase SDK",
+  "description": "Unity UPM package for Supabase Auth, REST API, and Edge Functions.",
+  "unity": "2022.3",
+  "author": {
+    "name": "Truesoft"
+  },
+  "samples": [
+    {
+      "displayName": "Basic Setup",
+      "description": "Initialization and basic API examples.",
+      "path": "Samples~/BasicSetup"
+    }
+  ]
+}
