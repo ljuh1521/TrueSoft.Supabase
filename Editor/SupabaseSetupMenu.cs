@@ -7,7 +7,7 @@ namespace Truesoft.Supabase.Editor
 {
     public static class SupabaseSetupMenu
     {
-        [MenuItem("Truesoft/Supabase/Create Settings Asset")]
+        [MenuItem("TrueSoft/Supabase/Create Settings Asset")]
         public static void CreateSettingsAsset()
         {
             var asset = ScriptableObject.CreateInstance<Truesoft.Supabase.SupabaseSettings>();
@@ -21,7 +21,7 @@ namespace Truesoft.Supabase.Editor
             Debug.Log($"[Truesoft.Supabase] Created settings asset: {path}");
         }
 
-        [MenuItem("Truesoft/Supabase/Install In Current Scene")]
+        [MenuItem("TrueSoft/Supabase/Install In Current Scene")]
         public static void InstallInCurrentScene()
         {
             var existing = Object.FindFirstObjectByType<Truesoft.Supabase.SupabaseRunner>();
