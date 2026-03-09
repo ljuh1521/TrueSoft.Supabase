@@ -12,7 +12,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 ## Setup
 
 1. Tools > Truesoft > Supabase > Create Settings Asset
-2. Fill ProjectUrl and AnonKey
+2. Fill ProjectUrl and PublishableKey
 3. Tools > Truesoft > Supabase > Install In Current Scene
 4. Assign SupabaseSettings asset to SupabaseRunner
 
