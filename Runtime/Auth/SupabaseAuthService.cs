@@ -132,7 +132,7 @@ namespace Truesoft.Supabase
             if (!response.Success)
                 return new SupabaseResult<SupabaseSession>(response.Error);
 
-            var dto = SupabaseJson.FromJson<AuthSessionResponse>(response.Data);
+            var dto = SupabaseJson.FromJson<AuthTokenResponse>(response.Data);
             if (dto == null || string.IsNullOrEmpty(dto.access_token))
             {
                 return new SupabaseResult<SupabaseSession>(new SupabaseError
