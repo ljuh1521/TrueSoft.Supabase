@@ -6,7 +6,13 @@ namespace Truesoft.Supabase
     public sealed class SupabaseUser
     {
         public string id;
+
         public string email;
-        public string phone;
+
+        public string role;
+
+        public string aud;
+
+        public DateTime created_at;
     }
 }

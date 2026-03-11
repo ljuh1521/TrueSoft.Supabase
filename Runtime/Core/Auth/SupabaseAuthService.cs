@@ -1,3 +1,4 @@
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -6,183 +7,126 @@ namespace Truesoft.Supabase
     public sealed class SupabaseAuthService
     {
         private readonly SupabaseOptions _options;
-        private readonly ISupabaseJsonSerializer _json;
         private readonly ISupabaseHttpClient _http;
+        private readonly ISupabaseJsonSerializer _json;
         private readonly ISupabaseAuthStorage _storage;
+
+        private SupabaseSession _session;
+
+        public SupabaseSession Session => _session;
 
         public SupabaseAuthService(
             SupabaseOptions options,
-            ISupabaseJsonSerializer json,
             ISupabaseHttpClient http,
-            ISupabaseAuthStorage storage = null)
+            ISupabaseJsonSerializer json,
+            ISupabaseAuthStorage storage)
         {
             _options = options;
-            _json = json;
             _http = http;
+            _json = json;
             _storage = storage;
         }
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithPasswordAsync(
             string email,
             string password,
-            CancellationToken cancellationToken = default)
+            CancellationToken ct = default)
         {
-            var payload = new SignInWithPasswordRequest
+            var url = $"{_options.ProjectURL}/auth/v1/token?grant_type=password";
+
+            var body = _json.ToJson(new
             {
-                email = email,
-                password = password
-            };
+                email,
+                password
+            });
 
-            var request = CreateJsonRequest(
-                "POST",
-                _options.ProjectURL + "/auth/v1/token?grant_type=password",
-                _json.ToJson(payload));
-
-            var response = await _http.SendAsync(request, cancellationToken);
-
-            if (response.IsSuccess == false)
-                return ParseSessionFailure(response);
-
-            var session = _json.FromJson<SupabaseSession>(response.Text);
-            if (session == null)
-                return SupabaseResult<SupabaseSession>.Fail("Session parse failed.");
-
-            SaveSession(session);
-
-            return SupabaseResult<SupabaseSession>.Success(session);
-        }
-
-        public async Task<SupabaseResult<SupabaseSession>> SignUpWithPasswordAsync(
-            string email,
-            string password,
-            CancellationToken cancellationToken = default)
-        {
-            var payload = new SignUpWithPasswordRequest
-            {
-                email = email,
-                password = password
-            };
-
-            var request = CreateJsonRequest(
-                "POST",
-                _options.ProjectURL + "/auth/v1/signup",
-                _json.ToJson(payload));
-
-            var response = await _http.SendAsync(request, cancellationToken);
-
-            if (response.IsSuccess == false)
-                return ParseSessionFailure(response);
-
-            var session = _json.FromJson<SupabaseSession>(response.Text);
-            if (session == null)
-                return SupabaseResult<SupabaseSession>.Fail("Session parse failed.");
-
-            SaveSession(session);
-
-            return SupabaseResult<SupabaseSession>.Success(session);
-        }
-
-        public async Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(
-            string refreshToken,
-            CancellationToken cancellationToken = default)
-        {
-            var payload = new RefreshTokenRequest
-            {
-                refresh_token = refreshToken
-            };
-
-            var request = CreateJsonRequest(
-                "POST",
-                _options.ProjectURL + "/auth/v1/token?grant_type=refresh_token",
-                 _json.ToJson(payload));
-
-            var response = await _http.SendAsync(request, cancellationToken);
-
-            if (response.IsSuccess == false)
-                return ParseSessionFailure(response);
-
-            var session = _json.FromJson<SupabaseSession>(response.Text);
-            if (session == null)
-                return SupabaseResult<SupabaseSession>.Fail("Session parse failed.");
-
-            SaveSession(session);
-
-            return SupabaseResult<SupabaseSession>.Success(session);
-        }
-
-        public SupabaseSession LoadSavedSession()
-        {
-            if (_storage == null)
-                return null;
-
-            var json = _storage.LoadSession();
-            if (string.IsNullOrWhiteSpace(json))
-                return null;
-
-            return _json.FromJson<SupabaseSession>(json);
-        }
-
-        public void ClearSavedSession()
-        {
-            _storage?.ClearSession();
-        }
-
-        private SupabaseHttpRequest CreateJsonRequest(string method, string url, string body)
-        {
             var request = new SupabaseHttpRequest
             {
-                Method = method,
                 Url = url,
-                Body = body,
-                TimeoutSeconds = _options.TimeoutSeconds
+                Method = "POST",
+                Body = body
             };
 
             request.Headers["apikey"] = _options.PublishableKey;
+            request.Headers["Authorization"] = "Bearer " + _options.PublishableKey;
             request.Headers["Content-Type"] = "application/json";
 
-            return request;
+            var response = await _http.SendAsync(request, ct);
+
+            if (!response.IsSuccess)
+                return SupabaseResult<SupabaseSession>.Fail(response.ErrorMessage);
+
+            var session = _json.FromJson<SupabaseSession>(response.Text);
+
+            session.created_at = System.DateTime.UtcNow;
+
+            _session = session;
+
+            SaveSession(session);
+
+            return SupabaseResult<SupabaseSession>.Success(session);
         }
 
-        private SupabaseResult<SupabaseSession> ParseSessionFailure(SupabaseHttpResponse response)
+        public async Task RefreshSessionAsync(CancellationToken ct = default)
         {
-            SupabaseError error = null;
-
-            if (string.IsNullOrWhiteSpace(response.Text) == false)
-                error = _json.FromJson<SupabaseError>(response.Text);
-
-            if (error != null)
-                return SupabaseResult<SupabaseSession>.Fail(error, response.ErrorMessage);
-
-            return SupabaseResult<SupabaseSession>.Fail(response.ErrorMessage ?? response.Text ?? "Request failed.");
-        }
-
-        private void SaveSession(SupabaseSession session)
-        {
-            if (_storage == null || session == null)
+            if (_session == null)
                 return;
 
+            if (!_session.IsExpired())
+                return;
+
+            var url = $"{_options.ProjectURL}/auth/v1/token?grant_type=refresh_token";
+
+            var body = _json.ToJson(new
+            {
+                refresh_token = _session.refresh_token
+            });
+
+            var request = new SupabaseHttpRequest
+            {
+                Url = url,
+                Method = "POST",
+                Body = body
+            };
+
+            request.Headers["apikey"] = _options.PublishableKey;
+            request.Headers["Authorization"] = "Bearer " + _options.PublishableKey;
+            request.Headers["Content-Type"] = "application/json";
+
+            var response = await _http.SendAsync(request, ct);
+
+            if (!response.IsSuccess)
+                return;
+
+            var session = _json.FromJson<SupabaseSession>(response.Text);
+
+            session.created_at = System.DateTime.UtcNow;
+
+            _session = session;
+
+            SaveSession(session);
+        }
+
+        public void SaveSession(SupabaseSession session)
+        {
             var json = _json.ToJson(session);
             _storage.SaveSession(json);
         }
 
-        [System.Serializable]
-        private sealed class SignInWithPasswordRequest
+        public void LoadSession()
         {
-            public string email;
-            public string password;
+            var json = _storage.LoadSession();
+
+            if (string.IsNullOrEmpty(json))
+                return;
+
+            _session = _json.FromJson<SupabaseSession>(json);
         }
 
-        [System.Serializable]
-        private sealed class SignUpWithPasswordRequest
+        public void Logout()
         {
-            public string email;
-            public string password;
-        }
-
-        [System.Serializable]
-        private sealed class RefreshTokenRequest
-        {
-            public string refresh_token;
+            _session = null;
+            _storage.ClearSession();
         }
     }
 }
