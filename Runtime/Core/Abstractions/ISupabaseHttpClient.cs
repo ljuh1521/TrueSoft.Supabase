@@ -5,8 +5,6 @@ namespace Truesoft.Supabase
 {
     public interface ISupabaseHttpClient
     {
-        Task<SupabaseHttpResponse> SendAsync(
-            SupabaseHttpRequest request,
-            CancellationToken cancellationToken = default);
+        Task<SupabaseHttpResponse> SendAsync(SupabaseHttpRequest request, CancellationToken cancellationToken = default);
     }
 }

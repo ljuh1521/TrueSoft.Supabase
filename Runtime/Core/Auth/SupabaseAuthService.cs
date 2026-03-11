@@ -35,7 +35,7 @@ namespace Truesoft.Supabase
 
             var request = CreateJsonRequest(
                 "POST",
-                _options.Url + "/auth/v1/token?grant_type=password",
+                _options.ProjectURL + "/auth/v1/token?grant_type=password",
                 _json.ToJson(payload));
 
             var response = await _http.SendAsync(request, cancellationToken);
@@ -65,7 +65,7 @@ namespace Truesoft.Supabase
 
             var request = CreateJsonRequest(
                 "POST",
-                _options.Url + "/auth/v1/signup",
+                _options.ProjectURL + "/auth/v1/signup",
                 _json.ToJson(payload));
 
             var response = await _http.SendAsync(request, cancellationToken);
@@ -93,8 +93,8 @@ namespace Truesoft.Supabase
 
             var request = CreateJsonRequest(
                 "POST",
-                _options.Url + "/auth/v1/token?grant_type=refresh_token",
-                _json.ToJson(payload));
+                _options.ProjectURL + "/auth/v1/token?grant_type=refresh_token",
+                 _json.ToJson(payload));
 
             var response = await _http.SendAsync(request, cancellationToken);
 
@@ -137,7 +137,7 @@ namespace Truesoft.Supabase
                 TimeoutSeconds = _options.TimeoutSeconds
             };
 
-            request.Headers["apikey"] = _options.ApiKey;
+            request.Headers["apikey"] = _options.PublishableKey;
             request.Headers["Content-Type"] = "application/json";
 
             return request;

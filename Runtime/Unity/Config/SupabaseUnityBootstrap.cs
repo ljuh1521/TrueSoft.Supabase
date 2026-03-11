@@ -4,9 +4,14 @@ namespace Truesoft.Supabase.Unity
     {
         public static SupabaseClient CreateClient(SupabaseSettings settings)
         {
-            var options = settings.ToOptions();
+            var options = new SupabaseOptions
+            {
+                ProjectURL = settings.projectUrl,
+                PublishableKey = settings.publishableKey
+            };
+
+            var http = new UnitySupabaseHttpClient(settings.timeoutSeconds);
             var json = new UnitySupabaseJsonSerializer();
-            var http = new UnitySupabaseHttpClient();
             var storage = new UnityPlayerPrefsAuthStorage();
 
             return new SupabaseClient(options, json, http, storage);

@@ -7,6 +7,13 @@ namespace Truesoft.Supabase.Unity
 {
     public sealed class UnitySupabaseHttpClient : ISupabaseHttpClient
     {
+        private readonly int _defaultTimeoutSeconds;
+
+        public UnitySupabaseHttpClient(int defaultTimeoutSeconds = 10)
+        {
+            _defaultTimeoutSeconds = defaultTimeoutSeconds;
+        }
+
         public async Task<SupabaseHttpResponse> SendAsync(
             SupabaseHttpRequest request,
             CancellationToken cancellationToken = default)
@@ -31,12 +38,14 @@ namespace Truesoft.Supabase.Unity
             };
         }
 
-        private static UnityWebRequest CreateRequest(SupabaseHttpRequest request)
+        private UnityWebRequest CreateRequest(SupabaseHttpRequest request)
         {
             var unityRequest = new UnityWebRequest(request.Url, request.Method)
             {
                 downloadHandler = new DownloadHandlerBuffer(),
-                timeout = request.TimeoutSeconds
+                timeout = request.TimeoutSeconds > 0
+                    ? request.TimeoutSeconds
+                    : _defaultTimeoutSeconds
             };
 
             if (string.IsNullOrEmpty(request.Body) == false)

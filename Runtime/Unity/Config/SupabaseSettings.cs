@@ -6,15 +6,15 @@ namespace Truesoft.Supabase.Unity
     public sealed class SupabaseSettings : ScriptableObject
     {
         public string projectUrl;
-        public string anonKey;
+        public string publishableKey;
         public int timeoutSeconds = 30;
 
         public SupabaseOptions ToOptions()
         {
             return new SupabaseOptions
             {
-                Url = projectUrl,
-                ApiKey = anonKey,
+                ProjectURL = projectUrl,
+                PublishableKey = publishableKey,
                 TimeoutSeconds = timeoutSeconds
             };
         }
