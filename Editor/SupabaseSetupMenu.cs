@@ -1,45 +1,42 @@
+using System.IO;
+using Truesoft.Supabase.Unity;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Truesoft.Supabase.Editor
 {
     public static class SupabaseSetupMenu
     {
+        private const string DefaultFolder = "Assets/Resources";
+        private const string AssetName = "SupabaseSettings.asset";
+
         [MenuItem("TrueSoft/Supabase/Create Settings Asset")]
         public static void CreateSettingsAsset()
         {
-            var asset = ScriptableObject.CreateInstance<Truesoft.Supabase.SupabaseSettings>();
-            var path = AssetDatabase.GenerateUniqueAssetPath("Assets/SupabaseSettings.asset");
+            if (Directory.Exists(DefaultFolder) == false)
+                Directory.CreateDirectory(DefaultFolder);
 
-            AssetDatabase.CreateAsset(asset, path);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
+            var assetPath = Path.Combine(DefaultFolder, AssetName).Replace("\\", "/");
 
-            Selection.activeObject = asset;
-            Debug.Log($"[Truesoft.Supabase] Created settings asset: {path}");
-        }
-
-        [MenuItem("TrueSoft/Supabase/Install In Current Scene")]
-        public static void InstallInCurrentScene()
-        {
-            var existing = Object.FindFirstObjectByType<Truesoft.Supabase.SupabaseRunner>();
+            var existing = AssetDatabase.LoadAssetAtPath<SupabaseSettings>(assetPath);
             if (existing != null)
             {
-                Selection.activeGameObject = existing.gameObject;
-                Debug.LogWarning("[Truesoft.Supabase] SupabaseRunner already exists.");
+                Selection.activeObject = existing;
+                EditorGUIUtility.PingObject(existing);
+                Debug.Log("[Supabase] Settings asset already exists: " + assetPath);
                 return;
             }
 
-            var go = new GameObject("SupabaseRunner");
-            go.AddComponent<Truesoft.Supabase.SupabaseRunner>();
+            var settings = ScriptableObject.CreateInstance<SupabaseSettings>();
 
-            Undo.RegisterCreatedObjectUndo(go, "Create SupabaseRunner");
-            Selection.activeGameObject = go;
+            AssetDatabase.CreateAsset(settings, assetPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
 
-            EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
-            Debug.Log("[Truesoft.Supabase] Installed SupabaseRunner in current scene.");
+            Selection.activeObject = settings;
+            EditorGUIUtility.PingObject(settings);
+
+            Debug.Log("[Supabase] Settings asset created: " + assetPath);
         }
     }
 }

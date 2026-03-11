@@ -1,0 +1,14 @@
+{
+  "name": "Truesoft.Supabase.Core",
+  "rootNamespace": "Truesoft.Supabase",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

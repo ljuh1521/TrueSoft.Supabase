@@ -1,13 +1,12 @@
 {
-  "name": "Truesoft.Supabase.Editor",
-  "rootNamespace": "Truesoft.Supabase.Editor",
+  "name": "Truesoft.Supabase.Unity",
+  "rootNamespace": "Truesoft.Supabase.Unity",
   "references": [
     "Truesoft.Supabase.Core",
-    "Truesoft.Supabase.Unity"
+    "UnityEngine.UnityWebRequestModule",
+    "UnityEngine.JSONSerializeModule"
   ],
-  "includePlatforms": [
-    "Editor"
-  ],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
