@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,6 +27,13 @@ namespace Truesoft.Supabase
             _json = json;
             _storage = storage;
         }
+        
+        [System.Serializable]
+        private sealed class SignInWithPasswordRequest
+        {
+            public string email;
+            public string password;
+        }
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithPasswordAsync(
             string email,
@@ -34,34 +42,42 @@ namespace Truesoft.Supabase
         {
             var url = $"{_options.ProjectURL}/auth/v1/token?grant_type=password";
 
-            var body = _json.ToJson(new
+            var payload = new SignInWithPasswordRequest
             {
-                email,
-                password
-            });
+                email = email,
+                password = password
+            };
+
+            var body = _json.ToJson(payload);
 
             var request = new SupabaseHttpRequest
             {
                 Url = url,
                 Method = "POST",
-                Body = body
+                Body = body,
+                TimeoutSeconds = _options.TimeoutSeconds
             };
 
             request.Headers["apikey"] = _options.PublishableKey;
-            request.Headers["Authorization"] = "Bearer " + _options.PublishableKey;
             request.Headers["Content-Type"] = "application/json";
 
             var response = await _http.SendAsync(request, ct);
 
             if (!response.IsSuccess)
-                return SupabaseResult<SupabaseSession>.Fail(response.ErrorMessage);
+            {
+                var error = TryParseError(response.Text);
+                return error != null
+                    ? SupabaseResult<SupabaseSession>.Fail(error, response.ErrorMessage)
+                    : SupabaseResult<SupabaseSession>.Fail(response.Text ?? response.ErrorMessage ?? "Request failed.");
+            }
 
             var session = _json.FromJson<SupabaseSession>(response.Text);
+            if (session == null)
+                return SupabaseResult<SupabaseSession>.Fail("Session parse failed.");
 
-            session.created_at = System.DateTime.UtcNow;
+            session.created_at = DateTime.UtcNow;
 
             _session = session;
-
             SaveSession(session);
 
             return SupabaseResult<SupabaseSession>.Success(session);
@@ -127,6 +143,14 @@ namespace Truesoft.Supabase
         {
             _session = null;
             _storage.ClearSession();
+        }
+        
+        private SupabaseError TryParseError(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            return _json.FromJson<SupabaseError>(text);
         }
     }
 }
