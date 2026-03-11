@@ -2,6 +2,9 @@
   "name": "Truesoft.Supabase.Core",
   "rootNamespace": "Truesoft.Supabase",
   "references": [],
+  "references": [
+    "Unity.Newtonsoft.Json"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

@@ -1,3 +1,5 @@
+using Truesoft.Supabase.Core.Http;
+
 namespace Truesoft.Supabase.Unity
 {
     public static class SupabaseUnityBootstrap

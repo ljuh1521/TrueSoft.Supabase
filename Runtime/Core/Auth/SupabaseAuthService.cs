@@ -1,156 +1,220 @@
 using System;
-using System.Text;
-using System.Threading;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Truesoft.Supabase.Core.Common;
+using Truesoft.Supabase.Core.Http;
 
-namespace Truesoft.Supabase
+namespace Truesoft.Supabase.Core.Auth
 {
     public sealed class SupabaseAuthService
     {
-        private readonly SupabaseOptions _options;
-        private readonly ISupabaseHttpClient _http;
-        private readonly ISupabaseJsonSerializer _json;
-        private readonly ISupabaseAuthStorage _storage;
-
-        private SupabaseSession _session;
-
-        public SupabaseSession Session => _session;
+        private readonly string _supabaseUrl;
+        private readonly string _publishableKey;
+        private readonly ISupabaseHttpClient _httpClient;
+        private readonly ISupabaseJsonSerializer _jsonSerializer;
 
         public SupabaseAuthService(
-            SupabaseOptions options,
-            ISupabaseHttpClient http,
-            ISupabaseJsonSerializer json,
-            ISupabaseAuthStorage storage)
+            string supabaseUrl,
+            string publishableKey,
+            ISupabaseHttpClient httpClient,
+            ISupabaseJsonSerializer jsonSerializer)
         {
-            _options = options;
-            _http = http;
-            _json = json;
-            _storage = storage;
-        }
-        
-        [System.Serializable]
-        private sealed class SignInWithPasswordRequest
-        {
-            public string email;
-            public string password;
+            if (string.IsNullOrWhiteSpace(supabaseUrl))
+                throw new ArgumentException("supabaseUrl is null or empty", nameof(supabaseUrl));
+
+            if (string.IsNullOrWhiteSpace(publishableKey))
+                throw new ArgumentException("publishableKey is null or empty", nameof(publishableKey));
+
+            _supabaseUrl = supabaseUrl.TrimEnd('/');
+            _publishableKey = publishableKey;
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
         }
 
-        public async Task<SupabaseResult<SupabaseSession>> SignInWithPasswordAsync(
-            string email,
-            string password,
-            CancellationToken ct = default)
+        public async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken)
         {
-            var url = $"{_options.ProjectURL}/auth/v1/token?grant_type=password";
+            return await SignInWithIdTokenAsync("google", idToken, null);
+        }
 
-            var payload = new SignInWithPasswordRequest
+        public async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, string nonce)
+        {
+            return await SignInWithIdTokenAsync("google", idToken, nonce);
+        }
+
+        public async Task<SupabaseResult<SupabaseSession>> SignInWithIdTokenAsync(
+            string provider,
+            string idToken,
+            string nonce = null)
+        {
+            if (string.IsNullOrWhiteSpace(provider))
+                return SupabaseResult<SupabaseSession>.Fail("provider_empty");
+
+            if (string.IsNullOrWhiteSpace(idToken))
+                return SupabaseResult<SupabaseSession>.Fail("id_token_empty");
+
+            var url = $"{_supabaseUrl}/auth/v1/token?grant_type=id_token";
+
+            var body = new SignInWithIdTokenRequest
             {
-                email = email,
-                password = password
+                provider = provider,
+                token = idToken,
+                nonce = nonce
             };
 
-            var body = _json.ToJson(payload);
+            var bodyJson = _jsonSerializer.ToJson(body);
 
-            var request = new SupabaseHttpRequest
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateDefaultHeaders());
+
+            if (response == null)
+                return SupabaseResult<SupabaseSession>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
             {
-                Url = url,
-                Method = "POST",
-                Body = body,
-                TimeoutSeconds = _options.TimeoutSeconds
-            };
+                var errorMessage = ExtractErrorMessage(response.Body);
+                if (string.IsNullOrWhiteSpace(errorMessage))
+                    errorMessage = response.ErrorMessage ?? $"supabase_auth_failed:{response.StatusCode}";
 
-            request.Headers["apikey"] = _options.PublishableKey;
-            request.Headers["Content-Type"] = "application/json";
-
-            var response = await _http.SendAsync(request, ct);
-
-            if (!response.IsSuccess)
-            {
-                var error = TryParseError(response.Text);
-                return error != null
-                    ? SupabaseResult<SupabaseSession>.Fail(error, response.ErrorMessage)
-                    : SupabaseResult<SupabaseSession>.Fail(response.Text ?? response.ErrorMessage ?? "Request failed.");
+                return SupabaseResult<SupabaseSession>.Fail(errorMessage);
             }
 
-            var session = _json.FromJson<SupabaseSession>(response.Text);
-            if (session == null)
-                return SupabaseResult<SupabaseSession>.Fail("Session parse failed.");
+            if (string.IsNullOrWhiteSpace(response.Body)) 
+                return SupabaseResult<SupabaseSession>.Fail("response_body_empty");
 
-            session.created_at = DateTime.UtcNow;
+            try
+            {
+                var session = _jsonSerializer.FromJson<SupabaseSession>(response.Body);
 
-            _session = session;
-            SaveSession(session);
+                if (session == null)
+                    return SupabaseResult<SupabaseSession>.Fail("session_null");
 
-            return SupabaseResult<SupabaseSession>.Success(session);
+                if (string.IsNullOrWhiteSpace(session.access_token))
+                    return SupabaseResult<SupabaseSession>.Fail("access_token_empty");
+
+                return SupabaseResult<SupabaseSession>.Success(session);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<SupabaseSession>.Fail("session_parse_exception:" + e.Message);
+            }
         }
 
-        public async Task RefreshSessionAsync(CancellationToken ct = default)
+        public async Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(string refreshToken)
         {
-            if (_session == null)
-                return;
+            if (string.IsNullOrWhiteSpace(refreshToken))
+                return SupabaseResult<SupabaseSession>.Fail("refresh_token_empty");
 
-            if (!_session.IsExpired())
-                return;
+            var url = $"{_supabaseUrl}/auth/v1/token?grant_type=refresh_token";
 
-            var url = $"{_options.ProjectURL}/auth/v1/token?grant_type=refresh_token";
-
-            var body = _json.ToJson(new
+            var body = new RefreshTokenRequest
             {
-                refresh_token = _session.refresh_token
-            });
-
-            var request = new SupabaseHttpRequest
-            {
-                Url = url,
-                Method = "POST",
-                Body = body
+                refresh_token = refreshToken
             };
 
-            request.Headers["apikey"] = _options.PublishableKey;
-            request.Headers["Authorization"] = "Bearer " + _options.PublishableKey;
-            request.Headers["Content-Type"] = "application/json";
+            var bodyJson = _jsonSerializer.ToJson(body);
 
-            var response = await _http.SendAsync(request, ct);
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateDefaultHeaders());
 
-            if (!response.IsSuccess)
-                return;
+            if (response == null)
+                return SupabaseResult<SupabaseSession>.Fail("http_response_null");
 
-            var session = _json.FromJson<SupabaseSession>(response.Text);
+            if (response.IsSuccess == false)
+            {
+                var errorMessage = ExtractErrorMessage(response.Body);
+                if (string.IsNullOrWhiteSpace(errorMessage))
+                    errorMessage = response.ErrorMessage ?? "refresh_failed";
 
-            session.created_at = System.DateTime.UtcNow;
+                return SupabaseResult<SupabaseSession>.Fail(errorMessage);
+            }
 
-            _session = session;
+            if (string.IsNullOrWhiteSpace(response.Body))
+                return SupabaseResult<SupabaseSession>.Fail("response_body_empty");
 
-            SaveSession(session);
+            try
+            {
+                var session = _jsonSerializer.FromJson<SupabaseSession>(response.Body);
+
+                if (session == null)
+                    return SupabaseResult<SupabaseSession>.Fail("session_null");
+
+                if (string.IsNullOrWhiteSpace(session.access_token))
+                    return SupabaseResult<SupabaseSession>.Fail("access_token_empty");
+
+                return SupabaseResult<SupabaseSession>.Success(session);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<SupabaseSession>.Fail("refresh_session_parse_exception:" + e.Message);
+            }
         }
 
-        public void SaveSession(SupabaseSession session)
+        private Dictionary<string, string> CreateDefaultHeaders()
         {
-            var json = _json.ToJson(session);
-            _storage.SaveSession(json);
+            return new Dictionary<string, string>
+            {
+                { "apikey", _publishableKey },
+                { "Authorization", "Bearer " + _publishableKey },
+                { "Content-Type", "application/json" }
+            };
         }
 
-        public void LoadSession()
+        private string ExtractErrorMessage(string body)
         {
-            var json = _storage.LoadSession();
-
-            if (string.IsNullOrEmpty(json))
-                return;
-
-            _session = _json.FromJson<SupabaseSession>(json);
-        }
-
-        public void Logout()
-        {
-            _session = null;
-            _storage.ClearSession();
-        }
-        
-        private SupabaseError TryParseError(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
+            if (string.IsNullOrWhiteSpace(body))
                 return null;
 
-            return _json.FromJson<SupabaseError>(text);
+            try
+            {
+                var error = _jsonSerializer.FromJson<SupabaseErrorResponse>(body);
+
+                if (error == null)
+                    return null;
+
+                if (string.IsNullOrWhiteSpace(error.msg) == false)
+                    return error.msg;
+
+                if (string.IsNullOrWhiteSpace(error.error_description) == false)
+                    return error.error_description;
+
+                if (string.IsNullOrWhiteSpace(error.error) == false)
+                    return error.error;
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        [Serializable]
+        private sealed class SignInWithIdTokenRequest
+        {
+            public string provider;
+            public string token;
+            public string nonce;
+        }
+
+        [Serializable]
+        private sealed class RefreshTokenRequest
+        {
+            public string refresh_token;
+        }
+
+        [Serializable]
+        private sealed class SupabaseErrorResponse
+        {
+            public string error;
+            public string error_description;
+            public string msg;
+            public int code;
         }
     }
 }

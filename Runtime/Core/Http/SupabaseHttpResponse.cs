@@ -1,11 +1,28 @@
-namespace Truesoft.Supabase
+namespace Truesoft.Supabase.Core.Http
 {
     public sealed class SupabaseHttpResponse
     {
-        public long StatusCode;
-        public string Text;
-        public string ErrorMessage;
+        public bool IsSuccess { get; }
+        public long StatusCode { get; }
+        public string Body { get; }
+        public string ErrorMessage { get; }
 
-        public bool IsSuccess => StatusCode >= 200 && StatusCode < 300;
+        public SupabaseHttpResponse(bool isSuccess, long statusCode, string body, string errorMessage)
+        {
+            IsSuccess = isSuccess;
+            StatusCode = statusCode;
+            Body = body;
+            ErrorMessage = errorMessage;
+        }
+
+        public static SupabaseHttpResponse Success(long statusCode, string body)
+        {
+            return new SupabaseHttpResponse(true, statusCode, body, null);
+        }
+
+        public static SupabaseHttpResponse Fail(long statusCode, string body, string errorMessage)
+        {
+            return new SupabaseHttpResponse(false, statusCode, body, errorMessage);
+        }
     }
 }

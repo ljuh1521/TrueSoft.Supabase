@@ -1,66 +1,67 @@
+using System.Collections.Generic;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine.Networking;
 
-namespace Truesoft.Supabase.Unity
+namespace Truesoft.Supabase.Core.Http
 {
     public sealed class UnitySupabaseHttpClient : ISupabaseHttpClient
     {
-        private readonly int _defaultTimeoutSeconds;
+        private readonly int _timeoutSeconds;
 
-        public UnitySupabaseHttpClient(int defaultTimeoutSeconds = 10)
+        public UnitySupabaseHttpClient(int timeoutSeconds = 30)
         {
-            _defaultTimeoutSeconds = defaultTimeoutSeconds;
+            _timeoutSeconds = timeoutSeconds;
         }
 
         public async Task<SupabaseHttpResponse> SendAsync(
-            SupabaseHttpRequest request,
-            CancellationToken cancellationToken = default)
+            string method,
+            string url,
+            string jsonBody,
+            Dictionary<string, string> headers)
         {
-            using var unityRequest = CreateRequest(request);
+            using var request = new UnityWebRequest(url, method);
 
-            var operation = unityRequest.SendWebRequest();
+            request.timeout = _timeoutSeconds;
+
+            if (string.IsNullOrEmpty(jsonBody) == false)
+            {
+                var bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+                request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            }
+
+            request.downloadHandler = new DownloadHandlerBuffer();
+
+            if (headers != null)
+            {
+                foreach (var pair in headers)
+                {
+                    request.SetRequestHeader(pair.Key, pair.Value);
+                }
+            }
+
+            var operation = request.SendWebRequest();
 
             while (!operation.isDone)
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 await Task.Yield();
             }
 
-            return new SupabaseHttpResponse
-            {
-                StatusCode = unityRequest.responseCode,
-                Text = unityRequest.downloadHandler?.text,
-                ErrorMessage = unityRequest.result == UnityWebRequest.Result.Success
-                    ? null
-                    : unityRequest.error
-            };
-        }
+#if UNITY_2020_2_OR_NEWER
+            var success = request.result == UnityWebRequest.Result.Success;
+#else
+            var success = !request.isNetworkError && !request.isHttpError;
+#endif
 
-        private UnityWebRequest CreateRequest(SupabaseHttpRequest request)
-        {
-            var unityRequest = new UnityWebRequest(request.Url, request.Method)
-            {
-                downloadHandler = new DownloadHandlerBuffer(),
-                timeout = request.TimeoutSeconds > 0
-                    ? request.TimeoutSeconds
-                    : _defaultTimeoutSeconds
-            };
+            var body = request.downloadHandler?.text ?? "";
+            var status = request.responseCode;
 
-            if (string.IsNullOrEmpty(request.Body) == false)
+            if (success)
             {
-                var bytes = Encoding.UTF8.GetBytes(request.Body);
-                unityRequest.uploadHandler = new UploadHandlerRaw(bytes);
+                return SupabaseHttpResponse.Success(status, body);
             }
 
-            if (request.Headers != null)
-            {
-                foreach (var pair in request.Headers)
-                    unityRequest.SetRequestHeader(pair.Key, pair.Value);
-            }
-
-            return unityRequest;
+            return SupabaseHttpResponse.Fail(status, body, request.error);
         }
     }
 }
