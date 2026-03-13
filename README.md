@@ -21,3 +21,12 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 - Auth: sign-in, refresh, sign-out
 - Database: select, filter, insert
 - Functions: invoke
+
+
+
+
+의존성 항목 추가
+    implementation "androidx.credentials:credentials:1.6.0-rc02"
+    implementation "androidx.credentials:credentials-play-services-auth:1.6.0-rc02"
+    implementation "com.google.android.libraries.identity.googleid:googleid:1.1.1"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
