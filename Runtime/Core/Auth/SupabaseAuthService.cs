@@ -33,12 +33,7 @@ namespace Truesoft.Supabase.Core.Auth
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken)
         {
-            return await SignInWithIdTokenAsync("google", idToken, null);
-        }
-
-        public async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, string nonce)
-        {
-            return await SignInWithIdTokenAsync("google", idToken, nonce);
+            return await SignInWithIdTokenAsync("google", idToken);
         }
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithIdTokenAsync(
