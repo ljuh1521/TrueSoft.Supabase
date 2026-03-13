@@ -1,22 +1,30 @@
-using Truesoft.Supabase.Core.Http;
+// using Truesoft.Supabase.Core.Auth;
+// using Truesoft.Supabase.Core.Data;
+// using Truesoft.Supabase.Core.Http;
 
-namespace Truesoft.Supabase.Unity
+namespace Truesoft.Supabase.Unity.Config
 {
-    public static class SupabaseUnityBootstrap
+    public sealed class SupabaseUnityBootstrap
     {
-        public static SupabaseClient CreateClient(SupabaseSettings settings)
-        {
-            var options = new SupabaseOptions
-            {
-                ProjectURL = settings.projectUrl,
-                PublishableKey = settings.publishableKey
-            };
-
-            var http = new UnitySupabaseHttpClient(settings.timeoutSeconds);
-            var json = new UnitySupabaseJsonSerializer();
-            var storage = new UnityPlayerPrefsAuthStorage();
-
-            return new SupabaseClient(options, json, http, storage);
-        }
+        // public SupabaseAuthService AuthService { get; private set; }
+        // public SupabaseUserDataService UserDataService { get; private set; }
+        //
+        // public void Initialize(SupabaseSettings settings)
+        // {
+        //     var http = new UnitySupabaseHttpClient(settings.timeoutSeconds);
+        //     var json = new YourJsonSerializer();
+        //
+        //     AuthService = new SupabaseAuthService(
+        //         settings.supabaseUrl,
+        //         settings.publishableKey,
+        //         http,
+        //         json);
+        //
+        //     UserDataService = new SupabaseUserDataService(
+        //         settings.supabaseUrl,
+        //         settings.publishableKey,
+        //         http,
+        //         json);
+        // }
     }
 }
