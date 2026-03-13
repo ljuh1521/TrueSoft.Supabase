@@ -57,7 +57,7 @@ namespace Truesoft.Supabase.Core.Auth
             var body = new SignInWithIdTokenRequest
             {
                 provider = provider,
-                token = idToken,
+                id_token = idToken,
                 nonce = nonce
             };
 
@@ -198,7 +198,7 @@ namespace Truesoft.Supabase.Core.Auth
         private sealed class SignInWithIdTokenRequest
         {
             public string provider;
-            public string token;
+            public string id_token;
             public string nonce;
         }
 
