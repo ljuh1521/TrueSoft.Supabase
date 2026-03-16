@@ -1,5 +1,4 @@
 using Truesoft.Supabase.Core.Auth;
-using Truesoft.Supabase.Core.Config;
 using Truesoft.Supabase.Core.Data;
 using Truesoft.Supabase.Core.Http;
 using Truesoft.Supabase.Unity;

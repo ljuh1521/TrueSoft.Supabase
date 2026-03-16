@@ -19,7 +19,7 @@ namespace Truesoft.Supabase.Unity
                 if (_bootstrap == null)
                     throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
 
-                return _userSaves ??= new UserSavesFacade(_bootstrap.UserDataService, () => _bootstrap.AuthService);
+                return _userSaves ??= new UserSavesFacade(_bootstrap.UserDataService);
             }
         }
 
