@@ -17,5 +17,8 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>유저 데이터 저장/불러오기 퍼사드.</summary>
         public static UserSavesFacade UserSaves => SupabaseSDK.UserSaves;
+
+        /// <summary>이벤트 전송 퍼사드 (서버 권한 패턴용).</summary>
+        public static UserEventsFacade Events => SupabaseSDK.Events;
     }
 }
