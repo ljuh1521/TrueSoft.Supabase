@@ -96,7 +96,7 @@ namespace Truesoft.Supabase.Core.Data
 
             try
             {
-                var rows = _jsonSerializer.FromJson<SaveRowResponse<T>[]>(response.Body);
+                var rows = _jsonSerializer.FromJsonArray<SaveRowResponse<T>>(response.Body);
 
                 if (rows == null || rows.Length == 0 || rows[0] == null || rows[0].save_data == null)
                 {
