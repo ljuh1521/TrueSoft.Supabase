@@ -54,7 +54,7 @@ namespace Truesoft.Supabase.Core.Data
                 method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateSaveHeaders(accessToken));
+                headers: CreateAuthHeaders(accessToken, "resolution=merge-duplicates,return=minimal"));
 
             if (response == null)
                 return SupabaseResult<bool>.Fail("http_response_null");
@@ -85,7 +85,7 @@ namespace Truesoft.Supabase.Core.Data
                 method: "GET",
                 url: url,
                 jsonBody: null,
-                headers: CreateLoadHeaders(accessToken));
+                headers: CreateAuthHeaders(accessToken, prefer: null));
 
             if (response == null)
                 return SupabaseResult<T>.Fail("http_response_null");
@@ -110,25 +110,19 @@ namespace Truesoft.Supabase.Core.Data
             }
         }
 
-        private Dictionary<string, string> CreateSaveHeaders(string accessToken)
+        private Dictionary<string, string> CreateAuthHeaders(string accessToken, string prefer = null)
         {
-            return new Dictionary<string, string>
-            {
-                { "apikey", _publishableKey },
-                { "Authorization", "Bearer " + accessToken },
-                { "Content-Type", "application/json" },
-                { "Prefer", "resolution=merge-duplicates,return=minimal" }
-            };
-        }
-
-        private Dictionary<string, string> CreateLoadHeaders(string accessToken)
-        {
-            return new Dictionary<string, string>
+            var headers = new Dictionary<string, string>
             {
                 { "apikey", _publishableKey },
                 { "Authorization", "Bearer " + accessToken },
                 { "Content-Type", "application/json" }
             };
+
+            if (string.IsNullOrEmpty(prefer) == false)
+                headers["Prefer"] = prefer;
+
+            return headers;
         }
 
         [Serializable]

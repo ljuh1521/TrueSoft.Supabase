@@ -9,9 +9,9 @@ namespace Truesoft.Supabase.Core.Auth
     public sealed class SupabaseAuthService
     {
         private readonly string _supabaseUrl;
-        private readonly string _publishableKey;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
+        private readonly Dictionary<string, string> _defaultHeaders;
 
         public SupabaseAuthService(
             string supabaseUrl,
@@ -26,9 +26,14 @@ namespace Truesoft.Supabase.Core.Auth
                 throw new ArgumentException("publishableKey is null or empty", nameof(publishableKey));
 
             _supabaseUrl = supabaseUrl.TrimEnd('/');
-            _publishableKey = publishableKey;
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
+            _defaultHeaders = new Dictionary<string, string>
+            {
+                { "apikey", publishableKey },
+                { "Authorization", "Bearer " + publishableKey },
+                { "Content-Type", "application/json" }
+            };
         }
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken)
@@ -62,39 +67,9 @@ namespace Truesoft.Supabase.Core.Auth
                 method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateDefaultHeaders());
+                headers: _defaultHeaders);
 
-            if (response == null)
-                return SupabaseResult<SupabaseSession>.Fail("http_response_null");
-
-            if (response.IsSuccess == false)
-            {
-                var errorMessage = ExtractErrorMessage(response.Body);
-                if (string.IsNullOrWhiteSpace(errorMessage))
-                    errorMessage = response.ErrorMessage ?? $"supabase_auth_failed:{response.StatusCode}";
-
-                return SupabaseResult<SupabaseSession>.Fail(errorMessage);
-            }
-
-            if (string.IsNullOrWhiteSpace(response.Body)) 
-                return SupabaseResult<SupabaseSession>.Fail("response_body_empty");
-
-            try
-            {
-                var session = _jsonSerializer.FromJson<SupabaseSession>(response.Body);
-
-                if (session == null)
-                    return SupabaseResult<SupabaseSession>.Fail("session_null");
-
-                if (string.IsNullOrWhiteSpace(session.access_token))
-                    return SupabaseResult<SupabaseSession>.Fail("access_token_empty");
-
-                return SupabaseResult<SupabaseSession>.Success(session);
-            }
-            catch (Exception e)
-            {
-                return SupabaseResult<SupabaseSession>.Fail("session_parse_exception:" + e.Message);
-            }
+            return HandleSessionResponse(response, "supabase_auth_failed");
         }
 
         public async Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(string refreshToken)
@@ -115,8 +90,13 @@ namespace Truesoft.Supabase.Core.Auth
                 method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateDefaultHeaders());
+                headers: _defaultHeaders);
 
+            return HandleSessionResponse(response, "refresh_failed");
+        }
+
+        private SupabaseResult<SupabaseSession> HandleSessionResponse(SupabaseHttpResponse response, string defaultError)
+        {
             if (response == null)
                 return SupabaseResult<SupabaseSession>.Fail("http_response_null");
 
@@ -124,7 +104,7 @@ namespace Truesoft.Supabase.Core.Auth
             {
                 var errorMessage = ExtractErrorMessage(response.Body);
                 if (string.IsNullOrWhiteSpace(errorMessage))
-                    errorMessage = response.ErrorMessage ?? "refresh_failed";
+                    errorMessage = response.ErrorMessage ?? defaultError;
 
                 return SupabaseResult<SupabaseSession>.Fail(errorMessage);
             }
@@ -146,18 +126,8 @@ namespace Truesoft.Supabase.Core.Auth
             }
             catch (Exception e)
             {
-                return SupabaseResult<SupabaseSession>.Fail("refresh_session_parse_exception:" + e.Message);
+                return SupabaseResult<SupabaseSession>.Fail("session_parse_exception:" + e.Message);
             }
-        }
-
-        private Dictionary<string, string> CreateDefaultHeaders()
-        {
-            return new Dictionary<string, string>
-            {
-                { "apikey", _publishableKey },
-                { "Authorization", "Bearer " + _publishableKey },
-                { "Content-Type", "application/json" }
-            };
         }
 
         private string ExtractErrorMessage(string body)
