@@ -95,7 +95,11 @@ namespace Truesoft.Supabase.Unity.Config
                     continue;
 
                 if (Contains(keys, b.key))
+                {
+                    Debug.Log($"HandleChanged: ApplyOverwriteBinding: {b.key}");
                     ApplyOverwriteBinding(b);
+                }
+                    
             }
 
             for (var i = 0; i < rawJsonEventBindings.Count; i++)
