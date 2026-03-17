@@ -33,6 +33,14 @@ namespace Truesoft.Supabase.Unity.Config
             }
         }
 
+        private void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.F1))
+            {
+                Supabase.RemoteConfig.RefreshAllAsync();
+            }
+        }
+
         private IEnumerator Run()
         {
             // SDK 초기화 대기
