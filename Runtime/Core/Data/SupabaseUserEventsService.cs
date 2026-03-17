@@ -62,7 +62,8 @@ namespace Truesoft.Supabase.Core.Data
                 created_at = DateTime.UtcNow.ToString("o")
             };
 
-            var bodyJson = _jsonSerializer.ToJson(new[] { row });
+            var singleJson = _jsonSerializer.ToJson(row);
+            var bodyJson = "[" + singleJson + "]";
 
             var response = await _httpClient.SendAsync(
                 method: "POST",

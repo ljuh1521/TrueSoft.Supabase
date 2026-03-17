@@ -48,7 +48,8 @@ namespace Truesoft.Supabase.Core.Data
                 updated_at = DateTime.UtcNow.ToString("o")
             };
 
-            var bodyJson = _jsonSerializer.ToJson(new[] { body });
+            var singleJson = _jsonSerializer.ToJson(body);
+            var bodyJson = "[" + singleJson + "]";
 
             var response = await _httpClient.SendAsync(
                 method: "POST",
