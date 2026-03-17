@@ -9,10 +9,19 @@ namespace Truesoft.Supabase.Unity
     public sealed class UserSavesFacade
     {
         private readonly SupabaseUserDataService _userDataService;
+        private readonly Func<SupabaseSession> _sessionGetter;
 
-        public UserSavesFacade(SupabaseUserDataService userDataService)
+        public UserSavesFacade(SupabaseUserDataService userDataService, Func<SupabaseSession> sessionGetter = null)
         {
             _userDataService = userDataService ?? throw new ArgumentNullException(nameof(userDataService));
+            _sessionGetter = sessionGetter;
+        }
+
+        /// <summary>현재 SDK 세션으로 저장. 로그인 후 SetSession 되어 있으면 세션 인자 없이 호출 가능.</summary>
+        public Task<SupabaseResult<bool>> SaveAsync<T>(T data)
+        {
+            var session = _sessionGetter?.Invoke();
+            return SaveAsync(session, data);
         }
 
         public async Task<SupabaseResult<bool>> SaveAsync<T>(SupabaseSession session, T data)
@@ -30,6 +39,13 @@ namespace Truesoft.Supabase.Unity
                 accessToken: accessToken,
                 userId: userId,
                 data: data);
+        }
+
+        /// <summary>현재 SDK 세션으로 로드. 로그인 후 SetSession 되어 있으면 세션 인자 없이 호출 가능.</summary>
+        public Task<SupabaseResult<T>> LoadAsync<T>() where T : class, new()
+        {
+            var session = _sessionGetter?.Invoke();
+            return LoadAsync(session);
         }
 
         public async Task<SupabaseResult<T>> LoadAsync<T>(SupabaseSession session) where T : class, new()

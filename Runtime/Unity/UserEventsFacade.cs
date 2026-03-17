@@ -13,23 +13,35 @@ namespace Truesoft.Supabase.Unity
     public sealed class UserEventsFacade
     {
         private readonly SupabaseUserEventsService _eventsService;
+        private readonly Func<SupabaseSession> _sessionGetter;
 
-        public UserEventsFacade(SupabaseUserEventsService eventsService)
+        public UserEventsFacade(SupabaseUserEventsService eventsService, Func<SupabaseSession> sessionGetter = null)
         {
             _eventsService = eventsService ?? throw new ArgumentNullException(nameof(eventsService));
+            _sessionGetter = sessionGetter;
         }
 
-        /// <summary>
-        /// 페이로드 없이 이벤트만 전송합니다.
-        /// </summary>
+        /// <summary>현재 SDK 세션으로 이벤트 전송. 페이로드 없음.</summary>
+        public Task<SupabaseResult<bool>> SendAsync(string eventType)
+        {
+            var session = _sessionGetter?.Invoke();
+            return SendAsync(session, eventType);
+        }
+
+        /// <summary>현재 SDK 세션으로 이벤트+페이로드 전송.</summary>
+        public Task<SupabaseResult<bool>> SendAsync<T>(string eventType, T payload)
+        {
+            var session = _sessionGetter?.Invoke();
+            return SendAsync(session, eventType, payload);
+        }
+
+        /// <summary>페이로드 없이 이벤트만 전송합니다.</summary>
         public Task<SupabaseResult<bool>> SendAsync(SupabaseSession session, string eventType)
         {
             return SendAsync(session, eventType, (object)null);
         }
 
-        /// <summary>
-        /// 이벤트와 페이로드를 전송합니다. T는 [Serializable]이고 public 필드만 직렬화됩니다.
-        /// </summary>
+        /// <summary>이벤트와 페이로드를 전송합니다. T는 [Serializable]이고 public 필드만 직렬화됩니다.</summary>
         public async Task<SupabaseResult<bool>> SendAsync<T>(SupabaseSession session, string eventType, T payload)
         {
             if (session == null)
