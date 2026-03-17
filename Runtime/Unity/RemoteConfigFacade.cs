@@ -61,6 +61,12 @@ namespace Truesoft.Supabase.Unity
             if (result.IsSuccess == false || result.Data == null)
                 return false;
 
+            SupabaseRemoteConfigService.RemoteConfigRow[] data = result.Data;
+            foreach (var d in data)
+            {
+                Debug.Log($"RemoteConfig: {d.key} = {d.value_json}");
+            }
+
             ApplyRows(result.Data, replace: true);
             return true;
         }
