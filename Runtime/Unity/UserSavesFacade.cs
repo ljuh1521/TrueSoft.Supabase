@@ -45,7 +45,7 @@ namespace Truesoft.Supabase.Unity
         public Task<SupabaseResult<T>> LoadAsync<T>() where T : class, new()
         {
             var session = _sessionGetter?.Invoke();
-            return LoadAsync(session);
+            return LoadAsync<T>(session);
         }
 
         public async Task<SupabaseResult<T>> LoadAsync<T>(SupabaseSession session) where T : class, new()
