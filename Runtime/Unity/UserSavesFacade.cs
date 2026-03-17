@@ -36,7 +36,7 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
                 return SupabaseResult<bool>.Fail("auth_not_signed_in");
             
-            Debug.Log($"Saving data for user {userId}: {data}: {DateTime.UtcNow.ToString("o")}");
+            Debug.Log($"Saving data for user {userId}: {data}: {accessToken}");
             return await _userDataService.SaveAsync(
                 accessToken: accessToken,
                 userId: userId,
