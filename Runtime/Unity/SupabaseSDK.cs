@@ -15,6 +15,7 @@ namespace Truesoft.Supabase.Unity
         private static SupabaseSession _currentSession;
         private static UserSavesFacade _userSaves;
         private static UserEventsFacade _userEvents;
+        private static RemoteConfigFacade _remoteConfig;
 
         /// <summary>SDK가 초기화되었는지 여부.</summary>
         public static bool IsInitialized => _bootstrap != null;
@@ -53,6 +54,20 @@ namespace Truesoft.Supabase.Unity
                     throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
 
                 return _userEvents ??= new UserEventsFacade(_bootstrap.UserEventsService, () => _currentSession);
+            }
+        }
+
+        /// <summary>RemoteConfig 퍼사드. 초기화 후에만 사용하세요.</summary>
+        public static RemoteConfigFacade RemoteConfig
+        {
+            get
+            {
+                if (_bootstrap == null)
+                    throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
+
+                return _remoteConfig ??= new RemoteConfigFacade(
+                    _bootstrap.RemoteConfigService,
+                    () => _currentSession?.AccessToken);
             }
         }
 
@@ -106,6 +121,7 @@ namespace Truesoft.Supabase.Unity
             _currentSession = null;
             _userSaves = null;
             _userEvents = null;
+            _remoteConfig = null;
         }
     }
 }

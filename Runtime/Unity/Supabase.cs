@@ -28,6 +28,9 @@ namespace Truesoft.Supabase.Unity
         /// <summary>이벤트 전송 퍼사드 (서버 권한 패턴용).</summary>
         public static UserEventsFacade Events => SupabaseSDK.Events;
 
+        /// <summary>RemoteConfig 퍼사드.</summary>
+        public static RemoteConfigFacade RemoteConfig => SupabaseSDK.RemoteConfig;
+
         /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load/Events는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
 
