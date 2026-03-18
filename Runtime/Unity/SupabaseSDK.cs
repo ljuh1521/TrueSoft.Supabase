@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Data;
@@ -16,6 +17,7 @@ namespace Truesoft.Supabase.Unity
         private static UserSavesFacade _userSaves;
         private static UserEventsFacade _userEvents;
         private static RemoteConfigFacade _remoteConfig;
+        private static readonly Dictionary<string, ChatChannelFacade> _chatChannels = new(StringComparer.Ordinal);
 
         /// <summary>SDK가 초기화되었는지 여부.</summary>
         public static bool IsInitialized => _bootstrap != null;
@@ -71,7 +73,7 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
-        /// <summary>같은 channel_id 유저끼리 채팅. 로그인 세션 필요.</summary>
+        /// <summary>같은 channel_id 유저끼리 채팅. 로그인 세션 필요. 채널 단위로 Facade를 캐시합니다.</summary>
         public static ChatChannelFacade OpenChatChannel(string channelId, string displayName = null)
         {
             if (_bootstrap == null)
@@ -80,11 +82,43 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(channelId))
                 throw new ArgumentException("channelId is empty", nameof(channelId));
 
-            return new ChatChannelFacade(
+            channelId = channelId.Trim();
+
+            if (_chatChannels.TryGetValue(channelId, out var existing))
+                return existing;
+
+            var facade = new ChatChannelFacade(
                 _bootstrap.ChatService,
                 () => _currentSession,
-                channelId.Trim(),
+                channelId,
                 displayName);
+
+            _chatChannels[channelId] = facade;
+            return facade;
+        }
+
+        /// <summary>현재 캐시에 열린 채팅 채널이 있으면 반환합니다. 없으면 null.</summary>
+        public static ChatChannelFacade GetChatChannel(string channelId)
+        {
+            if (string.IsNullOrWhiteSpace(channelId))
+                return null;
+
+            _chatChannels.TryGetValue(channelId.Trim(), out var facade);
+            return facade;
+        }
+
+        /// <summary>채팅 채널 캐시에서 제거합니다. (예: 세션 변경, 완전 종료 시)</summary>
+        public static void CloseChatChannel(string channelId)
+        {
+            if (string.IsNullOrWhiteSpace(channelId))
+                return;
+
+            channelId = channelId.Trim();
+            if (_chatChannels.TryGetValue(channelId, out var facade))
+            {
+                facade.StopPolling();
+                _chatChannels.Remove(channelId);
+            }
         }
 
         /// <summary>로그인 성공 시 세션을 SDK에 설정하세요. 이후 SaveAsync/LoadAsync/Events는 세션 없이 호출 가능.</summary>
@@ -96,6 +130,13 @@ namespace Truesoft.Supabase.Unity
         /// <summary>로그아웃 시 호출. clearStorage가 true면 PlayerPrefs에 저장된 refresh_token도 삭제합니다.</summary>
         public static void ClearSession(bool clearStorage = true)
         {
+            // 채널 상태는 세션이 끊기면 더 이상 의미가 없으므로 정리
+            foreach (var pair in _chatChannels)
+            {
+                pair.Value?.StopPolling();
+            }
+            _chatChannels.Clear();
+
             _currentSession = null;
             if (clearStorage)
                 PlayerPrefs.DeleteKey(RefreshTokenKey);
@@ -138,6 +179,7 @@ namespace Truesoft.Supabase.Unity
             _userSaves = null;
             _userEvents = null;
             _remoteConfig = null;
+            _chatChannels.Clear();
         }
     }
 }
