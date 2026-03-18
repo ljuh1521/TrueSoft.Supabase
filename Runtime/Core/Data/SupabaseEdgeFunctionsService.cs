@@ -1,0 +1,107 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Truesoft.Supabase.Core.Common;
+using Truesoft.Supabase.Core.Http;
+
+namespace Truesoft.Supabase.Core.Data
+{
+    /// <summary>
+    /// Supabase Edge Functions 호출 서비스.
+    /// endpoint: /functions/v1/{functionName}
+    /// </summary>
+    public sealed class SupabaseEdgeFunctionsService
+    {
+        private readonly string _supabaseUrl;
+        private readonly string _publishableKey;
+        private readonly ISupabaseHttpClient _httpClient;
+        private readonly ISupabaseJsonSerializer _jsonSerializer;
+
+        public SupabaseEdgeFunctionsService(
+            string supabaseUrl,
+            string publishableKey,
+            ISupabaseHttpClient httpClient,
+            ISupabaseJsonSerializer jsonSerializer)
+        {
+            _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
+            _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
+        }
+
+        public async Task<SupabaseResult<SupabaseFunctionResponse>> InvokeRawAsync(
+            string functionName,
+            string accessToken = null,
+            object requestBody = null)
+        {
+            if (string.IsNullOrWhiteSpace(functionName))
+                return SupabaseResult<SupabaseFunctionResponse>.Fail("function_name_empty");
+
+            var url = $"{_supabaseUrl}/functions/v1/{Uri.EscapeDataString(functionName)}";
+            var bodyJson = requestBody == null ? null : _jsonSerializer.ToJson(requestBody);
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateHeaders(accessToken));
+
+            if (response == null)
+                return SupabaseResult<SupabaseFunctionResponse>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<SupabaseFunctionResponse>.Fail(response.ErrorMessage ?? response.Body ?? "function_invoke_failed");
+
+            var data = new SupabaseFunctionResponse
+            {
+                StatusCode = response.StatusCode,
+                Body = response.Body ?? string.Empty
+            };
+
+            return SupabaseResult<SupabaseFunctionResponse>.Success(data);
+        }
+
+        public async Task<SupabaseResult<TResponse>> InvokeAsync<TResponse>(
+            string functionName,
+            string accessToken = null,
+            object requestBody = null)
+        {
+            var raw = await InvokeRawAsync(functionName, accessToken, requestBody);
+            if (raw.IsSuccess == false)
+                return SupabaseResult<TResponse>.Fail(raw.ErrorMessage ?? "function_invoke_failed");
+
+            if (raw.Data == null || string.IsNullOrWhiteSpace(raw.Data.Body))
+                return SupabaseResult<TResponse>.Fail("function_response_empty");
+
+            try
+            {
+                var parsed = _jsonSerializer.FromJson<TResponse>(raw.Data.Body);
+                return SupabaseResult<TResponse>.Success(parsed);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<TResponse>.Fail("function_parse_exception:" + e.Message);
+            }
+        }
+
+        private Dictionary<string, string> CreateHeaders(string accessToken)
+        {
+            var bearer = string.IsNullOrWhiteSpace(accessToken) ? _publishableKey : accessToken;
+
+            return new Dictionary<string, string>
+            {
+                { "apikey", _publishableKey },
+                { "Authorization", "Bearer " + bearer },
+                { "Content-Type", "application/json" }
+            };
+        }
+    }
+
+    [Serializable]
+    public sealed class SupabaseFunctionResponse
+    {
+        public long StatusCode;
+        public string Body;
+    }
+}
+

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
+using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Data;
 using Truesoft.Supabase.Unity.Config;
 using UnityEngine;
@@ -17,6 +18,7 @@ namespace Truesoft.Supabase.Unity
         private static UserSavesFacade _userSaves;
         private static UserEventsFacade _userEvents;
         private static RemoteConfigFacade _remoteConfig;
+        private static ServerFunctionsFacade _functions;
         private static readonly Dictionary<string, ChatChannelFacade> _chatChannels = new(StringComparer.Ordinal);
 
         /// <summary>SDK가 초기화되었는지 여부.</summary>
@@ -35,6 +37,40 @@ namespace Truesoft.Supabase.Unity
         /// <summary>인증 서비스. 초기화 후에만 사용하세요.</summary>
         public static SupabaseAuthService Auth => _bootstrap?.AuthService;
 
+        /// <summary>Google ID Token으로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
+        public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
+        {
+            if (Auth == null)
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            var result = await Auth.SignInWithGoogleIdTokenAsync(idToken);
+            if (result.IsSuccess && result.Data != null)
+            {
+                SetSession(result.Data);
+                if (saveSessionToStorage)
+                    SaveSessionToStorage();
+            }
+
+            return result;
+        }
+
+        /// <summary>refresh_token으로 세션을 갱신하고 SDK 세션을 자동 설정합니다.</summary>
+        public static async Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(string refreshToken, bool saveSessionToStorage = true)
+        {
+            if (Auth == null)
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            var result = await Auth.RefreshSessionAsync(refreshToken);
+            if (result.IsSuccess && result.Data != null)
+            {
+                SetSession(result.Data);
+                if (saveSessionToStorage)
+                    SaveSessionToStorage();
+            }
+
+            return result;
+        }
+
         /// <summary>유저 세이브/로드 퍼사드. 초기화 후에만 사용하세요.</summary>
         public static UserSavesFacade UserSaves
         {
@@ -45,6 +81,18 @@ namespace Truesoft.Supabase.Unity
 
                 return _userSaves ??= new UserSavesFacade(_bootstrap.UserDataService, () => _currentSession);
             }
+        }
+
+        /// <summary>현재 세션으로 유저 데이터 저장.</summary>
+        public static Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data)
+        {
+            return UserSaves.SaveAsync(data);
+        }
+
+        /// <summary>현재 세션으로 유저 데이터 로드.</summary>
+        public static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new()
+        {
+            return UserSaves.LoadAsync<T>();
         }
 
         /// <summary>이벤트 전송 퍼사드. 초기화 후에만 사용하세요.</summary>
@@ -59,6 +107,18 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
+        /// <summary>현재 세션으로 이벤트 전송 (payload 없음).</summary>
+        public static Task<SupabaseResult<bool>> SendUserEventAsync(string eventType)
+        {
+            return Events.SendAsync(eventType);
+        }
+
+        /// <summary>현재 세션으로 이벤트+payload 전송.</summary>
+        public static Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload)
+        {
+            return Events.SendAsync(eventType, payload);
+        }
+
         /// <summary>RemoteConfig 퍼사드. 초기화 후에만 사용하세요.</summary>
         public static RemoteConfigFacade RemoteConfig
         {
@@ -70,6 +130,52 @@ namespace Truesoft.Supabase.Unity
                 return _remoteConfig ??= new RemoteConfigFacade(
                     _bootstrap.RemoteConfigService,
                     () => _currentSession?.AccessToken);
+            }
+        }
+
+        /// <summary>RemoteConfig 전체 새로고침.</summary>
+        public static Task<bool> RefreshRemoteConfigAsync()
+        {
+            return RemoteConfig.RefreshAllAsync();
+        }
+
+        /// <summary>RemoteConfig 변경분 폴링.</summary>
+        public static Task<bool> PollRemoteConfigAsync()
+        {
+            return RemoteConfig.PollAsync();
+        }
+
+        public static T GetRemoteConfig<T>(string key, T defaultValue = default)
+        {
+            return RemoteConfig.Get(key, defaultValue);
+        }
+
+        public static bool TryGetRemoteConfigRaw(string key, out string valueJson)
+        {
+            return RemoteConfig.TryGetRaw(key, out valueJson);
+        }
+
+        public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true)
+        {
+            RemoteConfig.Subscribe(key, onValueChanged, invokeIfCached);
+        }
+
+        public static void UnsubscribeRemoteConfig(string key, Action<string> onValueChanged)
+        {
+            RemoteConfig.Unsubscribe(key, onValueChanged);
+        }
+
+        /// <summary>서버 함수(Edge Functions) 호출 퍼사드.</summary>
+        public static ServerFunctionsFacade Functions
+        {
+            get
+            {
+                if (_bootstrap == null)
+                    throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
+
+                return _functions ??= new ServerFunctionsFacade(
+                    _bootstrap.EdgeFunctionsService,
+                    () => _currentSession);
             }
         }
 
@@ -105,6 +211,18 @@ namespace Truesoft.Supabase.Unity
         {
             var channel = OpenChatChannel(channelId, displayName);
             return channel.SendAsync(content);
+        }
+
+        /// <summary>채널이 현재 SDK 캐시에 열려 있는지 확인.</summary>
+        public static bool IsChatChannelOpen(string channelId)
+        {
+            return GetChatChannel(channelId) != null;
+        }
+
+        /// <summary>서버 함수 호출(로그인 세션 필요).</summary>
+        public static Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(string functionName, object requestBody = null)
+        {
+            return Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: true);
         }
 
         /// <summary>
@@ -246,6 +364,7 @@ namespace Truesoft.Supabase.Unity
             _userSaves = null;
             _userEvents = null;
             _remoteConfig = null;
+            _functions = null;
             _chatChannels.Clear();
         }
     }

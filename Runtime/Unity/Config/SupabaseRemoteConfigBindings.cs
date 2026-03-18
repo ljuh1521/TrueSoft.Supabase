@@ -7,7 +7,7 @@ namespace Truesoft.Supabase.Unity.Config
 {
     /// <summary>
     /// RemoteConfig 값을 ScriptableObject에 자동 적용합니다.
-    /// key별 JSON 콜백은 Inspector 대신 코드에서 <see cref="RemoteConfigFacade.Subscribe"/> 를 사용하세요.
+    /// overwriteBindings에 등록된 key를 구독하여 value_json 변경 시 ScriptableObject에 덮어씁니다.
     /// </summary>
     public sealed class SupabaseRemoteConfigBindings : MonoBehaviour
     {
@@ -22,6 +22,8 @@ namespace Truesoft.Supabase.Unity.Config
         [Header("Overwrite ScriptableObjects")]
         [SerializeField] private List<OverwriteBinding> overwriteBindings = new List<OverwriteBinding>();
 
+        private readonly Dictionary<string, Action<string>> _subscriptions = new Dictionary<string, Action<string>>(StringComparer.Ordinal);
+
         private void OnEnable()
         {
             if (!Supabase.IsInitialized)
@@ -30,7 +32,24 @@ namespace Truesoft.Supabase.Unity.Config
                 return;
             }
 
-            Supabase.RemoteConfig.OnChanged += HandleChanged;
+            // key별로 subscribe (applyOnStart는 invokeIfCached로 처리)
+            for (var i = 0; i < overwriteBindings.Count; i++)
+            {
+                var binding = overwriteBindings[i];
+                if (binding == null || string.IsNullOrWhiteSpace(binding.key) || binding.target == null)
+                    continue;
+
+                var key = binding.key.Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                // closure 안전: 로컬 복사본 사용
+                var localBinding = binding;
+                Action<string> handler = _ => ApplyOverwriteBinding(localBinding);
+
+                _subscriptions[key] = handler;
+                Supabase.SubscribeRemoteConfig(key, handler, invokeIfCached: localBinding.applyOnStart);
+            }
         }
 
         private void OnDisable()
@@ -38,37 +57,15 @@ namespace Truesoft.Supabase.Unity.Config
             if (!Supabase.IsInitialized)
                 return;
 
-            Supabase.RemoteConfig.OnChanged -= HandleChanged;
+            foreach (var pair in _subscriptions)
+                Supabase.UnsubscribeRemoteConfig(pair.Key, pair.Value);
+
+            _subscriptions.Clear();
         }
 
         private void Start()
         {
-            if (!Supabase.IsInitialized)
-                return;
-
-            foreach (var b in overwriteBindings)
-            {
-                if (b == null || b.applyOnStart == false)
-                    continue;
-
-                ApplyOverwriteBinding(b);
-            }
-        }
-
-        private void HandleChanged(IReadOnlyList<string> keys)
-        {
-            if (keys == null || keys.Count == 0)
-                return;
-
-            for (var i = 0; i < overwriteBindings.Count; i++)
-            {
-                var b = overwriteBindings[i];
-                if (b == null || string.IsNullOrWhiteSpace(b.key))
-                    continue;
-
-                if (Contains(keys, b.key))
-                    ApplyOverwriteBinding(b);
-            }
+            // applyOnStart는 SubscribeRemoteConfig(..., invokeIfCached:true)에서 처리
         }
 
         private void ApplyOverwriteBinding(OverwriteBinding binding)
@@ -76,7 +73,7 @@ namespace Truesoft.Supabase.Unity.Config
             if (binding.target == null || string.IsNullOrWhiteSpace(binding.key))
                 return;
 
-            if (Supabase.RemoteConfig.TryGetRaw(binding.key, out var json) == false || string.IsNullOrWhiteSpace(json))
+            if (Supabase.TryGetRemoteConfigRaw(binding.key, out var json) == false || string.IsNullOrWhiteSpace(json))
                 return;
 
             try
@@ -87,17 +84,6 @@ namespace Truesoft.Supabase.Unity.Config
             {
                 Debug.LogError($"[Supabase] RemoteConfig overwrite failed. key={binding.key}, target={binding.target.name}, err={e.Message}");
             }
-        }
-
-        private static bool Contains(IReadOnlyList<string> keys, string key)
-        {
-            for (var i = 0; i < keys.Count; i++)
-            {
-                if (string.Equals(keys[i], key, StringComparison.Ordinal))
-                    return true;
-            }
-
-            return false;
         }
     }
 }

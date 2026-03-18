@@ -37,7 +37,7 @@ namespace Truesoft.Supabase.Unity.Config
         {
             if (Input.GetKeyDown(KeyCode.F1))
             {
-                Supabase.RemoteConfig.RefreshAllAsync();
+                Supabase.RefreshRemoteConfigAsync();
             }
         }
 
@@ -49,7 +49,7 @@ namespace Truesoft.Supabase.Unity.Config
 
             if (refreshAllOnStart)
             {
-                var t = Supabase.RemoteConfig.RefreshAllAsync();
+                var t = Supabase.RefreshRemoteConfigAsync();
                 yield return new WaitUntil(() => t.IsCompleted);
             }
 
@@ -58,7 +58,7 @@ namespace Truesoft.Supabase.Unity.Config
 
             while (true)
             {
-                var t = Supabase.RemoteConfig.PollAsync();
+                var t = Supabase.PollRemoteConfigAsync();
                 yield return new WaitUntil(() => t.IsCompleted);
                 yield return new WaitForSeconds(pollIntervalSeconds);
             }

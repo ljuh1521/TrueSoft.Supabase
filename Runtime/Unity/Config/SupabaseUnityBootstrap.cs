@@ -12,6 +12,7 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseUserEventsService UserEventsService { get; private set; }
         public SupabaseRemoteConfigService RemoteConfigService { get; private set; }
         public SupabaseChatService ChatService { get; private set; }
+        public SupabaseEdgeFunctionsService EdgeFunctionsService { get; private set; }
 
         public void Initialize(SupabaseSettings settings)
         {
@@ -45,6 +46,12 @@ namespace Truesoft.Supabase.Unity.Config
                 json);
 
             ChatService = new SupabaseChatService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                json);
+
+            EdgeFunctionsService = new SupabaseEdgeFunctionsService(
                 options.ProjectURL,
                 options.PublishableKey,
                 http,
