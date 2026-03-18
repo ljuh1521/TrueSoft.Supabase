@@ -71,6 +71,22 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
+        /// <summary>같은 channel_id 유저끼리 채팅. 로그인 세션 필요.</summary>
+        public static ChatChannelFacade OpenChatChannel(string channelId, string displayName = null)
+        {
+            if (_bootstrap == null)
+                throw new InvalidOperationException("SupabaseSDK is not initialized.");
+
+            if (string.IsNullOrWhiteSpace(channelId))
+                throw new ArgumentException("channelId is empty", nameof(channelId));
+
+            return new ChatChannelFacade(
+                _bootstrap.ChatService,
+                () => _currentSession,
+                channelId.Trim(),
+                displayName);
+        }
+
         /// <summary>로그인 성공 시 세션을 SDK에 설정하세요. 이후 SaveAsync/LoadAsync/Events는 세션 없이 호출 가능.</summary>
         public static void SetSession(SupabaseSession session)
         {

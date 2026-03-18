@@ -11,6 +11,7 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseUserDataService UserDataService { get; private set; }
         public SupabaseUserEventsService UserEventsService { get; private set; }
         public SupabaseRemoteConfigService RemoteConfigService { get; private set; }
+        public SupabaseChatService ChatService { get; private set; }
 
         public void Initialize(SupabaseSettings settings)
         {
@@ -38,6 +39,12 @@ namespace Truesoft.Supabase.Unity.Config
                 json);
 
             RemoteConfigService = new SupabaseRemoteConfigService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                json);
+
+            ChatService = new SupabaseChatService(
                 options.ProjectURL,
                 options.PublishableKey,
                 http,

@@ -39,6 +39,10 @@ namespace Truesoft.Supabase.Unity
         public static void UnsubscribeRemoteConfig(string key, Action<string> onValueChanged) =>
             SupabaseSDK.RemoteConfig.Unsubscribe(key, onValueChanged);
 
+        /// <summary>채팅 채널 열기 (동일 channel_id 참여자와 대화). 로그인 후 호출.</summary>
+        public static ChatChannelFacade OpenChatChannel(string channelId, string displayName = null) =>
+            SupabaseSDK.OpenChatChannel(channelId, displayName);
+
         /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load/Events는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
 
