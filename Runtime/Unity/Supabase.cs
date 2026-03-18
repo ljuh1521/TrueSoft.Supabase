@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Unity.Config;
@@ -30,6 +31,13 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>RemoteConfig 퍼사드.</summary>
         public static RemoteConfigFacade RemoteConfig => SupabaseSDK.RemoteConfig;
+
+        /// <summary>특정 key가 갱신될 때마다 콜백 (코드 연결, 실제 JSON 문자열 전달).</summary>
+        public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true) =>
+            SupabaseSDK.RemoteConfig.Subscribe(key, onValueChanged, invokeIfCached);
+
+        public static void UnsubscribeRemoteConfig(string key, Action<string> onValueChanged) =>
+            SupabaseSDK.RemoteConfig.Unsubscribe(key, onValueChanged);
 
         /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load/Events는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
