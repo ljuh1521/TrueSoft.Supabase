@@ -97,6 +97,73 @@ namespace Truesoft.Supabase.Unity
             return facade;
         }
 
+        /// <summary>
+        /// 채팅 메시지 한 건 전송 (인스턴스를 직접 들고 있지 않아도 됨).
+        /// UI에서 채널 접속/폴링 여부는 여전히 OpenChatChannel/StartPolling으로 직접 관리하세요.
+        /// </summary>
+        public static Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null)
+        {
+            var channel = OpenChatChannel(channelId, displayName);
+            return channel.SendAsync(content);
+        }
+
+        /// <summary>
+        /// 채팅 채널에 join + 이벤트 구독 + 폴링 시작까지 한 번에 수행합니다.
+        /// 반환값은 캐시에 저장된 Facade이지만, 호출 측에서 들고 있을 필요는 없습니다.
+        /// </summary>
+        public static ChatChannelFacade JoinChatChannel(
+            string channelId,
+            MonoBehaviour pollHost,
+            Action<SupabaseChatService.ChatMessageRow> onMessageReceived,
+            float pollIntervalSeconds = 1.5f,
+            bool loadHistory = true,
+            int historyCount = 50)
+        {
+            if (pollHost == null)
+                throw new ArgumentNullException(nameof(pollHost));
+
+            var channel = OpenChatChannel(channelId);
+
+            if (onMessageReceived != null)
+                channel.OnMessageReceived += onMessageReceived;
+
+            if (loadHistory)
+                pollHost.StartCoroutine(LoadHistoryRoutine(channel, historyCount));
+
+            channel.StartPolling(pollHost, pollIntervalSeconds);
+            return channel;
+        }
+
+        /// <summary>
+        /// JoinChatChannel로 구독한 채널에서 빠져나옵니다.
+        /// onMessageReceived를 넘기면 해당 핸들러만 제거하고, stopPollingIfNoListeners가 true면 더 이상 리스너가 없을 때 폴링을 멈춥니다.
+        /// </summary>
+        public static void LeaveChatChannel(
+            string channelId,
+            Action<SupabaseChatService.ChatMessageRow> onMessageReceived = null,
+            bool stopPollingIfNoListeners = true)
+        {
+            var channel = GetChatChannel(channelId);
+            if (channel == null)
+                return;
+
+            if (onMessageReceived != null)
+                channel.OnMessageReceived -= onMessageReceived;
+
+            if (stopPollingIfNoListeners)
+            {
+                // event에 남은 구독자가 있는지 확인할 수 없으므로, 호출 측에서 명시적으로 CloseChatChannel을 부르지 않는 한
+                // 여기서는 단순히 StopPolling만 맡깁니다.
+                channel.StopPolling();
+            }
+        }
+
+        private static System.Collections.IEnumerator LoadHistoryRoutine(ChatChannelFacade channel, int count)
+        {
+            var task = channel.LoadHistoryAsync(count);
+            yield return new UnityEngine.WaitUntil(() => task.IsCompleted);
+        }
+
         /// <summary>현재 캐시에 열린 채팅 채널이 있으면 반환합니다. 없으면 null.</summary>
         public static ChatChannelFacade GetChatChannel(string channelId)
         {

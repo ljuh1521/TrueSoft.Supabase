@@ -43,6 +43,33 @@ namespace Truesoft.Supabase.Unity
         public static ChatChannelFacade OpenChatChannel(string channelId, string displayName = null) =>
             SupabaseSDK.OpenChatChannel(channelId, displayName);
 
+        /// <summary>채팅 메시지 전송 (채널 인스턴스를 직접 들고 있지 않아도 됨).</summary>
+        public static Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null) =>
+            SupabaseSDK.SendChatMessageAsync(channelId, content, displayName);
+
+        /// <summary>
+        /// 채널 join + 이벤트 구독 + 폴링 시작을 한 번에 수행합니다.
+        /// 예: Supabase.JoinChatChannel(\"room-1\", this, OnChatMessage);
+        /// </summary>
+        public static ChatChannelFacade JoinChatChannel(
+            string channelId,
+            UnityEngine.MonoBehaviour pollHost,
+            Action<Core.Data.SupabaseChatService.ChatMessageRow> onMessageReceived,
+            float pollIntervalSeconds = 1.5f,
+            bool loadHistory = true,
+            int historyCount = 50) =>
+            SupabaseSDK.JoinChatChannel(channelId, pollHost, onMessageReceived, pollIntervalSeconds, loadHistory, historyCount);
+
+        /// <summary>
+        /// JoinChatChannel로 구독한 채널에서 빠져나옵니다.
+        /// 예: Supabase.LeaveChatChannel(\"room-1\", OnChatMessage);
+        /// </summary>
+        public static void LeaveChatChannel(
+            string channelId,
+            Action<Core.Data.SupabaseChatService.ChatMessageRow> onMessageReceived = null,
+            bool stopPollingIfNoListeners = true) =>
+            SupabaseSDK.LeaveChatChannel(channelId, onMessageReceived, stopPollingIfNoListeners);
+
         /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load/Events는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
 
