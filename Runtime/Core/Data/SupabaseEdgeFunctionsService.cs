@@ -39,6 +39,7 @@ namespace Truesoft.Supabase.Core.Data
 
             var url = $"{_supabaseUrl}/functions/v1/{Uri.EscapeDataString(functionName)}";
             var bodyJson = requestBody == null ? null : _jsonSerializer.ToJson(requestBody);
+            var authDebug = BuildAuthDebug(accessToken, url);
 
             var response = await _httpClient.SendAsync(
                 method: "POST",
@@ -50,7 +51,7 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<SupabaseFunctionResponse>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-                return SupabaseResult<SupabaseFunctionResponse>.Fail(FormatHttpError(response, "function_invoke_failed"));
+                return SupabaseResult<SupabaseFunctionResponse>.Fail(FormatHttpError(response, "function_invoke_failed") + "|" + authDebug);
 
             var data = new SupabaseFunctionResponse
             {
@@ -110,6 +111,22 @@ namespace Truesoft.Supabase.Core.Data
                 { "Authorization", "Bearer " + bearer },
                 { "Content-Type", "application/json" }
             };
+        }
+
+        private string BuildAuthDebug(string accessToken, string url)
+        {
+            var isUsingAccessToken = string.IsNullOrWhiteSpace(accessToken) == false;
+            var bearer = isUsingAccessToken ? accessToken : _publishableKey;
+
+            // Never return the token itself; only return shape metadata.
+            var segments = 0;
+            if (string.IsNullOrWhiteSpace(bearer) == false)
+            {
+                // JWT should have 3 segments. anon key should typically have 0.
+                segments = bearer.Split('.').Length;
+            }
+
+            return $"client_auth=source={(isUsingAccessToken ? "access_token" : "anon_key")},jwt_segments={segments},url={url}";
         }
 
         private static string FormatHttpError(SupabaseHttpResponse response, string fallback)
