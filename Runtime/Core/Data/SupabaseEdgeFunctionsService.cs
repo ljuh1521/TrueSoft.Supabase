@@ -118,18 +118,29 @@ namespace Truesoft.Supabase.Core.Data
                 return "http_response_null";
 
             // Supabase Edge Function은 보통 JSON body에 더 자세한 오류를 담습니다.
-            var detail = response.Body;
-            if (string.IsNullOrWhiteSpace(detail))
-                detail = response.ErrorMessage;
+            var body = response.Body;
+            var err = response.ErrorMessage;
 
-            if (string.IsNullOrWhiteSpace(detail))
-                detail = fallback;
+            if (string.IsNullOrWhiteSpace(body))
+                body = err;
 
-            // 너무 길어지지 않도록 제한
-            if (detail.Length > 300)
-                detail = detail.Substring(0, 300);
+            if (string.IsNullOrWhiteSpace(body))
+                body = fallback;
 
-            return $"http_{response.StatusCode}:{detail}";
+            // 너무 길어지지 않도록 제한(디버깅을 위해 기존보다 훨씬 크게)
+            const int maxLen = 5000;
+            body = body.Trim();
+            if (body.Length > maxLen)
+                body = body.Substring(0, maxLen) + "...(truncated)";
+
+            if (string.IsNullOrWhiteSpace(err) || string.Equals(err, body, StringComparison.Ordinal))
+                return $"http_{response.StatusCode}:{body}";
+
+            err = err.Trim();
+            if (err.Length > 800)
+                err = err.Substring(0, 800) + "...";
+
+            return $"http_{response.StatusCode}:body={body}|error={err}";
         }
     }
 
