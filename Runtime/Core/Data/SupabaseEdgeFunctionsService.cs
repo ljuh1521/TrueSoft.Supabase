@@ -75,7 +75,23 @@ namespace Truesoft.Supabase.Core.Data
 
             try
             {
-                var parsed = _jsonSerializer.FromJson<TResponse>(raw.Data.Body);
+                var body = raw.Data.Body;
+                var trimmed = body?.TrimStart();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                    return SupabaseResult<TResponse>.Fail("function_response_empty");
+
+                // Unity JsonUtility는 루트 배열(JSON이 []로 시작) 파싱에 취약하므로,
+                // 응답이 배열 루트인 경우 첫 번째 원소를 객체 루트처럼 취급합니다.
+                if (trimmed.StartsWith("["))
+                {
+                    var arr = _jsonSerializer.FromJsonArray<TResponse>(trimmed);
+                    if (arr == null || arr.Length == 0)
+                        return SupabaseResult<TResponse>.Fail("function_response_empty");
+
+                    return SupabaseResult<TResponse>.Success(arr[0]);
+                }
+
+                var parsed = _jsonSerializer.FromJson<TResponse>(body);
                 return SupabaseResult<TResponse>.Success(parsed);
             }
             catch (Exception e)
