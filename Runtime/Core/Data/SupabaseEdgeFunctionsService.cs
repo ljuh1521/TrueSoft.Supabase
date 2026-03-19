@@ -39,7 +39,6 @@ namespace Truesoft.Supabase.Core.Data
 
             var url = $"{_supabaseUrl}/functions/v1/{Uri.EscapeDataString(functionName)}";
             var bodyJson = requestBody == null ? null : _jsonSerializer.ToJson(requestBody);
-            var authDebug = BuildAuthDebug(accessToken, url);
 
             var response = await _httpClient.SendAsync(
                 method: "POST",
@@ -51,7 +50,7 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<SupabaseFunctionResponse>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-                return SupabaseResult<SupabaseFunctionResponse>.Fail(FormatHttpError(response, "function_invoke_failed") + "|" + authDebug);
+                return SupabaseResult<SupabaseFunctionResponse>.Fail(FormatHttpError(response, "function_invoke_failed"));
 
             var data = new SupabaseFunctionResponse
             {
@@ -115,14 +114,6 @@ namespace Truesoft.Supabase.Core.Data
             return headers;
         }
 
-        private string BuildAuthDebug(string accessToken, string url)
-        {
-            var hasAccessToken = string.IsNullOrWhiteSpace(accessToken) == false;
-            var segments = hasAccessToken ? accessToken.Split('.').Length : 0;
-
-            return $"client_auth=has_token={hasAccessToken},jwt_segments={segments},url={url}";
-        }
-
         private static string FormatHttpError(SupabaseHttpResponse response, string fallback)
         {
             if (response == null)
@@ -138,8 +129,7 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(body))
                 body = fallback;
 
-            // 너무 길어지지 않도록 제한(디버깅을 위해 기존보다 훨씬 크게)
-            const int maxLen = 5000;
+            const int maxLen = 2000;
             body = body.Trim();
             if (body.Length > maxLen)
                 body = body.Substring(0, maxLen) + "...(truncated)";
