@@ -122,7 +122,83 @@ else
 - Edge Function 응답이 루트 객체(JSON이 `{`로 시작)인 경우가 가장 깔끔합니다.
 - 만약 루트가 배열(JSON이 `[`로 시작)로 오더라도 SDK가 첫 번째 원소를 객체처럼 파싱하도록 처리해 줍니다. (단, 성능/가독성 측면에서는 객체 루트를 권장)
 
-## 3) 권장 보안 체크
+## 3) 401 Invalid JWT 디버깅용 Edge Function
+
+Unity에서 `http_401:body={"code":401,"message":"Invalid JWT"}` 가 나올 때, **원인 확인**을 위해 아래처럼 401 응답에 디버그 정보를 넣어서 배포해 보세요.  
+한 번 호출 후 Unity 로그에 찍힌 `body=...` 내용을 보면, 헤더 존재 여부·토큰 형식·`getUser` 에러 메시지를 확인할 수 있습니다.
+
+```ts
+// 401 시 디버그 정보를 body에 담아 반환하는 예시 (임시 배포용)
+Deno.serve(async (request: Request) => {
+  if (request.method !== "POST") {
+    return new Response(JSON.stringify({ error: "method_not_allowed" }), { status: 405 });
+  }
+
+  const authHeader = request.headers.get("Authorization");
+  const hasBearer = authHeader?.startsWith("Bearer ");
+  const token = hasBearer ? authHeader!.slice(7).trim() : "";
+  const tokenSegments = token ? token.split(".").length : 0;
+
+  const debug: Record<string, unknown> = {
+    code: 401,
+    message: "Invalid JWT",
+    debug: {
+      hasAuthHeader: !!authHeader,
+      hasBearer,
+      tokenLength: token.length,
+      tokenSegments,
+      expectedSegments: 3,
+    },
+  };
+
+  if (!authHeader || !hasBearer || tokenSegments !== 3) {
+    return new Response(JSON.stringify(debug), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError) {
+      debug.debug = { ...(debug.debug as object), getUserError: userError.message };
+      return new Response(JSON.stringify(debug), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (!userData?.user) {
+      debug.debug = { ...(debug.debug as object), getUserData: "null_or_no_user" };
+      return new Response(JSON.stringify(debug), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  } catch (e) {
+    debug.debug = { ...(debug.debug as object), exception: String(e) };
+    return new Response(JSON.stringify(debug), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // 이하 정상 로직 (gacha 등) ...
+});
+```
+
+- `hasAuthHeader` / `hasBearer` / `tokenSegments`: 헤더가 오는지, Bearer인지, JWT 3단 구성인지 확인.
+- `getUserError`: `supabase.auth.getUser(token)` 실패 시 Supabase가 준 메시지.
+- `exception`: 예외 발생 시 메시지.
+
+이렇게 배포한 뒤 Unity에서 다시 호출하면, `Draw failed: http_401:body={...}` 에서 `debug` 내용을 보고 원인을 좁힐 수 있습니다. 원인 해결 후에는 보안을 위해 `debug` 필드를 제거하고 일반 401 메시지만 반환하세요.
+
+## 4) 권장 보안 체크
 
 - 클라이언트에서 결과 계산 금지 (서버에서만 확률/시드/테이블 계산)
 - 사용자 재화 검증/차감 로직은 서버 함수 내부에서 처리
