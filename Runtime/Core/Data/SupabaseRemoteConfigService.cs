@@ -92,8 +92,6 @@ namespace Truesoft.Supabase.Core.Data
 
             if (string.IsNullOrWhiteSpace(accessToken) == false)
                 headers["Authorization"] = "Bearer " + accessToken;
-            else
-                headers["Authorization"] = "Bearer " + _publishableKey;
 
             return headers;
         }

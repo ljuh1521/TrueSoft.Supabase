@@ -31,7 +31,6 @@ namespace Truesoft.Supabase.Core.Auth
             _defaultHeaders = new Dictionary<string, string>
             {
                 { "apikey", publishableKey },
-                { "Authorization", "Bearer " + publishableKey },
                 { "Content-Type", "application/json" }
             };
         }
@@ -181,5 +180,6 @@ namespace Truesoft.Supabase.Core.Auth
             public string msg;
             public int code;
         }
+
     }
 }

@@ -103,30 +103,24 @@ namespace Truesoft.Supabase.Core.Data
 
         private Dictionary<string, string> CreateHeaders(string accessToken)
         {
-            var bearer = string.IsNullOrWhiteSpace(accessToken) ? _publishableKey : accessToken;
-
-            return new Dictionary<string, string>
+            var headers = new Dictionary<string, string>
             {
                 { "apikey", _publishableKey },
-                { "Authorization", "Bearer " + bearer },
                 { "Content-Type", "application/json" }
             };
+
+            if (string.IsNullOrWhiteSpace(accessToken) == false)
+                headers["Authorization"] = "Bearer " + accessToken;
+
+            return headers;
         }
 
         private string BuildAuthDebug(string accessToken, string url)
         {
-            var isUsingAccessToken = string.IsNullOrWhiteSpace(accessToken) == false;
-            var bearer = isUsingAccessToken ? accessToken : _publishableKey;
+            var hasAccessToken = string.IsNullOrWhiteSpace(accessToken) == false;
+            var segments = hasAccessToken ? accessToken.Split('.').Length : 0;
 
-            // Never return the token itself; only return shape metadata.
-            var segments = 0;
-            if (string.IsNullOrWhiteSpace(bearer) == false)
-            {
-                // JWT should have 3 segments. anon key should typically have 0.
-                segments = bearer.Split('.').Length;
-            }
-
-            return $"client_auth=source={(isUsingAccessToken ? "access_token" : "anon_key")},jwt_segments={segments},url={url}";
+            return $"client_auth=has_token={hasAccessToken},jwt_segments={segments},url={url}";
         }
 
         private static string FormatHttpError(SupabaseHttpResponse response, string fallback)
