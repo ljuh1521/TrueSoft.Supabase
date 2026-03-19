@@ -50,7 +50,7 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<SupabaseFunctionResponse>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-                return SupabaseResult<SupabaseFunctionResponse>.Fail(response.ErrorMessage ?? response.Body ?? "function_invoke_failed");
+                return SupabaseResult<SupabaseFunctionResponse>.Fail(FormatHttpError(response, "function_invoke_failed"));
 
             var data = new SupabaseFunctionResponse
             {
@@ -110,6 +110,26 @@ namespace Truesoft.Supabase.Core.Data
                 { "Authorization", "Bearer " + bearer },
                 { "Content-Type", "application/json" }
             };
+        }
+
+        private static string FormatHttpError(SupabaseHttpResponse response, string fallback)
+        {
+            if (response == null)
+                return "http_response_null";
+
+            // Supabase Edge Function은 보통 JSON body에 더 자세한 오류를 담습니다.
+            var detail = response.Body;
+            if (string.IsNullOrWhiteSpace(detail))
+                detail = response.ErrorMessage;
+
+            if (string.IsNullOrWhiteSpace(detail))
+                detail = fallback;
+
+            // 너무 길어지지 않도록 제한
+            if (detail.Length > 300)
+                detail = detail.Substring(0, 300);
+
+            return $"http_{response.StatusCode}:{detail}";
         }
     }
 
