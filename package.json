@@ -12,6 +12,11 @@
       "displayName": "Basic Setup",
       "description": "Initialization and basic API examples.",
       "path": "Samples~/BasicSetup"
+    },
+    {
+      "displayName": "Full SDK Usage",
+      "description": "End-to-end sample covering auth, data, events, remote config, functions, and chat.",
+      "path": "Samples~/FullSDKUsage"
     }
   ]
 }

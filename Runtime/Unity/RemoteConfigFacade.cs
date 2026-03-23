@@ -46,7 +46,7 @@ namespace Truesoft.Supabase.Unity
             if (list.Contains(onValueChanged) == false)
                 list.Add(onValueChanged);
 
-            // Strict mode: value_json must be an object-root JSON (starts with '{').
+            // 엄격 모드: value_json은 객체 루트(JSON이 '{'로 시작)여야 합니다.
             if (invokeIfCached && TryGetRaw(key, out var json) && IsObjectRootJson(json))
                 onValueChanged.Invoke(json);
         }
@@ -82,7 +82,7 @@ namespace Truesoft.Supabase.Unity
 
             try
             {
-                // Strict mode: only accept object-root JSON.
+                // 엄격 모드: 객체 루트(JSON이 '{'로 시작)만 허용합니다.
                 if (IsObjectRootJson(json) == false)
                     return defaultValue;
 
@@ -137,10 +137,10 @@ namespace Truesoft.Supabase.Unity
                     continue;
 
                 var newValue = row.value_json ?? string.Empty;
-                // Strict mode: only object-root JSON values are allowed to be cached/notified.
+                // 엄격 모드: 객체 루트 JSON만 캐시/알림 대상으로 허용합니다.
                 if (IsObjectRootJson(newValue) == false)
                 {
-                    Debug.LogError($"[Supabase] RemoteConfig value_json must be object-root JSON. key={row.key}, value={TruncateForLog(newValue, 200)}");
+                    Debug.LogError($"[Supabase] RemoteConfig value_json은 객체 루트(JSON이 '{{'로 시작)여야 합니다. key={row.key}, value={TruncateForLog(newValue, 200)}");
                     continue;
                 }
 
@@ -182,7 +182,7 @@ namespace Truesoft.Supabase.Unity
                 return;
 
             TryGetRaw(key, out var json);
-            // Strict mode: don't notify if the cached value isn't valid object-root.
+            // 엄격 모드: 캐시된 값이 객체 루트가 아니면 구독자에게 알리지 않습니다.
             if (IsObjectRootJson(json) == false)
                 return;
             var snapshot = new List<Action<string>>(list);
@@ -194,7 +194,7 @@ namespace Truesoft.Supabase.Unity
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError($"[Supabase] RemoteConfig key subscriber error. key={key}, err={e.Message}");
+                    Debug.LogError($"[Supabase] RemoteConfig 구독자 처리 중 오류. key={key}, err={e.Message}");
                 }
             }
         }
@@ -211,13 +211,13 @@ namespace Truesoft.Supabase.Unity
         private static string TruncateForLog(string value, int maxLen)
         {
             if (string.IsNullOrEmpty(value))
-                return "(empty)";
+                return "(빈 값)";
 
             value = value.Trim();
             if (value.Length <= maxLen)
                 return value;
 
-            return value.Substring(0, maxLen) + "...(truncated)";
+            return value.Substring(0, maxLen) + "...(일부 생략)";
         }
     }
 }

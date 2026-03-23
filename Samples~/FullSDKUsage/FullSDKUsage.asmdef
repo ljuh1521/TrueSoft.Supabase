@@ -1,0 +1,16 @@
+{
+  "name": "Truesoft.Supabase.Samples.FullSDKUsage",
+  "rootNamespace": "Truesoft.Supabase.Samples",
+  "references": [
+    "Truesoft.Supabase"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

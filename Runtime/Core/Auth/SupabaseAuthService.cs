@@ -48,7 +48,7 @@ namespace Truesoft.Supabase.Core.Auth
         /// </summary>
         public async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync()
         {
-            // Supabase Auth anonymous sign-in is implemented via POST /auth/v1/signup with empty JSON body.
+            // Supabase Auth 익명 가입은 POST /auth/v1/signup 요청에 빈 JSON 바디({})를 보내는 방식으로 동작합니다.
             // 프로젝트 설정에서 "Anonymous sign-ins" 활성화가 필요합니다.
             var url = $"{_supabaseUrl}/auth/v1/signup";
 
@@ -249,7 +249,7 @@ namespace Truesoft.Supabase.Core.Auth
         [Serializable]
         private sealed class AnonymousSignupRequest
         {
-            // Intentionally empty. JsonUtility로 "{}"를 만들기 위한 용도입니다.
+            // JsonUtility로 "{}"를 만들기 위한 용도입니다.
         }
 
         [Serializable]
