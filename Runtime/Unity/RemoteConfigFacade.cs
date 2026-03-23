@@ -46,7 +46,8 @@ namespace Truesoft.Supabase.Unity
             if (list.Contains(onValueChanged) == false)
                 list.Add(onValueChanged);
 
-            if (invokeIfCached && TryGetRaw(key, out var json))
+            // Strict mode: value_json must be an object-root JSON (starts with '{').
+            if (invokeIfCached && TryGetRaw(key, out var json) && IsObjectRootJson(json))
                 onValueChanged.Invoke(json);
         }
 
@@ -81,6 +82,10 @@ namespace Truesoft.Supabase.Unity
 
             try
             {
+                // Strict mode: only accept object-root JSON.
+                if (IsObjectRootJson(json) == false)
+                    return defaultValue;
+
                 return JsonUtility.FromJson<T>(json);
             }
             catch
@@ -132,6 +137,12 @@ namespace Truesoft.Supabase.Unity
                     continue;
 
                 var newValue = row.value_json ?? string.Empty;
+                // Strict mode: only object-root JSON values are allowed to be cached/notified.
+                if (IsObjectRootJson(newValue) == false)
+                {
+                    Debug.LogError($"[Supabase] RemoteConfig value_json must be object-root JSON. key={row.key}, value={TruncateForLog(newValue, 200)}");
+                    continue;
+                }
 
                 if (_cache.TryGetValue(row.key, out var oldValue))
                 {
@@ -171,6 +182,9 @@ namespace Truesoft.Supabase.Unity
                 return;
 
             TryGetRaw(key, out var json);
+            // Strict mode: don't notify if the cached value isn't valid object-root.
+            if (IsObjectRootJson(json) == false)
+                return;
             var snapshot = new List<Action<string>>(list);
             foreach (var cb in snapshot)
             {
@@ -183,6 +197,27 @@ namespace Truesoft.Supabase.Unity
                     Debug.LogError($"[Supabase] RemoteConfig key subscriber error. key={key}, err={e.Message}");
                 }
             }
+        }
+
+        private static bool IsObjectRootJson(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return false;
+
+            var trimmed = json.TrimStart();
+            return trimmed.StartsWith("{");
+        }
+
+        private static string TruncateForLog(string value, int maxLen)
+        {
+            if (string.IsNullOrEmpty(value))
+                return "(empty)";
+
+            value = value.Trim();
+            if (value.Length <= maxLen)
+                return value;
+
+            return value.Substring(0, maxLen) + "...(truncated)";
         }
     }
 }

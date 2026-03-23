@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using Truesoft.Supabase.Unity;
 using Truesoft.Supabase.Unity.Auth.Google;
 using UnityEngine;
@@ -12,21 +11,12 @@ namespace Truesoft.Supabase.Unity.Config
     /// - SDK 초기화
     /// - 세션 자동 복원
     /// - RemoteConfig 첫 로드 + 폴링
-    /// - RemoteConfig -> ScriptableObject overwrite 바인딩
     /// </summary>
     [DefaultExecutionOrder(-100)]
     [AddComponentMenu("TrueSoft/Supabase/Supabase Runtime")]
     public sealed class SupabaseRuntime : MonoBehaviour
     {
         private static SupabaseRuntime _instance;
-
-        [Serializable]
-        public sealed class OverwriteBinding
-        {
-            public string key;
-            public ScriptableObject target;
-            public bool applyOnStart = true;
-        }
 
         [Header("Initialization")]
         [SerializeField] private SupabaseSettings settings;
@@ -46,17 +36,7 @@ namespace Truesoft.Supabase.Unity.Config
         [Tooltip("RemoteConfig 폴링 주기(초). 0 이하면 폴링하지 않습니다.")]
         [SerializeField] private float pollIntervalSeconds = 10f;
 
-        [Header("Remote Config Overwrite Bindings")]
-        [SerializeField] private List<OverwriteBinding> overwriteBindings = new List<OverwriteBinding>();
-
         private Coroutine _lifecycleRoutine;
-        private readonly List<SubscriptionEntry> _subscriptions = new List<SubscriptionEntry>(16);
-
-        private struct SubscriptionEntry
-        {
-            public string Key;
-            public Action<string> Handler;
-        }
 
         private void Awake()
         {
@@ -102,8 +82,6 @@ namespace Truesoft.Supabase.Unity.Config
                 StopCoroutine(_lifecycleRoutine);
                 _lifecycleRoutine = null;
             }
-
-            UnsubscribeAllBindings();
         }
 
         private void OnDestroy()
@@ -126,8 +104,6 @@ namespace Truesoft.Supabase.Unity.Config
             if (!enableRemoteConfig)
                 yield break;
 
-            SubscribeAllBindings();
-
             if (refreshAllOnStart)
             {
                 var refreshTask = Supabase.RefreshRemoteConfigAsync();
@@ -142,64 +118,6 @@ namespace Truesoft.Supabase.Unity.Config
                 var pollTask = Supabase.PollRemoteConfigAsync();
                 yield return new WaitUntil(() => pollTask.IsCompleted);
                 yield return new WaitForSeconds(pollIntervalSeconds);
-            }
-        }
-
-        private void SubscribeAllBindings()
-        {
-            UnsubscribeAllBindings();
-
-            for (var i = 0; i < overwriteBindings.Count; i++)
-            {
-                var binding = overwriteBindings[i];
-                if (binding == null || binding.target == null || string.IsNullOrWhiteSpace(binding.key))
-                    continue;
-
-                var key = binding.key.Trim();
-                if (string.IsNullOrWhiteSpace(key))
-                    continue;
-
-                var localBinding = binding;
-                Action<string> handler = _ => ApplyOverwriteBinding(localBinding);
-
-                Supabase.SubscribeRemoteConfig(key, handler, localBinding.applyOnStart);
-                _subscriptions.Add(new SubscriptionEntry { Key = key, Handler = handler });
-            }
-        }
-
-        private void UnsubscribeAllBindings()
-        {
-            if (!Supabase.IsInitialized)
-            {
-                _subscriptions.Clear();
-                return;
-            }
-
-            for (var i = 0; i < _subscriptions.Count; i++)
-            {
-                var entry = _subscriptions[i];
-                if (!string.IsNullOrWhiteSpace(entry.Key) && entry.Handler != null)
-                    Supabase.UnsubscribeRemoteConfig(entry.Key, entry.Handler);
-            }
-
-            _subscriptions.Clear();
-        }
-
-        private static void ApplyOverwriteBinding(OverwriteBinding binding)
-        {
-            if (binding == null || binding.target == null || string.IsNullOrWhiteSpace(binding.key))
-                return;
-
-            if (!Supabase.TryGetRemoteConfigRaw(binding.key, out var json) || string.IsNullOrWhiteSpace(json))
-                return;
-
-            try
-            {
-                JsonUtility.FromJsonOverwrite(json, binding.target);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[Supabase] RemoteConfig overwrite failed. key={binding.key}, target={binding.target.name}, err={e.Message}");
             }
         }
 
