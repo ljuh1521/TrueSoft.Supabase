@@ -43,7 +43,44 @@ namespace Truesoft.Supabase.Unity
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
+            // 익명(게스트) 세션에서 Google idToken을 받으면, 먼저 identity link을 시도한 뒤 로그인합니다.
+            // 이를 통해 "게스트 -> 구글 연동" UX를 지원합니다.
+            if (IsAnonymousSession(_currentSession))
+            {
+                try
+                {
+                    var linkResult = await Auth.LinkIdentityWithIdTokenAsync(
+                        _currentSession.AccessToken,
+                        "google",
+                        idToken);
+
+                    if (linkResult.IsSuccess == false)
+                        UnityEngine.Debug.LogWarning("[Supabase] anonymous->google link failed: " + linkResult.ErrorMessage);
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogWarning("[Supabase] anonymous->google link exception: " + e.Message);
+                }
+            }
+
             var result = await Auth.SignInWithGoogleIdTokenAsync(idToken);
+            if (result.IsSuccess && result.Data != null)
+            {
+                SetSession(result.Data);
+                if (saveSessionToStorage)
+                    SaveSessionToStorage();
+            }
+
+            return result;
+        }
+
+        /// <summary>게스트(익명)로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
+        public static async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(bool saveSessionToStorage = true)
+        {
+            if (Auth == null)
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            var result = await Auth.SignInAnonymouslyAsync();
             if (result.IsSuccess && result.Data != null)
             {
                 SetSession(result.Data);
@@ -366,6 +403,17 @@ namespace Truesoft.Supabase.Unity
             _remoteConfig = null;
             _functions = null;
             _chatChannels.Clear();
+        }
+
+        private static bool IsAnonymousSession(SupabaseSession session)
+        {
+            if (session == null || session.User == null)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(session.AccessToken))
+                return false;
+
+            return session.User.IsAnonymous;
         }
     }
 }

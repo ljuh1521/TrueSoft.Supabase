@@ -26,6 +26,11 @@ namespace Truesoft.Supabase.Unity
             bool saveSessionToStorage = true) =>
             SupabaseSDK.SignInWithGoogleIdTokenAsync(idToken, saveSessionToStorage);
 
+        /// <summary>게스트(익명)로 가입하고 SDK 세션을 자동 설정.</summary>
+        public static Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(
+            bool saveSessionToStorage = true) =>
+            SupabaseSDK.SignInAnonymouslyAsync(saveSessionToStorage);
+
         /// <summary>refresh_token으로 세션 갱신 후 SDK 세션 자동 설정.</summary>
         public static Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(
             string refreshToken,

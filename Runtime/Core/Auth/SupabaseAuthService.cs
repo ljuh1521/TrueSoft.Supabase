@@ -9,6 +9,7 @@ namespace Truesoft.Supabase.Core.Auth
     public sealed class SupabaseAuthService
     {
         private readonly string _supabaseUrl;
+        private readonly string _publishableKey;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
         private readonly Dictionary<string, string> _defaultHeaders;
@@ -26,11 +27,12 @@ namespace Truesoft.Supabase.Core.Auth
                 throw new ArgumentException("publishableKey is null or empty", nameof(publishableKey));
 
             _supabaseUrl = supabaseUrl.TrimEnd('/');
+            _publishableKey = publishableKey.Trim();
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
             _defaultHeaders = new Dictionary<string, string>
             {
-                { "apikey", publishableKey },
+                { "apikey", _publishableKey },
                 { "Content-Type", "application/json" }
             };
         }
@@ -38,6 +40,84 @@ namespace Truesoft.Supabase.Core.Auth
         public async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken)
         {
             return await SignInWithIdTokenAsync("google", idToken);
+        }
+
+        /// <summary>
+        /// 게스트(익명) 로그인.
+        /// Supabase Auth의 signInAnonymously()와 동일한 개념으로, 사용자가 입력 없이 가입만 수행합니다.
+        /// </summary>
+        public async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync()
+        {
+            // Supabase Auth anonymous sign-in is implemented via POST /auth/v1/signup with empty JSON body.
+            // 프로젝트 설정에서 "Anonymous sign-ins" 활성화가 필요합니다.
+            var url = $"{_supabaseUrl}/auth/v1/signup";
+
+            var bodyJson = _jsonSerializer.ToJson(new AnonymousSignupRequest());
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: _defaultHeaders);
+
+            return HandleSessionResponse(response, "anonymous_signin_failed");
+        }
+
+        /// <summary>
+        /// 현재 로그인된 사용자(게스트 포함)에 OAuth identity를 ID token으로 링크합니다.
+        /// 예: 익명 로그인 후 Google idToken을 받아 linkIdentityWithIdToken과 유사한 동작을 수행합니다.
+        /// </summary>
+        public async Task<SupabaseResult<bool>> LinkIdentityWithIdTokenAsync(
+            string accessToken,
+            string provider,
+            string idToken,
+            string nonce = null)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(provider))
+                return SupabaseResult<bool>.Fail("provider_empty");
+
+            if (string.IsNullOrWhiteSpace(idToken))
+                return SupabaseResult<bool>.Fail("id_token_empty");
+
+            var url = $"{_supabaseUrl}/auth/v1/user/identities/link_token";
+
+            var body = new LinkIdentityWithIdTokenRequest
+            {
+                provider = provider,
+                id_token = idToken,
+                nonce = nonce
+            };
+
+            var bodyJson = _jsonSerializer.ToJson(body);
+
+            var headers = new Dictionary<string, string>
+            {
+                { "apikey", _publishableKey },
+                { "Authorization", "Bearer " + accessToken },
+                { "Content-Type", "application/json" }
+            };
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: headers);
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+            {
+                var errorMessage = ExtractErrorMessage(response.Body);
+                if (string.IsNullOrWhiteSpace(errorMessage))
+                    errorMessage = response.ErrorMessage ?? response.Body ?? "link_identity_failed";
+                return SupabaseResult<bool>.Fail(errorMessage);
+            }
+
+            return SupabaseResult<bool>.Success(true);
         }
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithIdTokenAsync(
@@ -160,6 +240,20 @@ namespace Truesoft.Supabase.Core.Auth
 
         [Serializable]
         private sealed class SignInWithIdTokenRequest
+        {
+            public string provider;
+            public string id_token;
+            public string nonce;
+        }
+
+        [Serializable]
+        private sealed class AnonymousSignupRequest
+        {
+            // Intentionally empty. JsonUtility로 "{}"를 만들기 위한 용도입니다.
+        }
+
+        [Serializable]
+        private sealed class LinkIdentityWithIdTokenRequest
         {
             public string provider;
             public string id_token;

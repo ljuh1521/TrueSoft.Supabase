@@ -25,8 +25,10 @@ namespace Truesoft.Supabase.Core.Auth
     {
         public string id;
         public string email;
+        public bool is_anonymous;
 
         public string Id => id;
         public string Email => email;
+        public bool IsAnonymous => is_anonymous;
     }
 }
