@@ -7,12 +7,12 @@ using Truesoft.Supabase.Unity.Config;
 namespace Truesoft.Supabase.Samples
 {
     /// <summary>
-    /// SDK 핵심 흐름(게스트 로그인 + Save/Load)을 확인하는 간단 샘플입니다.
+    /// SDK 핵심 흐름(게스트 로그인 + 저장·불러오기)을 확인하는 간단 샘플입니다.
     /// 씬에 `SupabaseRuntime` 오브젝트가 있어야 합니다.
     /// </summary>
     public sealed class ExampleBootstrap : MonoBehaviour
     {
-        [Header("Save/Load 예시값")]
+        [Header("저장·불러오기 예시 값")]
         [SerializeField] private int level = 1;
         [SerializeField] private int coins = 100;
 
@@ -27,7 +27,7 @@ namespace Truesoft.Supabase.Samples
             Run();
         }
 
-        [ContextMenu("게스트 로그인 -> Save/Load 실행")]
+        [ContextMenu("게스트 로그인 후 저장·불러오기 실행")]
         public void Run()
         {
             _ = RunAsync();

@@ -1,8 +1,8 @@
 # Basic Setup 샘플
 
-**최소 데모**(약 5분): 게스트 로그인 → 사용자 데이터 Save/Load → 사용자 이벤트 전송.
+**최소 데모**(약 5분): 게스트 로그인 → 사용자 데이터 저장·불러오기 → 사용자 이벤트 전송.
 
-RemoteConfig 구독, Edge Functions, 채팅 등은 **Full SDK Usage** 샘플을 Import 하세요.
+원격 설정·Edge Functions·채팅은 **Full SDK Usage** 샘플을 가져오세요.
 
 ## 실행 전 체크리스트
 
@@ -19,6 +19,6 @@ RemoteConfig 구독, Edge Functions, 채팅 등은 **Full SDK Usage** 샘플을 
 
 ## 인스펙터
 
-- `level`, `coins`: Save/Load에 사용되는 예시 값입니다.
+- `level`, `coins`: 저장·불러오기에 쓰는 예시 값입니다.
 
 초기화가 안 되면 콘솔에 출력되는 **`[Supabase 초기화 점검]`** 블록을 따르세요.

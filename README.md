@@ -18,14 +18,14 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 ## 제공 범위
 
-- Auth: 게스트 로그인, 구글 ID 토큰 로그인/연동, 세션 복원
-- User 데이터: 저장/로드
-- User 이벤트: 전송
-- RemoteConfig: 구독/새로고침/폴링/캐시 Get
-- Edge Functions: 함수 호출
-- Chat: 채널 입장/전송/이탈
+- **인증**: 게스트 로그인, Google ID 토큰 로그인·연동, 세션 복원
+- **사용자 데이터**: 저장·불러오기
+- **사용자 이벤트**: 전송
+- **원격 설정**: 구독, 새로고침, 폴링, 캐시에서 값 읽기
+- **Edge Functions**: 호출
+- **채팅**: 채널 입장·전송·이탈
 
 ## 샘플 (Package Manager)
 
-- **Basic Setup**: 최소 데모 (게스트, Save/Load, 이벤트)
-- **Full SDK Usage**: RemoteConfig, Edge Functions, Chat 등 전체 흐름
+- **Basic Setup**: 최소 데모(게스트 로그인, 저장·불러오기, 이벤트 전송)
+- **Full SDK Usage**: 인증·사용자 데이터·이벤트·원격 설정·Edge Functions·채팅까지 한 번에 보는 샘플

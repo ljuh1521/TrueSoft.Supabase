@@ -10,12 +10,12 @@
   "samples": [
     {
       "displayName": "Basic Setup",
-      "description": "최소 데모: 게스트 로그인, Save/Load, 이벤트 전송. RemoteConfig·함수·채팅은 Full SDK Usage 샘플을 사용하세요.",
+      "description": "Minimal demo: guest sign-in, save/load, user events. For remote config, edge functions, and chat, import Full SDK Usage.",
       "path": "Samples~/BasicSetup"
     },
     {
       "displayName": "Full SDK Usage",
-      "description": "전체 기능 샘플: Auth, 데이터, 이벤트, RemoteConfig, Edge Functions, Chat.",
+      "description": "End-to-end sample: auth, user data, user events, remote config, edge functions, chat.",
       "path": "Samples~/FullSDKUsage"
     }
   ]

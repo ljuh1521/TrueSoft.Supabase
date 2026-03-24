@@ -12,24 +12,24 @@ namespace Truesoft.Supabase.Samples
     /// </summary>
     public sealed class ExampleSupabaseAllFeatures : MonoBehaviour
     {
-        [Header("Run")]
+        [Header("실행")]
         [SerializeField] private bool runOnStart = true;
 
-        [Header("RemoteConfig")]
+        [Header("원격 설정")]
         [SerializeField] private string remoteConfigKey = "game_balance";
 
-        [Header("Edge Function")]
+        [Header("Edge Functions")]
         [SerializeField] private string functionName = "gacha";
         [SerializeField] private string functionBannerId = "normal_banner_001";
         [SerializeField] private int functionDrawCount = 5;
 
-        [Header("Chat")]
+        [Header("채팅")]
         [SerializeField] private string chatChannelId = "room-1";
         [SerializeField] private string chatDisplayName = "SampleUser";
         [SerializeField] private string chatMessage = "Hello from FullSDKUsage sample.";
 
-        [Header("Optional Google Link/Sign-In")]
-        [Tooltip("값을 입력하면, 게스트 로그인 후 Supabase.SignInWithGoogleIdTokenAsync(token)을 호출합니다.")]
+        [Header("Google 연동(선택)")]
+        [Tooltip("값을 넣으면 게스트 로그인 뒤 Google ID 토큰으로 로그인·연동(SignInWithGoogleIdTokenAsync)을 호출합니다.")]
         [SerializeField] private string googleIdTokenForLinkOrSignIn;
 
         private void Start()
@@ -51,7 +51,7 @@ namespace Truesoft.Supabase.Samples
                 EnsureRuntimeExists();
                 await WaitForSdkInitializedAsync();
 
-                // RemoteConfig: 먼저 구독을 등록해서 refresh/poll 이벤트를 확인합니다.
+                // 원격 설정: 먼저 구독을 등록해 새로고침·폴링 이벤트를 확인합니다.
                 Supabase.SubscribeRemoteConfig(remoteConfigKey, OnRemoteConfigChanged, invokeIfCached: true);
 
                 await RequireAuthSessionAsync();
@@ -62,11 +62,11 @@ namespace Truesoft.Supabase.Samples
                 await DemoFunctionAsync();
                 await DemoChatAsync();
 
-                Debug.Log("[Sample] Full SDK usage flow completed.");
+                Debug.Log("[Sample] 전체 샘플 흐름 완료.");
             }
             catch (Exception e)
             {
-                Debug.LogError("[Sample] Unexpected exception: " + e.Message);
+                Debug.LogError("[Sample] 예외: " + e.Message);
             }
         }
 
@@ -106,18 +106,18 @@ namespace Truesoft.Supabase.Samples
             {
                 var guest = await Supabase.SignInAnonymouslyAsync();
                 if (!guest.IsSuccess)
-                    throw new Exception("Guest sign-in failed: " + guest.ErrorMessage);
+                    throw new Exception("게스트 로그인 실패: " + guest.ErrorMessage);
 
-                Debug.Log("[Sample] Guest sign-in success.");
+                Debug.Log("[Sample] 게스트 로그인 성공.");
             }
 
             if (!string.IsNullOrWhiteSpace(googleIdTokenForLinkOrSignIn))
             {
                 var google = await Supabase.SignInWithGoogleIdTokenAsync(googleIdTokenForLinkOrSignIn);
                 if (!google.IsSuccess)
-                    Debug.LogWarning("[Sample] Google sign-in/link failed: " + google.ErrorMessage);
+                    Debug.LogWarning("[Sample] Google 로그인·연동 실패: " + google.ErrorMessage);
                 else
-                    Debug.Log("[Sample] Google sign-in/link success.");
+                    Debug.Log("[Sample] Google 로그인·연동 성공.");
             }
         }
 
@@ -133,21 +133,21 @@ namespace Truesoft.Supabase.Samples
 
             var saveResult = await Supabase.SaveUserDataAsync(save);
             if (!saveResult.IsSuccess)
-                throw new Exception("SaveUserData failed: " + saveResult.ErrorMessage);
+                throw new Exception("사용자 데이터 저장 실패: " + saveResult.ErrorMessage);
 
             var loadResult = await Supabase.LoadUserDataAsync<PlayerSaveData>();
             if (!loadResult.IsSuccess)
-                throw new Exception("LoadUserData failed: " + loadResult.ErrorMessage);
+                throw new Exception("사용자 데이터 불러오기 실패: " + loadResult.ErrorMessage);
 
             var data = loadResult.Data;
-            Debug.Log($"[Sample] Save/Load ok. level={data.level}, coins={data.coins}, stage={data.stage}");
+            Debug.Log($"[Sample] 저장·불러오기 완료. level={data.level}, coins={data.coins}, stage={data.stage}");
         }
 
         private async Task DemoEventsAsync()
         {
             var eventA = await Supabase.SendUserEventAsync("sample_session_started");
             if (!eventA.IsSuccess)
-                Debug.LogWarning("[Sample] SendUserEvent(no payload) failed: " + eventA.ErrorMessage);
+                Debug.LogWarning("[Sample] 이벤트 전송(페이로드 없음) 실패: " + eventA.ErrorMessage);
 
             var payload = new SessionEventPayload
             {
@@ -158,23 +158,23 @@ namespace Truesoft.Supabase.Samples
 
             var eventB = await Supabase.SendUserEventAsync("sample_session_payload", payload);
             if (!eventB.IsSuccess)
-                Debug.LogWarning("[Sample] SendUserEvent(payload) failed: " + eventB.ErrorMessage);
+                Debug.LogWarning("[Sample] 이벤트 전송(페이로드 있음) 실패: " + eventB.ErrorMessage);
         }
 
         private async Task DemoRemoteConfigAsync()
         {
             var refreshed = await Supabase.RefreshRemoteConfigAsync();
-            Debug.Log("[Sample] RemoteConfig refresh: " + refreshed);
+            Debug.Log("[Sample] 원격 설정 새로고침: " + refreshed);
 
             var polled = await Supabase.PollRemoteConfigAsync();
-            Debug.Log("[Sample] RemoteConfig poll: " + polled);
+            Debug.Log("[Sample] 원격 설정 폴링: " + polled);
 
             if (Supabase.TryGetRemoteConfigRaw(remoteConfigKey, out var raw))
-                Debug.Log("[Sample] RemoteConfig raw: " + raw);
+                Debug.Log("[Sample] 원격 설정 원문 JSON: " + raw);
 
             var typed = Supabase.GetRemoteConfig<BalanceConfig>(remoteConfigKey, default);
             if (typed != null)
-                Debug.Log($"[Sample] RemoteConfig typed: maxLevel={typed.maxLevel}, rewardMultiplier={typed.rewardMultiplier}");
+                Debug.Log($"[Sample] 원격 설정 파싱값: maxLevel={typed.maxLevel}, rewardMultiplier={typed.rewardMultiplier}");
         }
 
         private async Task DemoFunctionAsync()
@@ -188,19 +188,19 @@ namespace Truesoft.Supabase.Samples
             var result = await Supabase.InvokeFunctionAsync<DrawResponse>(functionName, request);
             if (!result.IsSuccess)
             {
-                Debug.LogWarning("[Sample] Edge function failed: " + result.ErrorMessage);
+                Debug.LogWarning("[Sample] Edge Functions 호출 실패: " + result.ErrorMessage);
                 return;
             }
 
             var response = result.Data;
             if (response == null)
             {
-                Debug.LogWarning("[Sample] Edge function response was null.");
+                Debug.LogWarning("[Sample] Edge Functions 응답이 null입니다.");
                 return;
             }
 
             var rewardCount = response.rewards == null ? 0 : response.rewards.Length;
-            Debug.Log($"[Sample] Edge function ok. banner={response.bannerId}, drawCount={response.drawCount}, rewards={rewardCount}");
+            Debug.Log($"[Sample] Edge Functions 호출 성공. banner={response.bannerId}, drawCount={response.drawCount}, rewards={rewardCount}");
         }
 
         private async Task DemoChatAsync()
@@ -214,17 +214,17 @@ namespace Truesoft.Supabase.Samples
                 historyCount: 20);
 
             var sent = await Supabase.SendChatMessageAsync(chatChannelId, chatMessage, chatDisplayName);
-            Debug.Log("[Sample] Chat send result: " + sent);
+            Debug.Log("[Sample] 채팅 전송 결과: " + sent);
         }
 
         private void OnRemoteConfigChanged(string json)
         {
-            Debug.Log($"[Sample] RemoteConfig changed. key={remoteConfigKey}, json={json}");
+            Debug.Log($"[Sample] 원격 설정 변경. key={remoteConfigKey}, json={json}");
         }
 
         private void OnChatMessageReceived(SupabaseChatService.ChatMessageRow row)
         {
-            Debug.Log($"[Sample] Chat[{row.channel_id}] {row.display_name}: {row.content}");
+            Debug.Log($"[Sample] 채팅[{row.channel_id}] {row.display_name}: {row.content}");
         }
 
         private void OnDestroy()
