@@ -11,6 +11,15 @@ using UnityEngine;
 
 namespace Truesoft.Supabase.Unity
 {
+    /// <summary>
+    /// Unity용 Supabase 정적 진입점. 초기화·인증·유저 데이터·이벤트·Remote Config·Edge Functions·채팅 API를 한 곳에 둡니다.
+    /// </summary>
+    /// <remarks>
+    /// <b>구글 로그인 두 가지</b><br/>
+    /// • <see cref="SignInWithGoogleAsync()"/> / <see cref="SignInWithGoogleAsync(string, bool)"/> — Android 네이티브 플러그인으로 계정 선택·ID 토큰 획득까지 포함한 끝단 흐름.<br/>
+    /// • <see cref="SignInWithGoogleIdTokenAsync"/> — 이미 가진 Google ID 토큰 문자열만 넘겨 Supabase에만 맞출 때(iOS, 커스텀 OAuth, 테스트 등). 입력 형태가 달라 둘 다 유지합니다.<br/>
+    /// <b>autoSignInIfNeeded</b> — Save/Load/이벤트/함수/채팅 등에서 미로그인일 때 익명 로그인을 자동으로 할지 여부입니다. 구글만 쓰려면 false로 끄고 <see cref="StartAsync"/> 또는 개별 로그인 API를 조합합니다.
+    /// </remarks>
     public static class SupabaseSDK
     {
         private const string RefreshTokenKey = "Truesoft.Supabase.RefreshToken";
@@ -104,7 +113,11 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
-        /// <summary>Google ID Token으로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
+        /// <summary>이미 가진 Google ID 토큰 문자열로 Supabase에 로그인하고 SDK 세션을 맞춥니다.</summary>
+        /// <remarks>
+        /// Android 네이티브 <see cref="SignInWithGoogleAsync(string, bool)"/>와 달리 «토큰 획득»은 호출자 책임입니다(iOS 플러그인, 웹 OAuth, 수동 입력 등).
+        /// 익명(게스트) 세션이 있으면 게스트→구글 연동을 위해 identity link를 먼저 시도합니다.
+        /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
         {
             if (!await EnsureInitializedAsync())
@@ -147,6 +160,9 @@ namespace Truesoft.Supabase.Unity
         /// <summary>
         /// <c>Resources/SupabaseSettings</c>에 입력한 <c>googleWebClientId</c>로 Android 네이티브 Google 로그인을 수행합니다.
         /// </summary>
+        /// <remarks>
+        /// 인스펙터에 Web Client ID를 저장해 두고, 게임 코드에서는 인자 없이 호출할 때 쓰는 오버로드입니다.
+        /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(bool saveSessionToStorage = true)
         {
             var webClientId = TryGetGoogleWebClientIdFromSettings();
@@ -157,9 +173,13 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// Android 네이티브 Google 로그인 → ID 토큰으로 Supabase 세션까지 한 번에 처리합니다.
-        /// <paramref name="webClientId"/>는 Google Cloud OAuth Web Client ID입니다. Editor/비 Android 빌드에서는 실패할 수 있습니다.
+        /// Android 네이티브 Google 로그인(계정 UI·ID 토큰 획득) 후 Supabase 세션까지 한 번에 맞춥니다.
         /// </summary>
+        /// <param name="webClientId">Google Cloud OAuth 2.0 Web Client ID.</param>
+        /// <remarks>
+        /// <see cref="SignInWithGoogleIdTokenAsync"/>는 토큰만 받습니다. 여기서는 <see cref="GoogleLoginBridge"/>까지 포함한 전체 플로우입니다.
+        /// Unity Editor·비 Android 빌드에서는 플러그인 제약으로 실패할 수 있습니다.
+        /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(string webClientId, bool saveSessionToStorage = true)
         {
             if (!await EnsureInitializedAsync())
@@ -248,6 +268,9 @@ namespace Truesoft.Supabase.Unity
         /// 초기화 + 로그인 세션을 보장합니다.
         /// autoSignInIfNeeded=true면 미로그인 상태에서 자동으로 익명 로그인을 시도합니다.
         /// </summary>
+        /// <remarks>
+        /// 데이터/이벤트/함수/채팅 등 «한 줄 호출»에서 내부적으로 사용합니다. 구글 전용 로그인만 쓰려면 익명 자동 로그인을 끄는 오버로드(<c>autoSignInIfNeeded: false</c>)와 조합하세요.
+        /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> EnsureReadySessionAsync(
             bool autoSignInIfNeeded = true,
             bool saveSessionToStorage = true)
@@ -272,8 +295,12 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>
         /// 앱 시작 시 자주 필요한 준비를 한 번에 수행합니다.
-        /// 초기화 -> (선택) 저장 세션 복원 -> (선택) 익명 로그인 -> (선택) RemoteConfig 새로고침.
+        /// 초기화 → (선택) 저장 세션 복원 → (선택) 익명 로그인 → (선택) RemoteConfig 새로고침.
         /// </summary>
+        /// <remarks>
+        /// 호출 시점은 고정되지 않습니다(첫 프레임, 로딩 완료, 버튼 클릭 등). 익명 자동 로그인 없이 세션 복원만 하려면 <paramref name="autoSignInIfNeeded"/>를 false로 두고,
+        /// 이후 <see cref="SignInWithGoogleAsync()"/> 등으로 로그인합니다.
+        /// </remarks>
         public static async Task<bool> StartAsync(
             bool restoreSessionFirst = true,
             bool autoSignInIfNeeded = true,
@@ -298,7 +325,10 @@ namespace Truesoft.Supabase.Unity
             return true;
         }
 
-        /// <summary>refresh_token으로 세션을 갱신하고 SDK 세션을 자동 설정합니다.</summary>
+        /// <summary>refresh_token 문자열로 세션을 갱신하고 SDK에 반영합니다(직접 보유한 토큰용).</summary>
+        /// <remarks>
+        /// 앱 재실행 시 저장된 토큰 복원은 <see cref="RestoreSessionAsync"/>를 쓰는 편이 일반적입니다.
+        /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(string refreshToken, bool saveSessionToStorage = true)
         {
             if (!await EnsureInitializedAsync())
@@ -411,7 +441,10 @@ namespace Truesoft.Supabase.Unity
             return await Events.SendAsync(eventType, payload);
         }
 
-        /// <summary>RemoteConfig 퍼사드. 초기화 후에만 사용하세요.</summary>
+        /// <summary>Remote Config 캐시·구독·서버 동기화 퍼사드.</summary>
+        /// <remarks>
+        /// 서버 요청 시 액세스 토큰이 있으면 전달됩니다(정책에 따라 익명/로그인 모두 가능한 경우가 많음).
+        /// </remarks>
         public static RemoteConfigFacade RemoteConfig
         {
             get
@@ -426,7 +459,7 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
-        /// <summary>RemoteConfig 전체 새로고침.</summary>
+        /// <summary>Remote Config 전체를 서버에서 다시 받아 캐시를 갱신합니다.</summary>
         public static async Task<bool> RefreshRemoteConfigAsync()
         {
             if (!await EnsureInitializedAsync())
@@ -435,7 +468,7 @@ namespace Truesoft.Supabase.Unity
             return await RemoteConfig.RefreshAllAsync();
         }
 
-        /// <summary>RemoteConfig 변경분 폴링.</summary>
+        /// <summary>마지막 동기 시각 이후 변경분만 가져와 캐시에 머지합니다(주기적 폴링용).</summary>
         public static async Task<bool> PollRemoteConfigAsync()
         {
             if (!await EnsureInitializedAsync())
@@ -444,13 +477,17 @@ namespace Truesoft.Supabase.Unity
             return await RemoteConfig.PollAsync();
         }
 
+        /// <summary>로컬 캐시에서 key에 해당하는 값을 읽습니다(네트워크 호출 없음).</summary>
+        /// <remarks>
+        /// 최신 값이 필요하면 먼저 <see cref="RefreshRemoteConfigAsync"/> 또는 <see cref="GetRemoteConfigAsync{T}"/>를 호출합니다.
+        /// </remarks>
         public static T GetRemoteConfig<T>(string key, T defaultValue = default)
         {
             return RemoteConfig.Get(key, defaultValue);
         }
 
         /// <summary>
-        /// RemoteConfig를 한 번 갱신한 뒤 특정 key를 바로 가져옵니다.
+        /// Remote Config를 한 번 서버와 맞춘 뒤 특정 key 값을 반환합니다(원라인 조회).
         /// 기본은 전체 새로고침이며, pollOnly=true면 변경분 폴링 후 조회합니다.
         /// </summary>
         public static async Task<T> GetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false)
@@ -471,17 +508,19 @@ namespace Truesoft.Supabase.Unity
             return RemoteConfig.TryGetRaw(key, out valueJson);
         }
 
+        /// <summary>특정 key 값이 바뀔 때마다 콜백을 호출합니다(캐시에 객체 루트 JSON이 있을 때).</summary>
         public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true)
         {
             RemoteConfig.Subscribe(key, onValueChanged, invokeIfCached);
         }
 
+        /// <summary><see cref="SubscribeRemoteConfig"/>에서 등록한 콜백을 제거합니다.</summary>
         public static void UnsubscribeRemoteConfig(string key, Action<string> onValueChanged)
         {
             RemoteConfig.Unsubscribe(key, onValueChanged);
         }
 
-        /// <summary>서버 함수(Edge Functions) 호출 퍼사드.</summary>
+        /// <summary>Supabase Edge Functions 호출 퍼사드(로그인 세션의 액세스 토큰 사용).</summary>
         public static ServerFunctionsFacade Functions
         {
             get
@@ -496,7 +535,10 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
-        /// <summary>같은 channel_id 유저끼리 채팅. 로그인 세션 필요. 채널 단위로 Facade를 캐시합니다.</summary>
+        /// <summary>채널 ID당 하나의 <see cref="ChatChannelFacade"/>를 만들거나 캐시에서 꺼냅니다.</summary>
+        /// <remarks>
+        /// 로그인 세션이 있어야 전송·히스토리 등이 동작합니다. 미로그인 자동 처리는 <see cref="JoinChatChannelAsync"/> 등을 사용합니다.
+        /// </remarks>
         public static ChatChannelFacade OpenChatChannel(string channelId, string displayName = null)
         {
             EnsureInitializedOrBootstrapSync();
@@ -573,9 +615,11 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 채팅 채널에 join + 이벤트 구독 + 폴링 시작까지 한 번에 수행합니다.
-        /// 반환값은 캐시에 저장된 Facade이지만, 호출 측에서 들고 있을 필요는 없습니다.
+        /// 채팅 채널에 입장 + 수신 핸들러 연결 + 코루틴 폴링까지 한 번에 수행합니다(동기 진입, 세션은 미리 있어야 할 수 있음).
         /// </summary>
+        /// <remarks>
+        /// 로그인 보장이 필요하면 <see cref="JoinChatChannelAsync"/>를 사용합니다.
+        /// </remarks>
         public static ChatChannelFacade JoinChatChannel(
             string channelId,
             MonoBehaviour pollHost,
@@ -710,7 +754,10 @@ namespace Truesoft.Supabase.Unity
             PlayerPrefs.Save();
         }
 
-        /// <summary>PlayerPrefs에 저장된 refresh_token으로 세션을 복원합니다. Runner의 'Restore Session On Start' 또는 로그인 화면에서 호출하세요.</summary>
+        /// <summary>PlayerPrefs에 저장된 refresh_token으로 세션을 복원합니다.</summary>
+        /// <remarks>
+        /// <see cref="SupabaseRuntime"/>의 «Restore Session On Start» 또는 로그인 화면에서 호출합니다. <see cref="StartAsync"/>의 첫 단계와 동일한 복원입니다.
+        /// </remarks>
         public static async Task<bool> RestoreSessionAsync()
         {
             if (!await EnsureInitializedAsync())
@@ -734,6 +781,10 @@ namespace Truesoft.Supabase.Unity
             return false;
         }
 
+        /// <summary><see cref="SupabaseUnityBootstrap.Initialize"/>에서 호출합니다. 서비스 인스턴스를 묶고 캐시를 초기화합니다.</summary>
+        /// <remarks>
+        /// 동일 프로젝트 URL로 재초기화되고 이미 로그인 중이면 세션을 유지합니다(Resources 부트스트랩 후 Runtime Awake 등).
+        /// </remarks>
         public static void Initialize(SupabaseUnityBootstrap bootstrap)
         {
             _ = bootstrap ?? throw new ArgumentNullException(nameof(bootstrap));

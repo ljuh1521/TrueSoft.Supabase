@@ -1,5 +1,5 @@
 ---
-description: Git 커밋 제목·본문은 한국어로만 (자동 생성·채팅 공통)
+description: Git 커밋은 한국어만 (자동 생성·SCM·채팅) — 영어 기본 문구 금지
 alwaysApply: true
 ---
 
@@ -7,20 +7,41 @@ alwaysApply: true
 
 ## 적용 범위
 
-- 채팅에서 커밋 초안·제안·생성을 요청할 때
-- **IDE 소스 제어(Git)에서 커밋 메시지를 자동 생성할 때**
+- 채팅에서 커밋 초안·제안·생성
+- **소스 제어에서 커밋 메시지 자동 생성** (Generate Commit Message 등)
 - PR/머지 설명을 커밋 스타일로 쓸 때
+
+## 절대 하지 않을 것
+
+- **영어로만 된 제목**을 기본으로 제시하지 않는다.
+- 아래 같은 **영어 템플릿 문장**으로 시작하지 않는다. 나오면 **한국어로 전부 바꾼다**.
+
+**나쁜 예 (금지)**:
+
+```text
+Enhance documentation for Supabase settings and SDK
+
+Added detailed XML comments to SupabaseSettings, Supabase, and SupabaseSDK classes, improving clarity on Google authentication methods and their usage. Updated tooltips and remarks for better understanding of parameters and functionality.
+```
+
+**좋은 예 (이렇게)**:
+
+```text
+Supabase 설정·SDK에 XML 주석 및 툴팁 보강
+
+SupabaseSettings, Supabase, SupabaseSDK에 상세 XML 주석 추가. Google 인증 API 구분·용도 명확화. 인스펙터 툴팁과 remarks 보강.
+```
 
 ## 필수 규칙
 
-- **제목·본문 모두 한국어**로 쓴다. 기본 응답에서 영어 제목만 제안하지 않는다.
-- Conventional Commits 스타일을 쓸 경우에도 **설명은 한국어**로 쓴다. (예: `fix: 세션 복원 실패 시 익명 로그인으로 폴백`)
+- **제목·본문 모두 한국어** (첫 줄부터 한글).
+- Conventional 접두어를 쓸 경우에도 **뒤 설명은 한국어** (예: `docs: Supabase SDK XML 주석 보강`).
 - 사용자가 **「영어로」「in English」** 등으로 명시하기 전에는 영어를 쓰지 않는다.
 
 ## 형식
 
-- 제목: 한 줄, 변경 요약이 한눈에 들어오게.
-- 본문: 필요할 때만. 이유·범위·주의사항을 한글 bullet.
+- 제목: 한 줄, 변경 요약.
+- 본문: 필요할 때만. 이유·범위·주의를 한글 bullet.
 
 ## 예시 제목
 

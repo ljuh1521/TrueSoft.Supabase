@@ -6,9 +6,13 @@ using Truesoft.Supabase.Core.Common;
 namespace Truesoft.Supabase.Unity
 {
     /// <summary>
-    /// 유니티 전역에서 Supabase SDK에 쉽게 접근하기 위한 정적 진입점.
-    /// 로그인 후 Supabase.SetSession(session) 한 번만 하면, SaveUserDataAsync / LoadUserDataAsync / SendUserEventAsync 등을 세션 인자 없이 호출할 수 있습니다.
+    /// 게임 코드에서 쓰기 위한 정적 진입점입니다. 실제 구현은 <see cref="SupabaseSDK"/>에 있습니다.
     /// </summary>
+    /// <remarks>
+    /// • 구글: <see cref="SignInWithGoogleAsync()"/>는 Android 네이티브 전체 플로우, <see cref="SignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
+    /// • <see cref="StartAsync"/>는 초기화·복원·(선택)익명·(선택)RC를 한 번에. 익명 없이 구글만 쓰면 <c>autoSignInIfNeeded: false</c> 후 <see cref="SignInWithGoogleAsync()"/>.<br/>
+    /// • Save/Load/이벤트/함수/채팅의 <c>autoSignInIfNeeded</c>는 미로그인 시 익명 로그인 자동 여부입니다.
+    /// </remarks>
     public static class Supabase
     {
         /// <summary>SDK가 초기화되었는지 여부.</summary>
@@ -27,7 +31,7 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> EnsureInitializedAsync(int timeoutMs = SupabaseSDK.DefaultEnsureInitTimeoutMs) =>
             SupabaseSDK.EnsureInitializedAsync(timeoutMs);
 
-        /// <summary>Google ID Token으로 로그인하고 SDK 세션을 자동 설정.</summary>
+        /// <summary>이미 가진 Google ID 토큰으로 Supabase 세션을 맞춥니다(iOS·커스텀 OAuth·테스트 등).</summary>
         public static Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(
             string idToken,
             bool saveSessionToStorage = true) =>
@@ -41,7 +45,7 @@ namespace Truesoft.Supabase.Unity
             SupabaseSDK.SignInWithGoogleAsync(saveSessionToStorage);
 
         /// <summary>
-        /// Android 네이티브 Google 로그인 후 Supabase 세션까지 한 번에 처리합니다. (OAuth Web Client ID를 코드로 전달)
+        /// Android 네이티브 Google 로그인 전체 플로우. Web Client ID를 코드 인자로 넘깁니다.
         /// </summary>
         public static Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(
             string webClientId,
