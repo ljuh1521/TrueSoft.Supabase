@@ -856,7 +856,6 @@ namespace Truesoft.Supabase.Unity
                 _currentSession = null;
 
             _userSaves = null;
-            _userEvents = null;
             _remoteConfig = null;
             _functions = null;
             _chatChannels.Clear();
