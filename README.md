@@ -27,4 +27,9 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 ## 샘플
 
-현재 이 패키지는 샘플 코드를 포함하지 않습니다. 샘플이 필요하면 별도 저장소/문서에서 제공하는 예제를 프로젝트로 직접 가져와 사용하세요.
+Package Manager의 **Import Samples**로 사용할 수 있는 샘플을 제공합니다.
+
+- **Basic Setup**: 최소 데모 (게스트 로그인, 저장/불러오기, 이벤트)
+- **Full SDK Usage**: 인증, 원격 설정, 함수 호출 등 전체 흐름
+
+샘플은 `Samples~` 폴더에 있어 기본 컴파일 대상에서 제외되며, Import한 뒤에만 프로젝트에 복사됩니다.
