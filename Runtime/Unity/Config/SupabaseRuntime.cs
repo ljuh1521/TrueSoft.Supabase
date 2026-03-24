@@ -7,10 +7,10 @@ using UnityEngine;
 namespace Truesoft.Supabase.Unity.Config
 {
     /// <summary>
-    /// Supabase SDK 통합 런타임 컴포넌트.
-    /// - SDK 초기화
-    /// - 세션 자동 복원
-    /// - RemoteConfig 첫 로드 + 폴링
+    /// Supabase SDK의 "씬 실행 정책"을 제어하는 런타임 컴포넌트입니다.
+    /// - 초기화 시점
+    /// - 세션 자동 복원 여부
+    /// - RemoteConfig 첫 로드/폴링 주기
     /// </summary>
     [DefaultExecutionOrder(-100)]
     [AddComponentMenu("TrueSoft/Supabase/Supabase Runtime")]
@@ -18,22 +18,25 @@ namespace Truesoft.Supabase.Unity.Config
     {
         private static SupabaseRuntime _instance;
 
-        [Header("Initialization")]
+        [Header("Configuration Source (설정값 소스)")]
+        [Tooltip("프로젝트 공통 설정값 에셋. 비워두면 Resources/SupabaseSettings를 자동으로 찾습니다.")]
         [SerializeField] private SupabaseSettings settings;
 
-        [Tooltip("체크 시 다른 씬으로 넘어가도 이 오브젝트가 유지됩니다.")]
+        [Header("Scene Lifecycle Policy (씬 실행 정책)")]
+        [Tooltip("체크 시 이 런타임 오브젝트를 DontDestroyOnLoad로 유지합니다.")]
         [SerializeField] private bool dontDestroyOnLoad = true;
 
-        [Tooltip("체크 시 플레이 시작 시 저장된 refresh_token으로 자동 복원을 시도합니다.")]
+        [Tooltip("체크 시 시작 시점에 저장된 refresh_token으로 세션 복원을 시도합니다.")]
         [SerializeField] private bool restoreSessionOnStart = true;
 
-        [Header("Remote Config")]
+        [Header("RemoteConfig Runtime Policy (런타임 정책)")]
+        [Tooltip("RemoteConfig 런타임 동기화 루틴 사용 여부입니다.")]
         [SerializeField] private bool enableRemoteConfig = true;
 
-        [Tooltip("시작 시 RemoteConfig 전체를 1회 가져옵니다.")]
+        [Tooltip("체크 시 시작 시점에 RemoteConfig 전체를 1회 새로고침합니다.")]
         [SerializeField] private bool refreshAllOnStart = true;
 
-        [Tooltip("RemoteConfig 폴링 주기(초). 0 이하면 폴링하지 않습니다.")]
+        [Tooltip("RemoteConfig 폴링 주기(초). 0 이하이면 주기 폴링을 하지 않습니다.")]
         [SerializeField] private float pollIntervalSeconds = 10f;
 
         private Coroutine _lifecycleRoutine;

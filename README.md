@@ -11,6 +11,11 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 ## 준비
 
+`SupabaseSettings`와 `SupabaseRuntime`의 역할은 다음처럼 구분합니다.
+
+- **SupabaseSettings (공통 설정값)**: 프로젝트 URL, publishable key, Google Web Client ID, 기본 로그/타임아웃 같은 정적 값을 정의합니다.
+- **SupabaseRuntime (씬 실행 정책)**: 시작 시 세션 복원 여부, RemoteConfig 첫 로드/폴링 주기 같은 런타임 동작 시점을 제어합니다.
+
 1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
 2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)
 3. API 결과 로그를 제어하려면 `enableApiResultLogs`를 설정합니다. (`true`면 Try API별 고정 태그(예: `[Supabase.UserData.Save]`)로 성공/실패 로그 출력. 호출자가 태그를 넘기지 않습니다.)
