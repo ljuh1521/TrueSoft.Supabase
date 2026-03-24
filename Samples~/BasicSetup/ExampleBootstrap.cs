@@ -32,18 +32,18 @@ namespace Truesoft.SupabaseUnity.Samples
         private async Task RunAsync()
         {
             EnsureRuntimeExists();
-            await WaitInitializedAsync();
-            if (!SupabaseClient.IsInitialized)
-                return;
-
-            if (!SupabaseClient.IsLoggedIn)
+            if (!await SupabaseClient.EnsureInitializedAsync(10000))
             {
-                var signIn = await SupabaseClient.SignInAnonymouslyAsync();
-                if (!signIn.IsSuccess)
-                {
-                    Debug.LogError("[BasicSetup] Guest sign-in failed: " + signIn.ErrorMessage);
-                    return;
-                }
+                SupabaseUnitySetupHelp.LogInitializationTimeout("BasicSetup");
+                return;
+            }
+
+            // SignInAnonymouslyAsync는 SDK 내부에서 초기화 대기·이미 로그인 시 성공 반환을 처리합니다.
+            var signIn = await SupabaseClient.SignInAnonymouslyAsync();
+            if (!signIn.IsSuccess)
+            {
+                Debug.LogError("[BasicSetup] Guest sign-in failed: " + signIn.ErrorMessage);
+                return;
             }
 
             var save = new SaveData
@@ -69,23 +69,6 @@ namespace Truesoft.SupabaseUnity.Samples
 
             _ = await SupabaseClient.SendUserEventAsync("basic_setup_done");
             Debug.Log($"[BasicSetup] done. level={loadRes.Data.level}, coins={loadRes.Data.coins}");
-        }
-
-        private static async Task WaitInitializedAsync()
-        {
-            const int timeoutMs = 10000;
-            var start = DateTime.UtcNow;
-
-            while (!SupabaseClient.IsInitialized)
-            {
-                if ((DateTime.UtcNow - start).TotalMilliseconds > timeoutMs)
-                {
-                    SupabaseUnitySetupHelp.LogInitializationTimeout("BasicSetup");
-                    return;
-                }
-
-                await Task.Yield();
-            }
         }
 
         private static void EnsureRuntimeExists()

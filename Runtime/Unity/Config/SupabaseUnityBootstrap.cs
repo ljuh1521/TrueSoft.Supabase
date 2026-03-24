@@ -1,3 +1,4 @@
+using System;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Data;
 using Truesoft.Supabase.Core.Http;
@@ -7,6 +8,9 @@ namespace Truesoft.Supabase.Unity.Config
 {
     public sealed class SupabaseUnityBootstrap
     {
+        /// <summary>현재 부트스트랩이 사용 중인 프로젝트 URL (동일 URL로 재초기화될 때 기존 로그인 세션 유지에 사용).</summary>
+        public string ProjectUrl { get; private set; }
+
         public SupabaseAuthService AuthService { get; private set; }
         public SupabaseUserDataService UserDataService { get; private set; }
         public SupabaseUserEventsService UserEventsService { get; private set; }
@@ -16,7 +20,11 @@ namespace Truesoft.Supabase.Unity.Config
 
         public void Initialize(SupabaseSettings settings)
         {
+            if (settings == null)
+                throw new ArgumentNullException(nameof(settings));
+
             var options = settings.ToOptions();
+            ProjectUrl = options.ProjectURL ?? string.Empty;
 
             var http = new UnitySupabaseHttpClient(options.TimeoutSeconds);
             var json = new UnitySupabaseJsonSerializer();

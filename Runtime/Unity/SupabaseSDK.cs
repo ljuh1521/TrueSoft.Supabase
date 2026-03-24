@@ -20,6 +20,10 @@ namespace Truesoft.Supabase.Unity
         private static RemoteConfigFacade _remoteConfig;
         private static ServerFunctionsFacade _functions;
         private static readonly Dictionary<string, ChatChannelFacade> _chatChannels = new(StringComparer.Ordinal);
+        private static string _initializedProjectUrl;
+
+        /// <summary><see cref="EnsureInitializedAsync"/> 기본 대기 시간(ms). 씬의 <c>SupabaseRuntime</c> Awake를 기다립니다.</summary>
+        public const int DefaultEnsureInitTimeoutMs = 30000;
 
         /// <summary>SDK가 초기화되었는지 여부.</summary>
         public static bool IsInitialized => _bootstrap != null;
@@ -34,12 +38,74 @@ namespace Truesoft.Supabase.Unity
             && _currentSession.User != null
             && string.IsNullOrWhiteSpace(_currentSession.User.Id) == false;
 
-        /// <summary>인증 서비스. 초기화 후에만 사용하세요.</summary>
-        public static SupabaseAuthService Auth => _bootstrap?.AuthService;
+        /// <summary>
+        /// 씬의 <c>SupabaseRuntime</c> 등으로 초기화될 때까지 대기한 뒤, 실패 시 <c>Resources/SupabaseSettings</c>로 부트스트랩을 시도합니다.
+        /// Unity 메인 스레드에서 호출하는 것을 권장합니다.
+        /// </summary>
+        public static async Task<bool> EnsureInitializedAsync(int timeoutMs = DefaultEnsureInitTimeoutMs)
+        {
+            if (IsInitialized)
+                return true;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!IsInitialized && sw.ElapsedMilliseconds < timeoutMs)
+                await Task.Delay(16);
+
+            if (IsInitialized)
+                return true;
+
+            return TryBootstrapFromResources();
+        }
+
+        /// <summary>
+        /// 동기 API에서만 사용. <see cref="EnsureInitializedAsync"/> 없이 호출할 때 Resources에 설정이 있으면 초기화합니다.
+        /// </summary>
+        private static void EnsureInitializedOrBootstrapSync()
+        {
+            if (IsInitialized)
+                return;
+            TryBootstrapFromResources();
+        }
+
+        /// <summary>
+        /// <c>Resources/SupabaseSettings</c>를 로드해 <see cref="SupabaseUnityBootstrap.Initialize"/>를 호출합니다.
+        /// 씬에 <c>SupabaseRuntime</c>이 없을 때의 보조 경로입니다.
+        /// </summary>
+        private static bool TryBootstrapFromResources()
+        {
+            if (IsInitialized)
+                return true;
+
+            var settings = Resources.Load<SupabaseSettings>("SupabaseSettings");
+            if (settings == null)
+            {
+                Debug.LogWarning(
+                    "[Supabase] SupabaseSettings를 Resources에서 찾을 수 없습니다. "
+                    + "씬에 SupabaseRuntime을 두거나 Resources/SupabaseSettings 에셋을 추가하세요.");
+                return false;
+            }
+
+            var bootstrap = new SupabaseUnityBootstrap();
+            bootstrap.Initialize(settings);
+            return IsInitialized;
+        }
+
+        /// <summary>인증 서비스. 가능하면 Resources 부트스트랩 후 반환합니다.</summary>
+        public static SupabaseAuthService Auth
+        {
+            get
+            {
+                EnsureInitializedOrBootstrapSync();
+                return _bootstrap?.AuthService;
+            }
+        }
 
         /// <summary>Google ID Token으로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
         public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
         {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
@@ -77,6 +143,16 @@ namespace Truesoft.Supabase.Unity
         /// <summary>게스트(익명)로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
         public static async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(bool saveSessionToStorage = true)
         {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            if (IsLoggedIn)
+            {
+                if (saveSessionToStorage)
+                    SaveSessionToStorage();
+                return SupabaseResult<SupabaseSession>.Success(_currentSession);
+            }
+
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
@@ -94,6 +170,9 @@ namespace Truesoft.Supabase.Unity
         /// <summary>refresh_token으로 세션을 갱신하고 SDK 세션을 자동 설정합니다.</summary>
         public static async Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(string refreshToken, bool saveSessionToStorage = true)
         {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
@@ -113,6 +192,7 @@ namespace Truesoft.Supabase.Unity
         {
             get
             {
+                EnsureInitializedOrBootstrapSync();
                 if (_bootstrap == null)
                     throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
 
@@ -121,15 +201,21 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>현재 세션으로 유저 데이터 저장.</summary>
-        public static Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data)
+        public static async Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data)
         {
-            return UserSaves.SaveAsync(data);
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            return await UserSaves.SaveAsync(data);
         }
 
         /// <summary>현재 세션으로 유저 데이터 로드.</summary>
-        public static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new()
+        public static async Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new()
         {
-            return UserSaves.LoadAsync<T>();
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<T>.Fail("sdk_not_initialized");
+
+            return await UserSaves.LoadAsync<T>();
         }
 
         /// <summary>이벤트 전송 퍼사드. 초기화 후에만 사용하세요.</summary>
@@ -137,6 +223,7 @@ namespace Truesoft.Supabase.Unity
         {
             get
             {
+                EnsureInitializedOrBootstrapSync();
                 if (_bootstrap == null)
                     throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
 
@@ -145,15 +232,21 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>현재 세션으로 이벤트 전송 (payload 없음).</summary>
-        public static Task<SupabaseResult<bool>> SendUserEventAsync(string eventType)
+        public static async Task<SupabaseResult<bool>> SendUserEventAsync(string eventType)
         {
-            return Events.SendAsync(eventType);
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            return await Events.SendAsync(eventType);
         }
 
         /// <summary>현재 세션으로 이벤트+payload 전송.</summary>
-        public static Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload)
+        public static async Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload)
         {
-            return Events.SendAsync(eventType, payload);
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            return await Events.SendAsync(eventType, payload);
         }
 
         /// <summary>RemoteConfig 퍼사드. 초기화 후에만 사용하세요.</summary>
@@ -161,6 +254,7 @@ namespace Truesoft.Supabase.Unity
         {
             get
             {
+                EnsureInitializedOrBootstrapSync();
                 if (_bootstrap == null)
                     throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
 
@@ -171,15 +265,21 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>RemoteConfig 전체 새로고침.</summary>
-        public static Task<bool> RefreshRemoteConfigAsync()
+        public static async Task<bool> RefreshRemoteConfigAsync()
         {
-            return RemoteConfig.RefreshAllAsync();
+            if (!await EnsureInitializedAsync())
+                return false;
+
+            return await RemoteConfig.RefreshAllAsync();
         }
 
         /// <summary>RemoteConfig 변경분 폴링.</summary>
-        public static Task<bool> PollRemoteConfigAsync()
+        public static async Task<bool> PollRemoteConfigAsync()
         {
-            return RemoteConfig.PollAsync();
+            if (!await EnsureInitializedAsync())
+                return false;
+
+            return await RemoteConfig.PollAsync();
         }
 
         public static T GetRemoteConfig<T>(string key, T defaultValue = default)
@@ -207,6 +307,7 @@ namespace Truesoft.Supabase.Unity
         {
             get
             {
+                EnsureInitializedOrBootstrapSync();
                 if (_bootstrap == null)
                     throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
 
@@ -219,6 +320,7 @@ namespace Truesoft.Supabase.Unity
         /// <summary>같은 channel_id 유저끼리 채팅. 로그인 세션 필요. 채널 단위로 Facade를 캐시합니다.</summary>
         public static ChatChannelFacade OpenChatChannel(string channelId, string displayName = null)
         {
+            EnsureInitializedOrBootstrapSync();
             if (_bootstrap == null)
                 throw new InvalidOperationException("SupabaseSDK is not initialized.");
 
@@ -244,10 +346,13 @@ namespace Truesoft.Supabase.Unity
         /// 채팅 메시지 한 건 전송 (인스턴스를 직접 들고 있지 않아도 됨).
         /// UI에서 채널 접속/폴링 여부는 여전히 OpenChatChannel/StartPolling으로 직접 관리하세요.
         /// </summary>
-        public static Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null)
+        public static async Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null)
         {
+            if (!await EnsureInitializedAsync())
+                return false;
+
             var channel = OpenChatChannel(channelId, displayName);
-            return channel.SendAsync(content);
+            return await channel.SendAsync(content);
         }
 
         /// <summary>채널이 현재 SDK 캐시에 열려 있는지 확인.</summary>
@@ -257,9 +362,12 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>서버 함수 호출(로그인 세션 필요).</summary>
-        public static Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(string functionName, object requestBody = null)
+        public static async Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(string functionName, object requestBody = null)
         {
-            return Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: true);
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<TResponse>.Fail("sdk_not_initialized");
+
+            return await Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: true);
         }
 
         /// <summary>
@@ -376,6 +484,9 @@ namespace Truesoft.Supabase.Unity
         /// <summary>PlayerPrefs에 저장된 refresh_token으로 세션을 복원합니다. Runner의 'Restore Session On Start' 또는 로그인 화면에서 호출하세요.</summary>
         public static async Task<bool> RestoreSessionAsync()
         {
+            if (!await EnsureInitializedAsync())
+                return false;
+
             if (_bootstrap?.AuthService == null)
                 return false;
 
@@ -396,8 +507,22 @@ namespace Truesoft.Supabase.Unity
 
         public static void Initialize(SupabaseUnityBootstrap bootstrap)
         {
-            _bootstrap = bootstrap ?? throw new ArgumentNullException(nameof(bootstrap));
-            _currentSession = null;
+            _ = bootstrap ?? throw new ArgumentNullException(nameof(bootstrap));
+
+            var newUrl = bootstrap.ProjectUrl ?? string.Empty;
+
+            var sameProject = _bootstrap != null
+                && _initializedProjectUrl != null
+                && string.Equals(_initializedProjectUrl, newUrl, StringComparison.OrdinalIgnoreCase);
+
+            var preserveSession = sameProject && IsLoggedIn;
+
+            _bootstrap = bootstrap;
+            _initializedProjectUrl = newUrl;
+
+            if (!preserveSession)
+                _currentSession = null;
+
             _userSaves = null;
             _userEvents = null;
             _remoteConfig = null;

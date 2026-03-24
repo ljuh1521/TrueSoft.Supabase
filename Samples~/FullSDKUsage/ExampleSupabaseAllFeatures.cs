@@ -32,18 +32,17 @@ namespace Truesoft.SupabaseUnity.Samples
         private async Task RunAllAsync()
         {
             EnsureRuntimeExists();
-            await WaitInitializedAsync();
-            if (!SupabaseClient.IsInitialized)
-                return;
-
-            if (!SupabaseClient.IsLoggedIn)
+            if (!await SupabaseClient.EnsureInitializedAsync(10000))
             {
-                var signIn = await SupabaseClient.SignInAnonymouslyAsync();
-                if (!signIn.IsSuccess)
-                {
-                    Debug.LogError("[FullSDKUsage] Guest sign-in failed: " + signIn.ErrorMessage);
-                    return;
-                }
+                SupabaseUnitySetupHelp.LogInitializationTimeout("FullSDKUsage");
+                return;
+            }
+
+            var signIn = await SupabaseClient.SignInAnonymouslyAsync();
+            if (!signIn.IsSuccess)
+            {
+                Debug.LogError("[FullSDKUsage] Guest sign-in failed: " + signIn.ErrorMessage);
+                return;
             }
 
             _ = await SupabaseClient.SendUserEventAsync("full_sample_started");
@@ -57,23 +56,6 @@ namespace Truesoft.SupabaseUnity.Samples
                 Debug.LogWarning("[FullSDKUsage] Function failed: " + fn.ErrorMessage);
 
             Debug.Log("[FullSDKUsage] done.");
-        }
-
-        private static async Task WaitInitializedAsync()
-        {
-            const int timeoutMs = 10000;
-            var start = DateTime.UtcNow;
-
-            while (!SupabaseClient.IsInitialized)
-            {
-                if ((DateTime.UtcNow - start).TotalMilliseconds > timeoutMs)
-                {
-                    SupabaseUnitySetupHelp.LogInitializationTimeout("FullSDKUsage");
-                    return;
-                }
-
-                await Task.Yield();
-            }
         }
 
         private static void EnsureRuntimeExists()

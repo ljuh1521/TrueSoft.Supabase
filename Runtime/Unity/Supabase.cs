@@ -20,6 +20,13 @@ namespace Truesoft.Supabase.Unity
         /// <summary>현재 로그인 여부.</summary>
         public static bool IsLoggedIn => SupabaseSDK.IsLoggedIn;
 
+        /// <summary>
+        /// 씬의 SupabaseRuntime 초기화를 잠시 대기한 뒤, 필요 시 Resources의 SupabaseSettings로 부트스트랩합니다.
+        /// 대부분의 API가 내부에서 호출하므로, 게임 코드에서는 생략해도 됩니다.
+        /// </summary>
+        public static Task<bool> EnsureInitializedAsync(int timeoutMs = SupabaseSDK.DefaultEnsureInitTimeoutMs) =>
+            SupabaseSDK.EnsureInitializedAsync(timeoutMs);
+
         /// <summary>Google ID Token으로 로그인하고 SDK 세션을 자동 설정.</summary>
         public static Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(
             string idToken,

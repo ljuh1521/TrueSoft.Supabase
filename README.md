@@ -18,6 +18,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 ## 제공 범위
 
+- **초기화**: `Supabase.EnsureInitializedAsync()`로 런타임 초기화 대기·Resources 부트스트랩을 한 번에 시도할 수 있습니다. `SignInAnonymouslyAsync` 등 대부분의 비동기 API는 내부에서 초기화를 기다리며, 이미 로그인된 경우 익명 로그인 호출은 네트워크 없이 성공을 반환합니다.
 - **인증**: 게스트 로그인, Google ID 토큰 로그인·연동, 세션 복원
 - **사용자 데이터**: 저장·불러오기
 - **사용자 이벤트**: 전송
