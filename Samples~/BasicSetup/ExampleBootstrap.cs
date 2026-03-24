@@ -87,7 +87,7 @@ namespace Truesoft.Supabase.Samples
             {
                 if ((DateTime.UtcNow - start).TotalMilliseconds > timeoutMs)
                 {
-                    Debug.LogError("[BasicSetup] SDK 초기화가 완료되지 않았습니다. 'Resources/SupabaseSettings.asset'이 존재하는지 확인하세요.");
+                    SupabaseUnitySetupHelp.LogInitializationTimeout("BasicSetup");
                     return;
                 }
 

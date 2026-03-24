@@ -1,22 +1,24 @@
 # Basic Setup 샘플
 
-이 샘플은 SDK의 핵심 흐름 중 하나인 **게스트 로그인 → 사용자 데이터 Save/Load → (선택) 사용자 이벤트 전송**을 확인합니다.
+**최소 데모**(약 5분): 게스트 로그인 → 사용자 데이터 Save/Load → 사용자 이벤트 전송.
 
-## 준비 단계
+RemoteConfig 구독, Edge Functions, 채팅 등은 **Full SDK Usage** 샘플을 Import 하세요.
 
-1. `SupabaseSettings`를 `Resources/SupabaseSettings.asset`에 준비합니다.
-   - 런타임 오브젝트는 샘플이 자동 생성하며, 설정은 Resources에서 자동 로드됩니다.
-2. Supabase Auth에서 **Anonymous sign-ins** 기능을 활성화합니다.
+## 실행 전 체크리스트
+
+1. **Settings**: `TrueSoft > Supabase > Create Settings Asset` → `projectUrl`, `publishableKey` 입력  
+2. **Resources**: 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장 (파일명은 반드시 `SupabaseSettings`)  
+3. **Runtime**: Play 시 이 샘플이 `SupabaseRuntime` GameObject를 만들 수 있습니다. 수동으로 넣으려면 `TrueSoft > Supabase > Create Runtime Object In Scene`  
+4. Supabase 대시보드에서 **Anonymous sign-ins** 활성화
 
 ## 실행 방법
 
-1. 샘플 스크립트 `ExampleBootstrap`을 아무 GameObject에 붙입니다.
-2. 기본값은 `runOnStart=true`이므로 Play 시 자동 실행됩니다.
-3. 콘솔에서 아래 로그를 확인합니다.
-   - `[BasicSetup] Load 결과: level=..., coins=...`
+1. `ExampleBootstrap`을 아무 GameObject에 붙입니다.
+2. `runOnStart=true`이면 Play 시 자동 실행됩니다.
+3. 콘솔: `[BasicSetup] Load 결과: level=..., coins=...`
 
-## 인스펙터 값
+## 인스펙터
 
-- `Save/Load 예시값`
-  - `level`, `coins`: 저장에 사용되는 값입니다.
+- `level`, `coins`: Save/Load에 사용되는 예시 값입니다.
 
+초기화가 안 되면 콘솔에 출력되는 **`[Supabase 초기화 점검]`** 블록을 따르세요.

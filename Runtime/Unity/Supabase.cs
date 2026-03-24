@@ -7,7 +7,7 @@ namespace Truesoft.Supabase.Unity
 {
     /// <summary>
     /// 유니티 전역에서 Supabase SDK에 쉽게 접근하기 위한 정적 진입점.
-    /// 로그인 후 Supabase.SetSession(session) 한 번만 하면, SaveAsync(data) / LoadAsync&lt;T&gt;() / Events.SendAsync(eventType) 등 세션 없이 호출 가능.
+    /// 로그인 후 Supabase.SetSession(session) 한 번만 하면, SaveUserDataAsync / LoadUserDataAsync / SendUserEventAsync 등을 세션 인자 없이 호출할 수 있습니다.
     /// </summary>
     public static class Supabase
     {

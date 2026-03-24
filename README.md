@@ -11,9 +11,10 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 ## 준비
 
-1. `TrueSoft/Supabase/Create Settings Asset` 메뉴로 `SupabaseSettings` 에셋을 생성합니다.
-2. `SupabaseSettings`에 `projectUrl`과 `publishableKey`를 입력합니다.
-3. `TrueSoft/Supabase/Create Runtime Object In Scene` 메뉴로 씬에 `SupabaseRuntime` 오브젝트를 생성합니다.
+1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
+2. `projectUrl`, `publishableKey` 를 입력합니다.
+3. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
+4. 씬에 **`SupabaseRuntime`** 이 있어야 합니다. 메뉴 **TrueSoft > Supabase > Create Runtime Object In Scene** 으로 추가하거나, 샘플 스크립트가 런타임에 생성할 수 있습니다.
 
 ## 제공 범위
 
@@ -24,11 +25,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 - Edge Functions: 함수 호출
 - Chat: 채널 입장/전송/이탈
 
+## 샘플 (Package Manager)
 
-
-
-의존성 항목 추가
-    implementation "androidx.credentials:credentials:1.6.0-rc02"
-    implementation "androidx.credentials:credentials-play-services-auth:1.6.0-rc02"
-    implementation "com.google.android.libraries.identity.googleid:googleid:1.1.1"
-    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+- **Basic Setup**: 최소 데모 (게스트, Save/Load, 이벤트)
+- **Full SDK Usage**: RemoteConfig, Edge Functions, Chat 등 전체 흐름

@@ -78,7 +78,10 @@ namespace Truesoft.Supabase.Samples
             while (!Supabase.IsInitialized)
             {
                 if ((DateTime.UtcNow - start).TotalMilliseconds > timeoutMs)
-                    throw new Exception("[FullSDKUsage] SDK 초기화가 완료되지 않았습니다. 'SupabaseSettings.asset'이 Resources에 존재하는지 확인하세요.");
+                {
+                    SupabaseUnitySetupHelp.LogInitializationTimeout("FullSDKUsage");
+                    throw new Exception("[FullSDKUsage] SDK 초기화 타임아웃.");
+                }
 
                 await Task.Yield();
             }

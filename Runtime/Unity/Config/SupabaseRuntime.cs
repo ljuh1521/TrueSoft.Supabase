@@ -56,7 +56,9 @@ namespace Truesoft.Supabase.Unity.Config
 
             if (settings == null)
             {
-                Debug.LogWarning("[Supabase] SupabaseSettings is not assigned.");
+                Debug.LogWarning(
+                    "[Supabase] SupabaseSettings를 찾을 수 없습니다(인스펙터 미할당 또는 Resources 로드 실패).\n"
+                    + SupabaseUnitySetupHelp.InitializationChecklistKo);
                 return;
             }
 
