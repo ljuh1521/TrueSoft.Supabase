@@ -29,3 +29,10 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 - **Basic Setup**: 최소 데모(게스트 로그인, 저장·불러오기, 이벤트 전송)
 - **Full SDK Usage**: 인증·사용자 데이터·이벤트·원격 설정·Edge Functions·채팅까지 한 번에 보는 샘플
+
+패키지 루트의 `Samples/BasicSetup`, `Samples/FullSDKUsage` 가 Git에 포함되어 있어야 Import 가 동작합니다.
+
+### 샘플 Import 오류 (`path does not exist`)
+
+1. **원격 저장소 최신 커밋**에 위 `Samples/...` 폴더가 있는지 확인한 뒤, `manifest.json` 의 Git URL 을 해당 브랜치·태그로 맞춥니다.  
+2. Unity 에서 **Window > Package Manager** 에서 패키지 선택 후 **Remove** 한 다음 다시 추가하거나, 프로젝트의 `Library/PackageCache/com.truesoft.supabase@...` 폴더를 지운 뒤 Unity 를 다시 열어 캐시를 받아옵니다.
