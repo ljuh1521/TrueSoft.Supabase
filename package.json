@@ -6,17 +6,5 @@
   "unity": "2022.3",
   "author": {
     "name": "Truesoft"
-  },
-  "samples": [
-    {
-      "displayName": "Basic Setup",
-      "description": "Minimal demo: guest sign-in, save/load, user events. For remote config, edge functions, and chat, import Full SDK Usage.",
-      "path": "Samples/BasicSetup"
-    },
-    {
-      "displayName": "Full SDK Usage",
-      "description": "End-to-end sample: auth, user data, user events, remote config, edge functions, chat.",
-      "path": "Samples/FullSDKUsage"
-    }
-  ]
+  }
 }
