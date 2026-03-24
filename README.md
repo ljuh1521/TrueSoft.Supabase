@@ -12,7 +12,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 ## 준비
 
 1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
-2. `projectUrl`, `publishableKey` 를 입력합니다.
+2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)
 3. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
 4. `SupabaseRuntime`은 선택 사항입니다.  
    - 인증/데이터/이벤트/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  

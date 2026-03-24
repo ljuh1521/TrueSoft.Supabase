@@ -145,6 +145,18 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
+        /// <c>Resources/SupabaseSettings</c>에 입력한 <c>googleWebClientId</c>로 Android 네이티브 Google 로그인을 수행합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(bool saveSessionToStorage = true)
+        {
+            var webClientId = TryGetGoogleWebClientIdFromSettings();
+            if (string.IsNullOrWhiteSpace(webClientId))
+                return SupabaseResult<SupabaseSession>.Fail("google_web_client_id_empty");
+
+            return await SignInWithGoogleAsync(webClientId, saveSessionToStorage);
+        }
+
+        /// <summary>
         /// Android 네이티브 Google 로그인 → ID 토큰으로 Supabase 세션까지 한 번에 처리합니다.
         /// <paramref name="webClientId"/>는 Google Cloud OAuth Web Client ID입니다. Editor/비 Android 빌드에서는 실패할 수 있습니다.
         /// </summary>
@@ -760,6 +772,16 @@ namespace Truesoft.Supabase.Unity
             var go = new GameObject("TruesoftGoogleLoginBridge");
             UnityEngine.Object.DontDestroyOnLoad(go);
             return go.AddComponent<GoogleLoginBridge>();
+        }
+
+        /// <summary><c>Resources/SupabaseSettings</c>에서 Google Web Client ID를 읽습니다.</summary>
+        private static string TryGetGoogleWebClientIdFromSettings()
+        {
+            var settings = Resources.Load<SupabaseSettings>("SupabaseSettings");
+            if (settings == null)
+                return null;
+
+            return string.IsNullOrWhiteSpace(settings.googleWebClientId) ? null : settings.googleWebClientId.Trim();
         }
 
         private static bool IsAnonymousSession(SupabaseSession session)
