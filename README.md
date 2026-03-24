@@ -35,8 +35,7 @@ Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해
 
 | 샘플 | 내용 |
 |------|------|
-| **Basic Setup** | 게스트 로그인 → 사용자 데이터 저장·불러오기 → 이벤트 전송 (최소 데모) |
-| **Full SDK Usage** | 이벤트, RemoteConfig, Edge Function 호출 등 전체 흐름 |
+| **Examples** | 로그인, 데이터 저장/불러오기, 이벤트, RemoteConfig, Edge Function을 기능별 함수로 분리한 데모 |
 
 샘플 소스는 패키지 안의 `Samples~`에만 있고, **Import 전에는 프로젝트에 컴파일되지 않습니다.** Import 후에는 `Assets/Samples/<패키지 표시 이름>/<버전>/` 아래에 복사됩니다.
 
@@ -47,8 +46,7 @@ Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해
 
 2. **샘플 가져오기**  
    패키지 상세 패널에서 **Samples** 목록을 펼칩니다.  
-   - **Basic Setup** 또는 **Full SDK Usage** 옆 **Import**를 누릅니다.  
-   - 두 샘플을 모두 쓰려면 각각 Import합니다.
+   - **Examples** 옆 **Import**를 누릅니다.
 
 3. **실행 전 준비** (루트 README의 **준비** 섹션과 동일)  
    - `SupabaseSettings` 생성 후 `projectUrl`, `publishableKey` 입력  
@@ -57,13 +55,12 @@ Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해
 
 4. **씬 실행**  
    - 빈 씬 또는 테스트용 씬을 엽니다.  
-   - **Basic Setup**: Hierarchy에 빈 GameObject를 만들고 `ExampleBootstrap` 컴포넌트를 붙입니다.  
-   - **Full SDK Usage**: `ExampleSupabaseAllFeatures`를 GameObject에 붙입니다.  
+   - Hierarchy에 빈 GameObject를 만들고 `ExampleSupabaseScenarios` 컴포넌트를 붙입니다.  
    - **Play** 시 `runOnStart`가 켜져 있으면 자동 실행됩니다.  
-   - 수동 실행 시 인스펙터에서 컴포넌트 우클릭 → **Run Basic Setup** / **Run Full SDK Usage** (Context Menu).
+   - 수동 실행 시 인스펙터에서 컴포넌트 우클릭 → **Run All Examples** 또는 기능별 실행 메뉴를 사용합니다.
 
 5. **결과 확인**  
-   - Console에 `[Supabase.*]` 형태의 Try API 로그와 샘플 스크립트의 `[BasicSetup]` / `[FullSDKUsage]` 완료 로그가 나오면 성공입니다.  
+   - Console에 `[Supabase.*]` 형태의 Try API 로그와 샘플 스크립트의 `[Sample]` 로그가 나오면 성공입니다.  
    - 초기화가 안 되면 Console의 **`[Supabase 초기화 점검]`** 을 따릅니다.
 
 6. **샘플 제거**  

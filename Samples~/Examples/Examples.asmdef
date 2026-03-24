@@ -1,16 +1,15 @@
 {
-  "name": "Truesoft.Supabase.Samples.FullSDKUsage",
+  "name": "Truesoft.Supabase.Samples.Examples",
   "rootNamespace": "Truesoft.SupabaseUnity.Samples",
   "references": [
-    "Truesoft.Supabase.Unity",
-    "Truesoft.Supabase.Core"
+    "Truesoft.Supabase.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,
   "precompiledReferences": [],
-  "autoReferenced": false,
+  "autoReferenced": true,
   "defineConstraints": [],
   "versionDefines": [],
   "noEngineReferences": false

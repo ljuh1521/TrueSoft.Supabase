@@ -9,14 +9,9 @@
   },
   "samples": [
     {
-      "displayName": "Basic Setup",
-      "description": "Minimal demo: guest sign-in, save/load, user events.",
-      "path": "Samples~/BasicSetup"
-    },
-    {
-      "displayName": "Full SDK Usage",
-      "description": "End-to-end sample: auth, data, events, remote config, edge functions.",
-      "path": "Samples~/FullSDKUsage"
+      "displayName": "Examples",
+      "description": "Practical examples separated by feature: login, save/load, events, remote config, edge functions.",
+      "path": "Samples~/Examples"
     }
   ]
 }
