@@ -14,15 +14,17 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
 2. `projectUrl`, `publishableKey` 를 입력합니다.
 3. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
-4. 씬에 **`SupabaseRuntime`** 이 있어야 합니다. 메뉴 **TrueSoft > Supabase > Create Runtime Object In Scene** 으로 추가하거나, 샘플 스크립트가 런타임에 생성할 수 있습니다.
+4. `SupabaseRuntime`은 선택 사항입니다.  
+   - 인증/데이터/이벤트/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  
+   - 자동 세션 복원/RemoteConfig 주기 폴링까지 씬 라이프사이클로 관리하려면 `SupabaseRuntime` 배치를 권장합니다.
 
 ## 제공 범위
 
-- **초기화**: `Supabase.EnsureInitializedAsync()`로 런타임 초기화 대기·Resources 부트스트랩을 한 번에 시도할 수 있습니다. `SignInAnonymouslyAsync` 등 대부분의 비동기 API는 내부에서 초기화를 기다리며, 이미 로그인된 경우 익명 로그인 호출은 네트워크 없이 성공을 반환합니다.
+- **초기화/세션 준비**: `Supabase.EnsureInitializedAsync()`, `Supabase.EnsureReadySessionAsync()`, `Supabase.StartAsync()`를 제공합니다. `SaveUserDataAsync`, `SendUserEventAsync`, `InvokeFunctionAsync`, `SendChatMessageAsync` 등은 기본적으로 미로그인 시 자동 익명 로그인을 시도해 한 줄 호출로 사용할 수 있습니다. 필요하면 오버로드의 `autoSignInIfNeeded`를 `false`로 제어할 수 있습니다.
 - **인증**: 게스트 로그인, Google ID 토큰 로그인·연동, 세션 복원
 - **사용자 데이터**: 저장·불러오기
 - **사용자 이벤트**: 전송
-- **원격 설정**: 구독, 새로고침, 폴링, 캐시에서 값 읽기
+- **원격 설정**: 구독, 새로고침, 폴링, 캐시에서 값 읽기, `GetRemoteConfigAsync()` 원라인 조회
 - **Edge Functions**: 호출
 - **채팅**: 채널 입장·전송·이탈
 

@@ -1,6 +1,6 @@
 # Full SDK Usage 샘플
 
-이벤트 전송, RemoteConfig 새로고침·폴링, Edge Function 호출 등 **여러 기능을 한 흐름**으로 확인하는 샘플입니다.
+`StartAsync`(초기화+세션 준비) 이후 이벤트 전송, RemoteConfig 조회, Edge Function 호출을 **원라인 중심 흐름**으로 확인하는 샘플입니다.
 
 ## 1. 샘플 가져오기
 
@@ -20,7 +20,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Full SDK Usage/
 2. **`Assets/Resources/SupabaseSettings.asset`** 로 저장 (이름 `SupabaseSettings`)
 3. **Anonymous sign-ins** 활성화 (게스트 로그인 사용 시)
 4. (선택) **Create Runtime Object In Scene** 으로 `SupabaseRuntime` 배치  
-   ※ 없으면 Play 시 샘플이 생성할 수 있습니다.
+   ※ 이 샘플은 기본 API에서 자동 초기화/로그인을 처리하므로, `Resources/SupabaseSettings`가 있으면 런타임 오브젝트 없이도 동작합니다.
 
 ## 3. 씬에서 실행
 

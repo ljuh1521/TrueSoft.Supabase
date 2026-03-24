@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Data;
-using UnityEngine;
 
 namespace Truesoft.Supabase.Unity
 {
@@ -35,8 +34,7 @@ namespace Truesoft.Supabase.Unity
 
             if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
                 return SupabaseResult<bool>.Fail("auth_not_signed_in");
-            
-            Debug.Log($"Saving data for user {userId}: {data.ToString()}: {accessToken}");
+
             return await _userDataService.SaveAsync(
                 accessToken: accessToken,
                 userId: userId,

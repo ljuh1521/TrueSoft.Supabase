@@ -1,8 +1,6 @@
-using System;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Unity;
-using Truesoft.Supabase.Unity.Config;
 
 using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 
@@ -31,23 +29,15 @@ namespace Truesoft.SupabaseUnity.Samples
 
         private async Task RunAllAsync()
         {
-            EnsureRuntimeExists();
-            if (!await SupabaseClient.EnsureInitializedAsync(10000))
+            // 원라인 시작 준비: 초기화 + (선택)세션복원 + 자동익명로그인 + RemoteConfig 새로고침
+            if (!await SupabaseClient.StartAsync(restoreSessionFirst: true, autoSignInIfNeeded: true, refreshRemoteConfigOnStart: true))
             {
-                SupabaseUnitySetupHelp.LogInitializationTimeout("FullSDKUsage");
-                return;
-            }
-
-            var signIn = await SupabaseClient.SignInAnonymouslyAsync();
-            if (!signIn.IsSuccess)
-            {
-                Debug.LogError("[FullSDKUsage] Guest sign-in failed: " + signIn.ErrorMessage);
+                Debug.LogError("[FullSDKUsage] SDK start failed.");
                 return;
             }
 
             _ = await SupabaseClient.SendUserEventAsync("full_sample_started");
-            _ = await SupabaseClient.RefreshRemoteConfigAsync();
-            _ = await SupabaseClient.PollRemoteConfigAsync();
+            _ = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey, defaultValue: null);
             SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
             Debug.Log("[FullSDKUsage] RemoteConfig raw: " + raw);
 
@@ -56,19 +46,6 @@ namespace Truesoft.SupabaseUnity.Samples
                 Debug.LogWarning("[FullSDKUsage] Function failed: " + fn.ErrorMessage);
 
             Debug.Log("[FullSDKUsage] done.");
-        }
-
-        private static void EnsureRuntimeExists()
-        {
-            if (SupabaseClient.IsInitialized)
-                return;
-
-            var existing = UnityEngine.Object.FindFirstObjectByType<SupabaseRuntime>();
-            if (existing != null)
-                return;
-
-            var go = new GameObject("SupabaseRuntime");
-            go.AddComponent<SupabaseRuntime>();
         }
     }
 }

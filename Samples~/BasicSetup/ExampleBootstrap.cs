@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Unity;
-using Truesoft.Supabase.Unity.Config;
 
 using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 
@@ -31,14 +30,7 @@ namespace Truesoft.SupabaseUnity.Samples
 
         private async Task RunAsync()
         {
-            EnsureRuntimeExists();
-            if (!await SupabaseClient.EnsureInitializedAsync(10000))
-            {
-                SupabaseUnitySetupHelp.LogInitializationTimeout("BasicSetup");
-                return;
-            }
-
-            // SignInAnonymouslyAsync는 SDK 내부에서 초기화 대기·이미 로그인 시 성공 반환을 처리합니다.
+            // 한 줄 호출: SDK가 초기화 대기/부트스트랩/로그인 상태 처리를 내부에서 수행합니다.
             var signIn = await SupabaseClient.SignInAnonymouslyAsync();
             if (!signIn.IsSuccess)
             {
@@ -69,19 +61,6 @@ namespace Truesoft.SupabaseUnity.Samples
 
             _ = await SupabaseClient.SendUserEventAsync("basic_setup_done");
             Debug.Log($"[BasicSetup] done. level={loadRes.Data.level}, coins={loadRes.Data.coins}");
-        }
-
-        private static void EnsureRuntimeExists()
-        {
-            if (SupabaseClient.IsInitialized)
-                return;
-
-            var existing = UnityEngine.Object.FindFirstObjectByType<SupabaseRuntime>();
-            if (existing != null)
-                return;
-
-            var go = new GameObject("SupabaseRuntime");
-            go.AddComponent<SupabaseRuntime>();
         }
 
         [Serializable]

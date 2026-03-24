@@ -25,7 +25,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Basic Setup/
 3. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장 (파일명 `SupabaseSettings`)
 4. Supabase 대시보드 **Authentication** → **Anonymous sign-ins** 활성화
 5. (선택) **TrueSoft** > **Supabase** > **Create Runtime Object In Scene** 으로 `SupabaseRuntime` 배치  
-   ※ 샘플이 없으면 Play 시 자동으로 `SupabaseRuntime` GameObject를 만들 수 있습니다.
+   ※ 이 샘플은 `Resources/SupabaseSettings`가 있으면 SDK가 내부에서 초기화/로그인을 처리하므로, 기본 흐름은 런타임 오브젝트 없이도 동작합니다.
 
 ## 3. 씬에서 실행
 
