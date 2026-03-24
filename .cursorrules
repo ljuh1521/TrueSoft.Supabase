@@ -1,0 +1,10 @@
+# TrueSoft.Supabase — Cursor AI 공통
+
+## Git 커밋 메시지 언어 (필수)
+
+- 소스 제어(Git)에서 **Generate Commit Message / 커밋 설명 자동 생성**할 때도 **제목·본문 모두 한국어**로 쓴다.
+- 영어로만 된 제목·본문을 기본으로 내지 않는다. (예: `Enhance documentation for...`, `Added detailed XML comments...` 같은 문장은 **사용하지 않는다**.
+- 위와 같은 내용이면 **한국어로 의역**한다. 예:
+  - 제목: `Supabase 설정·SDK에 XML 주석 및 툴팁 보강`
+  - 본문: `SupabaseSettings, Supabase, SupabaseSDK에 상세 XML 주석 추가. Google 인증 방법·사용처 명확화. 인스펙터 툴팁 보강.`
+- 사용자가 **영어로 달라고 한 경우에만** 영어 허용.
