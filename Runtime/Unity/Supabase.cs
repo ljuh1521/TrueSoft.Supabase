@@ -9,7 +9,7 @@ namespace Truesoft.Supabase.Unity
     /// 게임 코드에서 쓰기 위한 정적 진입점입니다. 실제 구현은 <see cref="SupabaseSDK"/>에 있습니다.
     /// </summary>
     /// <remarks>
-    /// • 구글: <see cref="TrySignInWithGoogleAsync(bool)"/>는 Android 네이티브 전체 플로우(설정의 Web Client ID), <see cref="TrySignInWithGoogleAsync(string, bool)"/>는 인자로 ID 전달, <see cref="TrySignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
+    /// • 구글: <see cref="TrySignInWithGoogleAsync(bool)"/>는 Android 네이티브 전체 플로우(설정의 Web Client ID), <see cref="TrySignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
     /// • <see cref="TryStartAsync"/>는 초기화·(선택)세션 복원·(선택)RC를 한 번에 수행합니다.<br/>
     /// • Try API들은 <c>SupabaseSettings.enableApiResultLogs</c>에 따라 API별 고정 태그로 성공/실패 로그를 자동 출력합니다.
     /// </remarks>
@@ -44,14 +44,6 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(bool saveSessionToStorage = true) =>
             SupabaseSDK.SignInWithGoogleAsync(saveSessionToStorage);
 
-        /// <summary>
-        /// Android 네이티브 Google 로그인 전체 플로우. Web Client ID를 코드 인자로 넘깁니다.
-        /// </summary>
-        internal static Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(
-            string webClientId,
-            bool saveSessionToStorage = true) =>
-            SupabaseSDK.SignInWithGoogleAsync(webClientId, saveSessionToStorage);
-
         /// <summary>Android 네이티브 Google 계정 로그아웃 (Supabase 세션은 유지).</summary>
         internal static Task<SupabaseResult<bool>> SignOutFromGoogleAsync() =>
             SupabaseSDK.SignOutFromGoogleAsync();
@@ -64,10 +56,6 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="SupabaseSDK.TrySignInWithGoogleAsync(bool)"/>
         public static Task<bool> TrySignInWithGoogleAsync(bool saveSessionToStorage = true) =>
             SupabaseSDK.TrySignInWithGoogleAsync(saveSessionToStorage);
-
-        /// <inheritdoc cref="SupabaseSDK.TrySignInWithGoogleAsync(string, bool)"/>
-        public static Task<bool> TrySignInWithGoogleAsync(string webClientId, bool saveSessionToStorage = true) =>
-            SupabaseSDK.TrySignInWithGoogleAsync(webClientId, saveSessionToStorage);
 
         /// <inheritdoc cref="SupabaseSDK.TrySignInWithGoogleIdTokenAsync(string, bool)"/>
         public static Task<bool> TrySignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true) =>

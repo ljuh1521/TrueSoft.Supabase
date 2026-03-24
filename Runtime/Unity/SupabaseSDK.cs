@@ -16,7 +16,7 @@ namespace Truesoft.Supabase.Unity
     /// </summary>
     /// <remarks>
     /// <b>구글 로그인 두 가지</b><br/>
-    /// • <see cref="SignInWithGoogleAsync()"/> / <see cref="SignInWithGoogleAsync(string, bool)"/> — Android 네이티브 플러그인으로 계정 선택·ID 토큰 획득까지 포함한 끝단 흐름.<br/>
+    /// • <see cref="SignInWithGoogleAsync()"/> — Android 네이티브 플러그인으로 계정 선택·ID 토큰 획득까지 포함한 끝단 흐름.<br/>
     /// • <see cref="SignInWithGoogleIdTokenAsync"/> — 이미 가진 Google ID 토큰 문자열만 넘겨 Supabase에만 맞출 때(iOS, 커스텀 OAuth, 테스트 등). 입력 형태가 달라 둘 다 유지합니다.
     /// </remarks>
     public static class SupabaseSDK
@@ -37,7 +37,6 @@ namespace Truesoft.Supabase.Unity
         private static class ApiLogTags
         {
             public const string AuthGoogleSettings = "Supabase.Auth.Google.Settings";
-            public const string AuthGoogleWebClient = "Supabase.Auth.Google.WebClient";
             public const string AuthGoogleIdToken = "Supabase.Auth.Google.IdToken";
             public const string AuthAnonymous = "Supabase.Auth.Anonymous";
             public const string AuthGoogleSignOut = "Supabase.Auth.Google.SignOut";
@@ -138,7 +137,7 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>이미 가진 Google ID 토큰 문자열로 Supabase에 로그인하고 SDK 세션을 맞춥니다.</summary>
         /// <remarks>
-        /// Android 네이티브 <see cref="SignInWithGoogleAsync(string, bool)"/>와 달리 «토큰 획득»은 호출자 책임입니다(iOS 플러그인, 웹 OAuth, 수동 입력 등).
+        /// Android 네이티브 <see cref="SignInWithGoogleAsync(bool)"/>와 달리 «토큰 획득»은 호출자 책임입니다(iOS 플러그인, 웹 OAuth, 수동 입력 등).
         /// 익명(게스트) 세션이 있으면 게스트→구글 연동을 위해 identity link를 먼저 시도합니다.
         /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
@@ -192,27 +191,11 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(webClientId))
                 return SupabaseResult<SupabaseSession>.Fail("google_web_client_id_empty");
 
-            return await SignInWithGoogleAsync(webClientId, saveSessionToStorage);
-        }
-
-        /// <summary>
-        /// Android 네이티브 Google 로그인(계정 UI·ID 토큰 획득) 후 Supabase 세션까지 한 번에 맞춥니다.
-        /// </summary>
-        /// <param name="webClientId">Google Cloud OAuth 2.0 Web Client ID.</param>
-        /// <remarks>
-        /// <see cref="SignInWithGoogleIdTokenAsync"/>는 토큰만 받습니다. 여기서는 <see cref="GoogleLoginBridge"/>까지 포함한 전체 플로우입니다.
-        /// Unity Editor·비 Android 빌드에서는 플러그인 제약으로 실패할 수 있습니다.
-        /// </remarks>
-        public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(string webClientId, bool saveSessionToStorage = true)
-        {
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
-
-            if (string.IsNullOrWhiteSpace(webClientId))
-                return SupabaseResult<SupabaseSession>.Fail("google_web_client_id_empty");
 
             var bridge = EnsureGoogleLoginBridge();
             var provider = new AndroidGoogleLoginProvider(bridge, webClientId.Trim());
@@ -246,13 +229,6 @@ namespace Truesoft.Supabase.Unity
         {
             var r = await SignInWithGoogleAsync(saveSessionToStorage);
             return LogAndReturn(ApiLogTags.AuthGoogleSettings, r);
-        }
-
-        /// <summary><see cref="SignInWithGoogleAsync(string, bool)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySignInWithGoogleAsync(string webClientId, bool saveSessionToStorage = true)
-        {
-            var r = await SignInWithGoogleAsync(webClientId, saveSessionToStorage);
-            return LogAndReturn(ApiLogTags.AuthGoogleWebClient, r);
         }
 
         /// <summary><see cref="SignInWithGoogleIdTokenAsync"/>를 bool 기반으로 호출합니다.</summary>

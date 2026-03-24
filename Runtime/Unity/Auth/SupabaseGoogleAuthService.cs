@@ -7,12 +7,12 @@ namespace Truesoft.Supabase.Unity.Auth
 {
     public sealed class SupabaseGoogleAuthService
     {
-        private readonly IGoogleLoginProvider _googleLoginProvider;
+        private readonly AndroidGoogleLoginProvider _googleLoginProvider;
         private readonly SupabaseAuthService _authService;
         private readonly Func<SupabaseSession> _sessionGetter;
 
         public SupabaseGoogleAuthService(
-            IGoogleLoginProvider googleLoginProvider,
+            AndroidGoogleLoginProvider googleLoginProvider,
             SupabaseAuthService authService,
             Func<SupabaseSession> sessionGetter = null)
         {

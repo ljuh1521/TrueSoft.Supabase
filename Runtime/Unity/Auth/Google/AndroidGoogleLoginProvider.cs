@@ -2,7 +2,7 @@ using System;
 
 namespace Truesoft.Supabase.Unity.Auth.Google
 {
-    public sealed class AndroidGoogleLoginProvider : IGoogleLoginProvider
+    public sealed class AndroidGoogleLoginProvider
     {
         private readonly GoogleLoginBridge _bridge;
         private readonly string _webClientId;
