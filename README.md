@@ -21,7 +21,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 ## 제공 범위
 
 - **초기화/세션 준비**: `Supabase.EnsureInitializedAsync()`, `Supabase.EnsureReadySessionAsync()`, `Supabase.StartAsync()`를 제공합니다. `SaveUserDataAsync`, `SendUserEventAsync`, `InvokeFunctionAsync`, `SendChatMessageAsync` 등은 기본적으로 미로그인 시 자동 익명 로그인을 시도해 한 줄 호출로 사용할 수 있습니다. 필요하면 오버로드의 `autoSignInIfNeeded`를 `false`로 제어할 수 있습니다.
-- **인증**: 게스트 로그인, Google ID 토큰 로그인·연동, 세션 복원
+- **인증**: 게스트 로그인, Google ID 토큰 로그인·연동, Android용 `SignInWithGoogleAsync(webClientId)` 원라인, 세션 복원
 - **사용자 데이터**: 저장·불러오기
 - **사용자 이벤트**: 전송
 - **원격 설정**: 구독, 새로고침, 폴링, 캐시에서 값 읽기, `GetRemoteConfigAsync()` 원라인 조회

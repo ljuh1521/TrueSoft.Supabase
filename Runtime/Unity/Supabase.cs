@@ -33,6 +33,18 @@ namespace Truesoft.Supabase.Unity
             bool saveSessionToStorage = true) =>
             SupabaseSDK.SignInWithGoogleIdTokenAsync(idToken, saveSessionToStorage);
 
+        /// <summary>
+        /// Android 네이티브 Google 로그인 후 Supabase 세션까지 한 번에 처리합니다. (OAuth Web Client ID 필요)
+        /// </summary>
+        public static Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(
+            string webClientId,
+            bool saveSessionToStorage = true) =>
+            SupabaseSDK.SignInWithGoogleAsync(webClientId, saveSessionToStorage);
+
+        /// <summary>Android 네이티브 Google 계정 로그아웃 (Supabase 세션은 유지).</summary>
+        public static Task<SupabaseResult<bool>> SignOutFromGoogleAsync() =>
+            SupabaseSDK.SignOutFromGoogleAsync();
+
         /// <summary>게스트(익명)로 가입하고 SDK 세션을 자동 설정.</summary>
         public static Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(
             bool saveSessionToStorage = true) =>

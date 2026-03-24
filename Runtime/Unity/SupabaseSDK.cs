@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Data;
+using Truesoft.Supabase.Unity.Auth;
+using Truesoft.Supabase.Unity.Auth.Google;
 using Truesoft.Supabase.Unity.Config;
 using UnityEngine;
 
@@ -140,6 +142,67 @@ namespace Truesoft.Supabase.Unity
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Android 네이티브 Google 로그인 → ID 토큰으로 Supabase 세션까지 한 번에 처리합니다.
+        /// <paramref name="webClientId"/>는 Google Cloud OAuth Web Client ID입니다. Editor/비 Android 빌드에서는 실패할 수 있습니다.
+        /// </summary>
+        public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleAsync(string webClientId, bool saveSessionToStorage = true)
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            if (Auth == null)
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            if (string.IsNullOrWhiteSpace(webClientId))
+                return SupabaseResult<SupabaseSession>.Fail("google_web_client_id_empty");
+
+            var bridge = EnsureGoogleLoginBridge();
+            var provider = new AndroidGoogleLoginProvider(bridge, webClientId.Trim());
+            var googleAuth = new SupabaseGoogleAuthService(provider, Auth, () => _currentSession);
+
+            var tcs = new TaskCompletionSource<SupabaseResult<SupabaseSession>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            googleAuth.SignInWithGoogle(
+                session =>
+                {
+                    if (session == null)
+                    {
+                        tcs.TrySetResult(SupabaseResult<SupabaseSession>.Fail("supabase_session_null"));
+                        return;
+                    }
+
+                    SetSession(session);
+                    if (saveSessionToStorage)
+                        SaveSessionToStorage();
+
+                    tcs.TrySetResult(SupabaseResult<SupabaseSession>.Success(session));
+                },
+                err => tcs.TrySetResult(
+                    SupabaseResult<SupabaseSession>.Fail(string.IsNullOrWhiteSpace(err) ? "google_signin_failed" : err)));
+
+            return await tcs.Task;
+        }
+
+        /// <summary>
+        /// Android 네이티브 Google 계정에서 로그아웃합니다. (Supabase 세션은 그대로이므로 필요하면 <see cref="ClearSession"/> 호출)
+        /// </summary>
+        public static async Task<SupabaseResult<bool>> SignOutFromGoogleAsync()
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            var bridge = EnsureGoogleLoginBridge();
+            var tcs = new TaskCompletionSource<SupabaseResult<bool>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            bridge.SignOut(
+                () => tcs.TrySetResult(SupabaseResult<bool>.Success(true)),
+                err => tcs.TrySetResult(
+                    SupabaseResult<bool>.Fail(string.IsNullOrWhiteSpace(err) ? "google_signout_failed" : err)));
+
+            return await tcs.Task;
         }
 
         /// <summary>게스트(익명)로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
@@ -683,6 +746,20 @@ namespace Truesoft.Supabase.Unity
             _remoteConfig = null;
             _functions = null;
             _chatChannels.Clear();
+        }
+
+        /// <summary>
+        /// GoogleLoginBridge가 씬에 없으면 생성합니다. (<see cref="Config.SupabaseRuntime"/>와 동일한 이름의 오브젝트)
+        /// </summary>
+        private static GoogleLoginBridge EnsureGoogleLoginBridge()
+        {
+            var existing = UnityEngine.Object.FindFirstObjectByType<GoogleLoginBridge>();
+            if (existing != null)
+                return existing;
+
+            var go = new GameObject("TruesoftGoogleLoginBridge");
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            return go.AddComponent<GoogleLoginBridge>();
         }
 
         private static bool IsAnonymousSession(SupabaseSession session)
