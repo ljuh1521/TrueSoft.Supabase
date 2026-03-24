@@ -5,7 +5,7 @@ using Truesoft.Supabase.Unity.Config;
 using Truesoft.Supabase.Unity;
 using UnityEngine;
 
-namespace Truesoft.Supabase.Samples
+namespace Truesoft.SupabaseUnity.Samples
 {
     /// <summary>
     /// 주요 SDK 기능을 한 번에 모두 확인하는 샘플입니다.

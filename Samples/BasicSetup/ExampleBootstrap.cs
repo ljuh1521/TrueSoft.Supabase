@@ -4,7 +4,7 @@ using UnityEngine;
 using Truesoft.Supabase.Unity;
 using Truesoft.Supabase.Unity.Config;
 
-namespace Truesoft.Supabase.Samples
+namespace Truesoft.SupabaseUnity.Samples
 {
     /// <summary>
     /// SDK 핵심 흐름(게스트 로그인 + 저장·불러오기)을 확인하는 간단 샘플입니다.

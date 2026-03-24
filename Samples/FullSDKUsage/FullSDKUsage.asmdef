@@ -1,6 +1,6 @@
 {
   "name": "Truesoft.Supabase.Samples.FullSDKUsage",
-  "rootNamespace": "Truesoft.Supabase.Samples",
+  "rootNamespace": "Truesoft.SupabaseUnity.Samples",
   "references": [
     "Truesoft.Supabase.Unity",
     "Truesoft.Supabase.Core"
