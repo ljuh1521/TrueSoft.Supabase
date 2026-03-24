@@ -46,7 +46,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Basic Setup/
 
 ## 5. 확인
 
-- Console에 `[BasicSetup]` 로그가 보이면 정상입니다.
+- Console에 `[Supabase.*]` Try API 로그와 샘플 완료용 `[BasicSetup] done.` 로그가 보이면 정상입니다.
 - 실패 시 **`[Supabase 초기화 점검]`** 메시지를 따라 설정을 확인하세요.
 
 ## 6. 샘플 삭제

@@ -32,6 +32,30 @@ namespace Truesoft.Supabase.Unity
         private static ServerFunctionsFacade _functions;
         private static readonly Dictionary<string, ChatChannelFacade> _chatChannels = new(StringComparer.Ordinal);
         private static string _initializedProjectUrl;
+        private static bool _enableApiResultLogs = true;
+
+        /// <summary>Try* API 결과 로그 접두어. API마다 고정이며 호출자가 넘기지 않습니다.</summary>
+        private static class ApiLogTags
+        {
+            public const string AuthGoogleSettings = "Supabase.Auth.Google.Settings";
+            public const string AuthGoogleWebClient = "Supabase.Auth.Google.WebClient";
+            public const string AuthGoogleIdToken = "Supabase.Auth.Google.IdToken";
+            public const string AuthAnonymous = "Supabase.Auth.Anonymous";
+            public const string AuthGoogleSignOut = "Supabase.Auth.Google.SignOut";
+            public const string BootStart = "Supabase.Boot.Start";
+            public const string AuthRefreshSession = "Supabase.Auth.RefreshSession";
+            public const string UserDataSave = "Supabase.UserData.Save";
+            public const string UserDataLoad = "Supabase.UserData.Load";
+            public const string UserEventSend = "Supabase.UserEvent.Send";
+            public const string UserEventSendPayload = "Supabase.UserEvent.SendPayload";
+            public const string EdgeFunctionInvoke = "Supabase.EdgeFunction.Invoke";
+            public const string RemoteConfigRefresh = "Supabase.RemoteConfig.Refresh";
+            public const string RemoteConfigPoll = "Supabase.RemoteConfig.Poll";
+            public const string RemoteConfigGet = "Supabase.RemoteConfig.Get";
+            public const string ChatSend = "Supabase.Chat.Send";
+            public const string ChatJoin = "Supabase.Chat.Join";
+            public const string AuthRestoreSession = "Supabase.Auth.RestoreSession";
+        }
 
         /// <summary><see cref="EnsureInitializedAsync"/> 기본 대기 시간(ms). 씬의 <c>SupabaseRuntime</c> Awake를 기다립니다.</summary>
         public const int DefaultEnsureInitTimeoutMs = 30000;
@@ -216,6 +240,188 @@ namespace Truesoft.Supabase.Unity
                     SupabaseResult<SupabaseSession>.Fail(string.IsNullOrWhiteSpace(err) ? "google_signin_failed" : err)));
 
             return await tcs.Task;
+        }
+
+        /// <summary><see cref="SignInWithGoogleAsync(bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignInWithGoogleAsync(bool saveSessionToStorage = true)
+        {
+            var r = await SignInWithGoogleAsync(saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthGoogleSettings, r);
+        }
+
+        /// <summary><see cref="SignInWithGoogleAsync(string, bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignInWithGoogleAsync(string webClientId, bool saveSessionToStorage = true)
+        {
+            var r = await SignInWithGoogleAsync(webClientId, saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthGoogleWebClient, r);
+        }
+
+        /// <summary><see cref="SignInWithGoogleIdTokenAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
+        {
+            var r = await SignInWithGoogleIdTokenAsync(idToken, saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthGoogleIdToken, r);
+        }
+
+        /// <summary><see cref="SignInAnonymouslyAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignInAnonymouslyAsync(bool saveSessionToStorage = true)
+        {
+            var r = await SignInAnonymouslyAsync(saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthAnonymous, r);
+        }
+
+        /// <summary><see cref="SignOutFromGoogleAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignOutFromGoogleAsync()
+        {
+            var r = await SignOutFromGoogleAsync();
+            return LogAndReturn(ApiLogTags.AuthGoogleSignOut, r);
+        }
+
+        /// <summary><see cref="StartAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryStartAsync(
+            bool restoreSessionFirst = true,
+            bool autoSignInIfNeeded = true,
+            bool refreshRemoteConfigOnStart = false)
+        {
+            var ok = await StartAsync(restoreSessionFirst, autoSignInIfNeeded, refreshRemoteConfigOnStart);
+            LogApiResult(ApiLogTags.BootStart, ok, ok ? null : "start_failed");
+            return ok;
+        }
+
+        /// <summary><see cref="RefreshSessionAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryRefreshSessionAsync(string refreshToken, bool saveSessionToStorage = true)
+        {
+            var r = await RefreshSessionAsync(refreshToken, saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthRefreshSession, r);
+        }
+
+        /// <summary><see cref="SaveUserDataAsync{T}(T, bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySaveUserDataAsync<T>(T data, bool autoSignInIfNeeded = true)
+        {
+            var r = await SaveUserDataAsync(data, autoSignInIfNeeded);
+            return LogAndReturn(ApiLogTags.UserDataSave, r);
+        }
+
+        /// <summary><see cref="LoadUserDataAsync{T}(bool)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
+        public static async Task<T> TryLoadUserDataAsync<T>(bool autoSignInIfNeeded = true, T defaultValue = default) where T : class, new()
+        {
+            var r = await LoadUserDataAsync<T>(autoSignInIfNeeded);
+            return LogAndReturnData(ApiLogTags.UserDataLoad, r, defaultValue);
+        }
+
+        /// <summary><see cref="SendUserEventAsync(string, bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySendUserEventAsync(string eventType, bool autoSignInIfNeeded = true)
+        {
+            var r = await SendUserEventAsync(eventType, autoSignInIfNeeded);
+            return LogAndReturn(ApiLogTags.UserEventSend, r);
+        }
+
+        /// <summary><see cref="SendUserEventAsync{T}(string, T, bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySendUserEventAsync<T>(string eventType, T payload, bool autoSignInIfNeeded = true)
+        {
+            var r = await SendUserEventAsync(eventType, payload, autoSignInIfNeeded);
+            return LogAndReturn(ApiLogTags.UserEventSendPayload, r);
+        }
+
+        /// <summary><see cref="InvokeFunctionAsync{TResponse}(string, object, bool)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
+        public static async Task<TResponse> TryInvokeFunctionAsync<TResponse>(
+            string functionName,
+            object requestBody = null,
+            bool autoSignInIfNeeded = true,
+            TResponse defaultValue = default)
+        {
+            var r = await InvokeFunctionAsync<TResponse>(functionName, requestBody, autoSignInIfNeeded);
+            return LogAndReturnData(ApiLogTags.EdgeFunctionInvoke, r, defaultValue);
+        }
+
+        /// <summary><see cref="RefreshRemoteConfigAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryRefreshRemoteConfigAsync()
+        {
+            var ok = await RefreshRemoteConfigAsync();
+            LogApiResult(ApiLogTags.RemoteConfigRefresh, ok, ok ? null : "remote_config_refresh_failed");
+            return ok;
+        }
+
+        /// <summary><see cref="PollRemoteConfigAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryPollRemoteConfigAsync()
+        {
+            var ok = await PollRemoteConfigAsync();
+            LogApiResult(ApiLogTags.RemoteConfigPoll, ok, ok ? null : "remote_config_poll_failed");
+            return ok;
+        }
+
+        /// <summary><see cref="GetRemoteConfigAsync{T}"/>를 호출하고 반환값 유무를 로그로 남깁니다.</summary>
+        public static async Task<T> TryGetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false)
+        {
+            var value = await GetRemoteConfigAsync(key, defaultValue, pollOnly);
+            var hasValue = EqualityComparer<T>.Default.Equals(value, defaultValue) == false;
+            LogApiResult(ApiLogTags.RemoteConfigGet, hasValue, hasValue ? null : "remote_config_default_returned");
+            return value;
+        }
+
+        /// <summary><see cref="SendChatMessageAsync(string, string, string, bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySendChatMessageAsync(
+            string channelId,
+            string content,
+            string displayName = null,
+            bool autoSignInIfNeeded = true)
+        {
+            var ok = await SendChatMessageAsync(channelId, content, displayName, autoSignInIfNeeded);
+            LogApiResult(ApiLogTags.ChatSend, ok, ok ? null : "chat_send_failed");
+            return ok;
+        }
+
+        /// <summary><see cref="JoinChatChannelAsync"/>를 호출하고 채널 join 성공 여부를 로그로 남깁니다.</summary>
+        public static async Task<ChatChannelFacade> TryJoinChatChannelAsync(
+            string channelId,
+            MonoBehaviour pollHost,
+            Action<SupabaseChatService.ChatMessageRow> onMessageReceived,
+            float pollIntervalSeconds = 1.5f,
+            bool loadHistory = true,
+            int historyCount = 50,
+            bool autoSignInIfNeeded = true)
+        {
+            var channel = await JoinChatChannelAsync(channelId, pollHost, onMessageReceived, pollIntervalSeconds, loadHistory, historyCount, autoSignInIfNeeded);
+            LogApiResult(ApiLogTags.ChatJoin, channel != null, channel != null ? null : "chat_join_failed");
+            return channel;
+        }
+
+        /// <summary><see cref="RestoreSessionAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryRestoreSessionAsync()
+        {
+            var ok = await RestoreSessionAsync();
+            LogApiResult(ApiLogTags.AuthRestoreSession, ok, ok ? null : "restore_session_failed");
+            return ok;
+        }
+
+        private static bool LogAndReturn<T>(string logTag, SupabaseResult<T> result)
+        {
+            var ok = result != null && result.IsSuccess;
+            LogApiResult(logTag, ok, ok ? null : result?.ErrorMessage);
+            return ok;
+        }
+
+        private static T LogAndReturnData<T>(string logTag, SupabaseResult<T> result, T defaultValue)
+        {
+            var ok = result != null && result.IsSuccess;
+            LogApiResult(logTag, ok, ok ? null : result?.ErrorMessage);
+            return ok ? result.Data : defaultValue;
+        }
+
+        private static void LogApiResult(string logTag, bool isSuccess, string message = null)
+        {
+            if (!_enableApiResultLogs)
+                return;
+
+            var prefix = $"[{logTag}]";
+            if (isSuccess)
+            {
+                Debug.Log($"{prefix} success");
+                return;
+            }
+
+            var detail = string.IsNullOrWhiteSpace(message) ? "unknown_error" : message.Trim();
+            Debug.LogError($"{prefix} failed: {detail}");
         }
 
         /// <summary>
@@ -800,6 +1006,7 @@ namespace Truesoft.Supabase.Unity
 
             _bootstrap = bootstrap;
             _initializedProjectUrl = newUrl;
+            _enableApiResultLogs = bootstrap.EnableApiResultLogs;
 
             if (!preserveSession)
                 _currentSession = null;

@@ -13,20 +13,21 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
 2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)
-3. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
-4. `SupabaseRuntime`은 선택 사항입니다.  
+3. API 결과 로그를 제어하려면 `enableApiResultLogs`를 설정합니다. (`true`면 Try API별 고정 태그(예: `[Supabase.UserData.Save]`)로 성공/실패 로그 출력. 호출자가 태그를 넘기지 않습니다.)
+4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
+5. `SupabaseRuntime`은 선택 사항입니다.  
    - 인증/데이터/이벤트/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  
    - 자동 세션 복원/RemoteConfig 주기 폴링까지 씬 라이프사이클로 관리하려면 `SupabaseRuntime` 배치를 권장합니다.
 
 ## 제공 범위
 
-- **초기화/세션 준비**: `Supabase.EnsureInitializedAsync()`, `Supabase.EnsureReadySessionAsync()`, `Supabase.StartAsync()`를 제공합니다. `SaveUserDataAsync`, `SendUserEventAsync`, `InvokeFunctionAsync`, `SendChatMessageAsync` 등은 기본적으로 미로그인 시 자동 익명 로그인을 시도해 한 줄 호출로 사용할 수 있습니다. 필요하면 오버로드의 `autoSignInIfNeeded`를 `false`로 제어할 수 있습니다.
-- **인증**: 게스트 로그인, Google ID 토큰 로그인·연동, Android용 `SignInWithGoogleAsync(webClientId)` 원라인, 세션 복원
-- **사용자 데이터**: 저장·불러오기
-- **사용자 이벤트**: 전송
-- **원격 설정**: 구독, 새로고침, 폴링, 캐시에서 값 읽기, `GetRemoteConfigAsync()` 원라인 조회
-- **Edge Functions**: 호출
-- **채팅**: 채널 입장·전송·이탈
+- **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 필요하면 익명 자동 로그인을 끄고(`autoSignInIfNeeded: false`) 구글 로그인 Try API와 조합합니다.
+- **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
+- **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync`
+- **사용자 이벤트**: `TrySendUserEventAsync`
+- **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
+- **Edge Functions**: `TryInvokeFunctionAsync`
+- **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈
 
 ## 샘플
 
@@ -62,7 +63,7 @@ Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해
    - 수동 실행 시 인스펙터에서 컴포넌트 우클릭 → **Run Basic Setup** / **Run Full SDK Usage** (Context Menu).
 
 5. **결과 확인**  
-   - Console에 `[BasicSetup]` … 또는 `[FullSDKUsage]` … 로그가 나오면 성공입니다.  
+   - Console에 `[Supabase.*]` 형태의 Try API 로그와 샘플 스크립트의 `[BasicSetup]` / `[FullSDKUsage]` 완료 로그가 나오면 성공입니다.  
    - 초기화가 안 되면 Console의 **`[Supabase 초기화 점검]`** 을 따릅니다.
 
 6. **샘플 제거**  

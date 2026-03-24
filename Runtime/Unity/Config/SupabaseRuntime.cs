@@ -99,7 +99,7 @@ namespace Truesoft.Supabase.Unity.Config
 
             if (restoreSessionOnStart)
             {
-                var restoreTask = Supabase.RestoreSessionAsync();
+                var restoreTask = Supabase.TryRestoreSessionAsync();
                 yield return new WaitUntil(() => restoreTask.IsCompleted);
             }
 
@@ -108,7 +108,7 @@ namespace Truesoft.Supabase.Unity.Config
 
             if (refreshAllOnStart)
             {
-                var refreshTask = Supabase.RefreshRemoteConfigAsync();
+                var refreshTask = Supabase.TryRefreshRemoteConfigAsync();
                 yield return new WaitUntil(() => refreshTask.IsCompleted);
             }
 
@@ -117,7 +117,7 @@ namespace Truesoft.Supabase.Unity.Config
 
             while (true)
             {
-                var pollTask = Supabase.PollRemoteConfigAsync();
+                var pollTask = Supabase.TryPollRemoteConfigAsync();
                 yield return new WaitUntil(() => pollTask.IsCompleted);
                 yield return new WaitForSeconds(pollIntervalSeconds);
             }

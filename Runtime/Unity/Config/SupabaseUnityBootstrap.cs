@@ -10,6 +10,7 @@ namespace Truesoft.Supabase.Unity.Config
     {
         /// <summary>현재 부트스트랩이 사용 중인 프로젝트 URL (동일 URL로 재초기화될 때 기존 로그인 세션 유지에 사용).</summary>
         public string ProjectUrl { get; private set; }
+        public bool EnableApiResultLogs { get; private set; } = true;
 
         public SupabaseAuthService AuthService { get; private set; }
         public SupabaseUserDataService UserDataService { get; private set; }
@@ -25,6 +26,7 @@ namespace Truesoft.Supabase.Unity.Config
 
             var options = settings.ToOptions();
             ProjectUrl = options.ProjectURL ?? string.Empty;
+            EnableApiResultLogs = settings.enableApiResultLogs;
 
             var http = new UnitySupabaseHttpClient(options.TimeoutSeconds);
             var json = new UnitySupabaseJsonSerializer();

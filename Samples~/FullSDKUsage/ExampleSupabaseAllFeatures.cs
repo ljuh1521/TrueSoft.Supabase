@@ -30,20 +30,15 @@ namespace Truesoft.SupabaseUnity.Samples
         private async Task RunAllAsync()
         {
             // 원라인 시작 준비: 초기화 + (선택)세션복원 + 자동익명로그인 + RemoteConfig 새로고침
-            if (!await SupabaseClient.StartAsync(restoreSessionFirst: true, autoSignInIfNeeded: true, refreshRemoteConfigOnStart: true))
-            {
-                Debug.LogError("[FullSDKUsage] SDK start failed.");
+            if (!await SupabaseClient.TryStartAsync(restoreSessionFirst: true, autoSignInIfNeeded: true, refreshRemoteConfigOnStart: true))
                 return;
-            }
 
-            _ = await SupabaseClient.SendUserEventAsync("full_sample_started");
-            _ = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey, defaultValue: null);
+            _ = await SupabaseClient.TrySendUserEventAsync("full_sample_started");
+            _ = await SupabaseClient.TryGetRemoteConfigAsync<object>(remoteConfigKey, defaultValue: null);
             SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
             Debug.Log("[FullSDKUsage] RemoteConfig raw: " + raw);
 
-            var fn = await SupabaseClient.InvokeFunctionAsync<object>(functionName, new { ping = true });
-            if (!fn.IsSuccess)
-                Debug.LogWarning("[FullSDKUsage] Function failed: " + fn.ErrorMessage);
+            _ = await SupabaseClient.TryInvokeFunctionAsync<object>(functionName, new { ping = true });
 
             Debug.Log("[FullSDKUsage] done.");
         }

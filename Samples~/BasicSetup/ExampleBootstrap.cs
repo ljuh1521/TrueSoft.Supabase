@@ -30,13 +30,9 @@ namespace Truesoft.SupabaseUnity.Samples
 
         private async Task RunAsync()
         {
-            // 한 줄 호출: SDK가 초기화 대기/부트스트랩/로그인 상태 처리를 내부에서 수행합니다.
-            var signIn = await SupabaseClient.SignInAnonymouslyAsync();
-            if (!signIn.IsSuccess)
-            {
-                Debug.LogError("[BasicSetup] Guest sign-in failed: " + signIn.ErrorMessage);
+            // 한 줄 호출: 초기화/로그인 실패는 SDK가 로그를 남기고 false를 반환합니다.
+            if (!await SupabaseClient.TrySignInAnonymouslyAsync())
                 return;
-            }
 
             var save = new SaveData
             {
@@ -45,22 +41,15 @@ namespace Truesoft.SupabaseUnity.Samples
                 updatedAtIso = DateTime.UtcNow.ToString("o")
             };
 
-            var saveRes = await SupabaseClient.SaveUserDataAsync(save);
-            if (!saveRes.IsSuccess)
-            {
-                Debug.LogError("[BasicSetup] SaveUserData failed: " + saveRes.ErrorMessage);
+            if (!await SupabaseClient.TrySaveUserDataAsync(save))
                 return;
-            }
 
-            var loadRes = await SupabaseClient.LoadUserDataAsync<SaveData>();
-            if (!loadRes.IsSuccess)
-            {
-                Debug.LogError("[BasicSetup] LoadUserData failed: " + loadRes.ErrorMessage);
+            var loaded = await SupabaseClient.TryLoadUserDataAsync<SaveData>();
+            if (loaded == null)
                 return;
-            }
 
-            _ = await SupabaseClient.SendUserEventAsync("basic_setup_done");
-            Debug.Log($"[BasicSetup] done. level={loadRes.Data.level}, coins={loadRes.Data.coins}");
+            _ = await SupabaseClient.TrySendUserEventAsync("basic_setup_done");
+            Debug.Log($"[BasicSetup] done. level={loaded.level}, coins={loaded.coins}");
         }
 
         [Serializable]
