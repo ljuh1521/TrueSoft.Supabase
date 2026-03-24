@@ -221,7 +221,7 @@ namespace Truesoft.Supabase.Unity
             bool stopPollingIfNoListeners = true) =>
             SupabaseSDK.LeaveChatChannel(channelId, onMessageReceived, stopPollingIfNoListeners);
 
-        /// <summary>서버 함수 호출 (내부 Result API, 세션 여부와 무관하게 요청 시도).</summary>
+        /// <summary>서버 함수 호출 (내부 Result API, 로그인 세션 필요).</summary>
         internal static Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(
             string functionName,
             object requestBody = null) =>

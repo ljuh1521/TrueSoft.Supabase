@@ -659,10 +659,10 @@ namespace Truesoft.Supabase.Unity
             return GetChatChannel(channelId) != null;
         }
 
-        /// <summary>서버 함수 호출(세션 여부와 무관하게 요청 시도).</summary>
+        /// <summary>서버 함수 호출(로그인 세션 필요).</summary>
         public static async Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(string functionName, object requestBody = null)
         {
-            return await Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: false);
+            return await Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: true);
         }
 
         /// <summary>
