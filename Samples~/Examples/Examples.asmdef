@@ -2,7 +2,7 @@
   "name": "Truesoft.Supabase.Samples.Examples",
   "rootNamespace": "Truesoft.SupabaseUnity.Samples",
   "references": [
-    "Truesoft.Supabase.Runtime"
+    "Truesoft.Supabase.Unity"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
