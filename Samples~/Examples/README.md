@@ -4,7 +4,6 @@
 
 - 로그인 예시
 - 저장/불러오기 예시
-- 사용자 이벤트 전송 예시
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
 
@@ -37,7 +36,6 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
    - 개별 실행: 우클릭으로 각 함수 실행
      - **Run Login Example**
      - **Run Save/Load Example**
-     - **Run Event Example**
      - **Run RemoteConfig Example**
      - **Run Function Example**
 

@@ -12,7 +12,7 @@ using UnityEngine;
 namespace Truesoft.Supabase.Unity
 {
     /// <summary>
-    /// Unity용 Supabase 정적 진입점. 초기화·인증·유저 데이터·이벤트·Remote Config·Edge Functions·채팅 API를 한 곳에 둡니다.
+    /// Unity용 Supabase 정적 진입점. 초기화·인증·유저 데이터·Remote Config·Edge Functions·채팅 API를 한 곳에 둡니다.
     /// </summary>
     /// <remarks>
     /// <b>구글 로그인 두 가지</b><br/>
@@ -26,7 +26,6 @@ namespace Truesoft.Supabase.Unity
         private static SupabaseUnityBootstrap _bootstrap;
         private static SupabaseSession _currentSession;
         private static UserSavesFacade _userSaves;
-        private static UserEventsFacade _userEvents;
         private static RemoteConfigFacade _remoteConfig;
         private static ServerFunctionsFacade _functions;
         private static readonly Dictionary<string, ChatChannelFacade> _chatChannels = new(StringComparer.Ordinal);
@@ -44,8 +43,6 @@ namespace Truesoft.Supabase.Unity
             public const string AuthRefreshSession = "Supabase.Auth.RefreshSession";
             public const string UserDataSave = "Supabase.UserData.Save";
             public const string UserDataLoad = "Supabase.UserData.Load";
-            public const string UserEventSend = "Supabase.UserEvent.Send";
-            public const string UserEventSendPayload = "Supabase.UserEvent.SendPayload";
             public const string EdgeFunctionInvoke = "Supabase.EdgeFunction.Invoke";
             public const string RemoteConfigRefresh = "Supabase.RemoteConfig.Refresh";
             public const string RemoteConfigPoll = "Supabase.RemoteConfig.Poll";
@@ -283,20 +280,6 @@ namespace Truesoft.Supabase.Unity
             return LogAndReturnData(ApiLogTags.UserDataLoad, r, defaultValue);
         }
 
-        /// <summary><see cref="SendUserEventAsync(string)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySendUserEventAsync(string eventType)
-        {
-            var r = await SendUserEventAsync(eventType);
-            return LogAndReturn(ApiLogTags.UserEventSend, r);
-        }
-
-        /// <summary><see cref="SendUserEventAsync{T}(string, T)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySendUserEventAsync<T>(string eventType, T payload)
-        {
-            var r = await SendUserEventAsync(eventType, payload);
-            return LogAndReturn(ApiLogTags.UserEventSendPayload, r);
-        }
-
         /// <summary><see cref="InvokeFunctionAsync{TResponse}(string, object)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
         public static async Task<TResponse> TryInvokeFunctionAsync<TResponse>(
             string functionName,
@@ -531,40 +514,6 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<T>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
             return await UserSaves.LoadAsync<T>();
-        }
-
-        /// <summary>이벤트 전송 퍼사드. 초기화 후에만 사용하세요.</summary>
-        public static UserEventsFacade Events
-        {
-            get
-            {
-                EnsureInitializedOrBootstrapSync();
-                if (_bootstrap == null)
-                    throw new InvalidOperationException("SupabaseSDK is not initialized. Call SupabaseUnityBootstrap.Initialize first.");
-
-                return _userEvents ??= new UserEventsFacade(_bootstrap.UserEventsService, () => _currentSession);
-            }
-        }
-
-        /// <summary>현재 세션으로 이벤트 전송 (payload 없음).</summary>
-        public static async Task<SupabaseResult<bool>> SendUserEventAsync(string eventType)
-        {
-            // 이벤트 API 단독 호출만으로도 동작하도록 세션 준비를 내부에서 보장합니다.
-            var ready = await EnsureReadySessionAsync();
-            if (!ready.IsSuccess)
-                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
-
-            return await Events.SendAsync(eventType);
-        }
-
-        /// <summary>현재 세션으로 이벤트+payload 전송.</summary>
-        public static async Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload)
-        {
-            var ready = await EnsureReadySessionAsync();
-            if (!ready.IsSuccess)
-                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
-
-            return await Events.SendAsync(eventType, payload);
         }
 
         /// <summary>Remote Config 캐시·구독·서버 동기화 퍼사드.</summary>

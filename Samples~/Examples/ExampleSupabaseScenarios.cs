@@ -8,7 +8,7 @@ using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 namespace Truesoft.SupabaseUnity.Samples
 {
     /// <summary>
-    /// 샘플: 로그인/데이터/이벤트/RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
+    /// 샘플: 로그인/데이터/RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
     /// </summary>
     public sealed class ExampleSupabaseScenarios : MonoBehaviour
     {
@@ -47,12 +47,6 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunSaveLoadExample()
         {
             _ = RunSaveLoadExampleAsync();
-        }
-
-        [ContextMenu("Run Event Example")]
-        public void RunEventExample()
-        {
-            _ = RunEventExampleAsync();
         }
 
         [ContextMenu("Run RemoteConfig Example")]
@@ -108,21 +102,6 @@ namespace Truesoft.SupabaseUnity.Samples
             return true;
         }
 
-        private async Task<bool> RunEventExampleAsync()
-        {
-            if (!SupabaseClient.IsLoggedIn)
-            {
-                Debug.LogWarning("[Sample] event example skipped: sign in first.");
-                return false;
-            }
-
-            var ok = await SupabaseClient.TrySendUserEventAsync("sample_event");
-            Debug.Log(ok
-                ? "[Sample] event example success."
-                : "[Sample] event example failed.");
-            return ok;
-        }
-
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
             if (!await SupabaseClient.TryRefreshRemoteConfigAsync())
@@ -157,7 +136,6 @@ namespace Truesoft.SupabaseUnity.Samples
 
             await RunLoginExampleAsync();
             await RunSaveLoadExampleAsync();
-            await RunEventExampleAsync();
             await RunRemoteConfigExampleAsync();
             await RunFunctionExampleAsync();
 

@@ -14,7 +14,6 @@ namespace Truesoft.Supabase.Unity.Config
 
         public SupabaseAuthService AuthService { get; private set; }
         public SupabaseUserDataService UserDataService { get; private set; }
-        public SupabaseUserEventsService UserEventsService { get; private set; }
         public SupabaseRemoteConfigService RemoteConfigService { get; private set; }
         public SupabaseChatService ChatService { get; private set; }
         public SupabaseEdgeFunctionsService EdgeFunctionsService { get; private set; }
@@ -38,12 +37,6 @@ namespace Truesoft.Supabase.Unity.Config
                 json);
 
             UserDataService = new SupabaseUserDataService(
-                options.ProjectURL,
-                options.PublishableKey,
-                http,
-                json);
-
-            UserEventsService = new SupabaseUserEventsService(
                 options.ProjectURL,
                 options.PublishableKey,
                 http,

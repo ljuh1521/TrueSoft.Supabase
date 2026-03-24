@@ -106,14 +106,6 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new() =>
             SupabaseSDK.LoadUserDataAsync<T>();
 
-        /// <summary>현재 세션으로 이벤트 전송 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> SendUserEventAsync(string eventType) =>
-            SupabaseSDK.SendUserEventAsync(eventType);
-
-        /// <summary>현재 세션으로 이벤트+payload 전송 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload) =>
-            SupabaseSDK.SendUserEventAsync(eventType, payload);
-
         /// <inheritdoc cref="SupabaseSDK.TrySaveUserDataAsync{T}(T)"/>
         public static Task<bool> TrySaveUserDataAsync<T>(T data) =>
             SupabaseSDK.TrySaveUserDataAsync(data);
@@ -121,14 +113,6 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataAsync{T}(T)"/>
         public static Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new() =>
             SupabaseSDK.TryLoadUserDataAsync(defaultValue);
-
-        /// <inheritdoc cref="SupabaseSDK.TrySendUserEventAsync(string)"/>
-        public static Task<bool> TrySendUserEventAsync(string eventType) =>
-            SupabaseSDK.TrySendUserEventAsync(eventType);
-
-        /// <inheritdoc cref="SupabaseSDK.TrySendUserEventAsync{T}(string, T)"/>
-        public static Task<bool> TrySendUserEventAsync<T>(string eventType, T payload) =>
-            SupabaseSDK.TrySendUserEventAsync(eventType, payload);
 
         /// <summary>특정 key가 갱신될 때마다 콜백 (코드 연결, 실제 JSON 문자열 전달).</summary>
         public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true) =>
@@ -250,7 +234,7 @@ namespace Truesoft.Supabase.Unity
             TResponse defaultValue = default) =>
             SupabaseSDK.TryInvokeFunctionAsync(functionName, requestBody, defaultValue);
 
-        /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load/Events는 세션 인자 없이 사용 가능.</summary>
+        /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load API는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
 
         /// <summary>로그아웃 시 호출. clearStorage가 true면 저장된 refresh_token도 삭제.</summary>

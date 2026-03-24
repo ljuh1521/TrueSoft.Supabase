@@ -16,7 +16,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 3. API 결과 로그를 제어하려면 `enableApiResultLogs`를 설정합니다. (`true`면 Try API별 고정 태그(예: `[Supabase.UserData.Save]`)로 성공/실패 로그 출력. 호출자가 태그를 넘기지 않습니다.)
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
 5. `SupabaseRuntime`은 선택 사항입니다.  
-   - 인증/데이터/이벤트/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  
+   - 인증/데이터/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  
    - 자동 세션 복원/RemoteConfig 주기 폴링까지 씬 라이프사이클로 관리하려면 `SupabaseRuntime` 배치를 권장합니다.
 
 ## 제공 범위
@@ -24,7 +24,6 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync`
-- **사용자 이벤트**: `TrySendUserEventAsync`
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
 - **Edge Functions**: `TryInvokeFunctionAsync`
 - **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈
@@ -35,7 +34,7 @@ Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해
 
 | 샘플 | 내용 |
 |------|------|
-| **Examples** | 로그인, 데이터 저장/불러오기, 이벤트, RemoteConfig, Edge Function을 기능별 함수로 분리한 데모 |
+| **Examples** | 로그인, 데이터 저장/불러오기, RemoteConfig, Edge Function을 기능별 함수로 분리한 데모 |
 
 샘플 소스는 패키지 안의 `Samples~`에만 있고, **Import 전에는 프로젝트에 컴파일되지 않습니다.** Import 후에는 `Assets/Samples/<패키지 표시 이름>/<버전>/` 아래에 복사됩니다.
 
