@@ -29,8 +29,8 @@ namespace Truesoft.SupabaseUnity.Samples
 
         private async Task RunAllAsync()
         {
-            // 원라인 시작 준비: 초기화 + (선택)세션복원 + 자동익명로그인 + RemoteConfig 새로고침
-            if (!await SupabaseClient.TryStartAsync(restoreSessionFirst: true, autoSignInIfNeeded: true, refreshRemoteConfigOnStart: true))
+            // 원라인 시작 준비: 초기화 + (선택)세션복원 + RemoteConfig 새로고침
+            if (!await SupabaseClient.TryStartAsync(restoreSessionFirst: true, refreshRemoteConfigOnStart: true))
                 return;
 
             _ = await SupabaseClient.TrySendUserEventAsync("full_sample_started");

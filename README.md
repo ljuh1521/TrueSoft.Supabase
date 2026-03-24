@@ -21,7 +21,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 ## 제공 범위
 
-- **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 필요하면 익명 자동 로그인을 끄고(`autoSignInIfNeeded: false`) 구글 로그인 Try API와 조합합니다.
+- **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync`
 - **사용자 이벤트**: `TrySendUserEventAsync`

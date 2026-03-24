@@ -10,7 +10,7 @@ namespace Truesoft.Supabase.Unity
     /// </summary>
     /// <remarks>
     /// • 구글: <see cref="TrySignInWithGoogleAsync(bool)"/>는 Android 네이티브 전체 플로우(설정의 Web Client ID), <see cref="TrySignInWithGoogleAsync(string, bool)"/>는 인자로 ID 전달, <see cref="TrySignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
-    /// • <see cref="TryStartAsync"/>는 초기화·복원·(선택)익명·(선택)RC를 한 번에. 익명 없이 구글만 쓰면 <c>autoSignInIfNeeded: false</c> 후 <see cref="TrySignInWithGoogleAsync(bool)"/> 또는 <see cref="TrySignInWithGoogleAsync(string, bool)"/>.<br/>
+    /// • <see cref="TryStartAsync"/>는 초기화·(선택)세션 복원·(선택)RC를 한 번에 수행합니다.<br/>
     /// • Try API들은 <c>SupabaseSettings.enableApiResultLogs</c>에 따라 API별 고정 태그로 성공/실패 로그를 자동 출력합니다.
     /// </remarks>
     public static class Supabase
@@ -77,12 +77,11 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TrySignInAnonymouslyAsync(bool saveSessionToStorage = true) =>
             SupabaseSDK.TrySignInAnonymouslyAsync(saveSessionToStorage);
 
-        /// <inheritdoc cref="SupabaseSDK.TryStartAsync(bool, bool, bool)"/>
+        /// <inheritdoc cref="SupabaseSDK.TryStartAsync(bool, bool)"/>
         public static Task<bool> TryStartAsync(
             bool restoreSessionFirst = true,
-            bool autoSignInIfNeeded = true,
             bool refreshRemoteConfigOnStart = false) =>
-            SupabaseSDK.TryStartAsync(restoreSessionFirst, autoSignInIfNeeded, refreshRemoteConfigOnStart);
+            SupabaseSDK.TryStartAsync(restoreSessionFirst, refreshRemoteConfigOnStart);
 
         /// <inheritdoc cref="SupabaseSDK.TrySignOutFromGoogleAsync"/>
         public static Task<bool> TrySignOutFromGoogleAsync() =>
@@ -92,24 +91,18 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TryRefreshSessionAsync(string refreshToken, bool saveSessionToStorage = true) =>
             SupabaseSDK.TryRefreshSessionAsync(refreshToken, saveSessionToStorage);
 
-        /// <summary>
-        /// 초기화 + 로그인 세션을 보장합니다.
-        /// autoSignInIfNeeded=true면 미로그인 상태에서 자동 익명 로그인을 시도합니다.
-        /// </summary>
-        internal static Task<SupabaseResult<SupabaseSession>> EnsureReadySessionAsync(
-            bool autoSignInIfNeeded = true,
-            bool saveSessionToStorage = true) =>
-            SupabaseSDK.EnsureReadySessionAsync(autoSignInIfNeeded, saveSessionToStorage);
+        /// <summary>초기화 + 로그인 세션을 확인합니다. 미로그인이면 실패를 반환합니다.</summary>
+        internal static Task<SupabaseResult<SupabaseSession>> EnsureReadySessionAsync() =>
+            SupabaseSDK.EnsureReadySessionAsync();
 
         /// <summary>
         /// 앱 시작 시 자주 필요한 준비를 한 번에 수행합니다.
-        /// 초기화 -> (선택) 저장 세션 복원 -> (선택) 익명 로그인 -> (선택) RemoteConfig 새로고침.
+        /// 초기화 -> (선택) 저장 세션 복원 -> (선택) RemoteConfig 새로고침.
         /// </summary>
         public static Task<bool> StartAsync(
             bool restoreSessionFirst = true,
-            bool autoSignInIfNeeded = true,
             bool refreshRemoteConfigOnStart = false) =>
-            SupabaseSDK.StartAsync(restoreSessionFirst, autoSignInIfNeeded, refreshRemoteConfigOnStart);
+            SupabaseSDK.StartAsync(restoreSessionFirst, refreshRemoteConfigOnStart);
 
         /// <summary>refresh_token으로 세션 갱신 후 SDK 세션 자동 설정.</summary>
         internal static Task<SupabaseResult<SupabaseSession>> RefreshSessionAsync(
@@ -121,49 +114,33 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data) =>
             SupabaseSDK.SaveUserDataAsync(data);
 
-        /// <summary>현재 세션으로 유저 데이터 저장 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data, bool autoSignInIfNeeded) =>
-            SupabaseSDK.SaveUserDataAsync(data, autoSignInIfNeeded);
-
         /// <summary>현재 세션으로 유저 데이터 로드 (내부 Result API).</summary>
         internal static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new() =>
             SupabaseSDK.LoadUserDataAsync<T>();
-
-        /// <summary>현재 세션으로 유저 데이터 로드 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<T>> LoadUserDataAsync<T>(bool autoSignInIfNeeded) where T : class, new() =>
-            SupabaseSDK.LoadUserDataAsync<T>(autoSignInIfNeeded);
 
         /// <summary>현재 세션으로 이벤트 전송 (내부 Result API).</summary>
         internal static Task<SupabaseResult<bool>> SendUserEventAsync(string eventType) =>
             SupabaseSDK.SendUserEventAsync(eventType);
 
-        /// <summary>현재 세션으로 이벤트 전송 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> SendUserEventAsync(string eventType, bool autoSignInIfNeeded) =>
-            SupabaseSDK.SendUserEventAsync(eventType, autoSignInIfNeeded);
-
         /// <summary>현재 세션으로 이벤트+payload 전송 (내부 Result API).</summary>
         internal static Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload) =>
             SupabaseSDK.SendUserEventAsync(eventType, payload);
 
-        /// <summary>현재 세션으로 이벤트+payload 전송 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload, bool autoSignInIfNeeded) =>
-            SupabaseSDK.SendUserEventAsync(eventType, payload, autoSignInIfNeeded);
+        /// <inheritdoc cref="SupabaseSDK.TrySaveUserDataAsync{T}(T)"/>
+        public static Task<bool> TrySaveUserDataAsync<T>(T data) =>
+            SupabaseSDK.TrySaveUserDataAsync(data);
 
-        /// <inheritdoc cref="SupabaseSDK.TrySaveUserDataAsync{T}(T, bool)"/>
-        public static Task<bool> TrySaveUserDataAsync<T>(T data, bool autoSignInIfNeeded = true) =>
-            SupabaseSDK.TrySaveUserDataAsync(data, autoSignInIfNeeded);
+        /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataAsync{T}(T)"/>
+        public static Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new() =>
+            SupabaseSDK.TryLoadUserDataAsync(defaultValue);
 
-        /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataAsync{T}(bool, T)"/>
-        public static Task<T> TryLoadUserDataAsync<T>(bool autoSignInIfNeeded = true, T defaultValue = default) where T : class, new() =>
-            SupabaseSDK.TryLoadUserDataAsync(autoSignInIfNeeded, defaultValue);
+        /// <inheritdoc cref="SupabaseSDK.TrySendUserEventAsync(string)"/>
+        public static Task<bool> TrySendUserEventAsync(string eventType) =>
+            SupabaseSDK.TrySendUserEventAsync(eventType);
 
-        /// <inheritdoc cref="SupabaseSDK.TrySendUserEventAsync(string, bool)"/>
-        public static Task<bool> TrySendUserEventAsync(string eventType, bool autoSignInIfNeeded = true) =>
-            SupabaseSDK.TrySendUserEventAsync(eventType, autoSignInIfNeeded);
-
-        /// <inheritdoc cref="SupabaseSDK.TrySendUserEventAsync{T}(string, T, bool)"/>
-        public static Task<bool> TrySendUserEventAsync<T>(string eventType, T payload, bool autoSignInIfNeeded = true) =>
-            SupabaseSDK.TrySendUserEventAsync(eventType, payload, autoSignInIfNeeded);
+        /// <inheritdoc cref="SupabaseSDK.TrySendUserEventAsync{T}(string, T)"/>
+        public static Task<bool> TrySendUserEventAsync<T>(string eventType, T payload) =>
+            SupabaseSDK.TrySendUserEventAsync(eventType, payload);
 
         /// <summary>특정 key가 갱신될 때마다 콜백 (코드 연결, 실제 JSON 문자열 전달).</summary>
         public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true) =>
@@ -204,17 +181,12 @@ namespace Truesoft.Supabase.Unity
         internal static Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null) =>
             SupabaseSDK.SendChatMessageAsync(channelId, content, displayName);
 
-        /// <summary>채팅 메시지 전송 (내부 API).</summary>
-        internal static Task<bool> SendChatMessageAsync(string channelId, string content, string displayName, bool autoSignInIfNeeded) =>
-            SupabaseSDK.SendChatMessageAsync(channelId, content, displayName, autoSignInIfNeeded);
-
-        /// <inheritdoc cref="SupabaseSDK.TrySendChatMessageAsync(string, string, string, bool)"/>
+        /// <inheritdoc cref="SupabaseSDK.TrySendChatMessageAsync(string, string, string)"/>
         public static Task<bool> TrySendChatMessageAsync(
             string channelId,
             string content,
-            string displayName = null,
-            bool autoSignInIfNeeded = true) =>
-            SupabaseSDK.TrySendChatMessageAsync(channelId, content, displayName, autoSignInIfNeeded);
+            string displayName = null) =>
+            SupabaseSDK.TrySendChatMessageAsync(channelId, content, displayName);
 
         /// <summary>채널이 현재 SDK 캐시에 열려 있는지 확인.</summary>
         public static bool IsChatChannelOpen(string channelId) => SupabaseSDK.IsChatChannelOpen(channelId);
@@ -233,7 +205,7 @@ namespace Truesoft.Supabase.Unity
             SupabaseSDK.JoinChatChannel(channelId, pollHost, onMessageReceived, pollIntervalSeconds, loadHistory, historyCount);
 
         /// <summary>
-        /// 채널 join + 이벤트 구독 + 폴링 시작 (옵션: 미로그인 시 자동 익명 로그인).
+        /// 채널 join + 이벤트 구독 + 폴링 시작.
         /// 예: await Supabase.JoinChatChannelAsync("room-1", this, OnChatMessage);
         /// </summary>
         public static Task<ChatChannelFacade> JoinChatChannelAsync(
@@ -242,16 +214,14 @@ namespace Truesoft.Supabase.Unity
             Action<Core.Data.SupabaseChatService.ChatMessageRow> onMessageReceived,
             float pollIntervalSeconds = 1.5f,
             bool loadHistory = true,
-            int historyCount = 50,
-            bool autoSignInIfNeeded = true) =>
+            int historyCount = 50) =>
             SupabaseSDK.JoinChatChannelAsync(
                 channelId,
                 pollHost,
                 onMessageReceived,
                 pollIntervalSeconds,
                 loadHistory,
-                historyCount,
-                autoSignInIfNeeded);
+                historyCount);
 
         /// <inheritdoc cref="SupabaseSDK.TryJoinChatChannelAsync"/>
         public static Task<ChatChannelFacade> TryJoinChatChannelAsync(
@@ -260,16 +230,14 @@ namespace Truesoft.Supabase.Unity
             Action<Core.Data.SupabaseChatService.ChatMessageRow> onMessageReceived,
             float pollIntervalSeconds = 1.5f,
             bool loadHistory = true,
-            int historyCount = 50,
-            bool autoSignInIfNeeded = true) =>
+            int historyCount = 50) =>
             SupabaseSDK.TryJoinChatChannelAsync(
                 channelId,
                 pollHost,
                 onMessageReceived,
                 pollIntervalSeconds,
                 loadHistory,
-                historyCount,
-                autoSignInIfNeeded);
+                historyCount);
 
         /// <summary>
         /// JoinChatChannel로 구독한 채널에서 빠져나옵니다.
@@ -281,26 +249,18 @@ namespace Truesoft.Supabase.Unity
             bool stopPollingIfNoListeners = true) =>
             SupabaseSDK.LeaveChatChannel(channelId, onMessageReceived, stopPollingIfNoListeners);
 
-        /// <summary>로그인 세션으로 서버 함수 호출 (내부 Result API).</summary>
+        /// <summary>서버 함수 호출 (내부 Result API, 세션 여부와 무관하게 요청 시도).</summary>
         internal static Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(
             string functionName,
             object requestBody = null) =>
             SupabaseSDK.InvokeFunctionAsync<TResponse>(functionName, requestBody);
 
-        /// <summary>로그인 세션으로 서버 함수 호출 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(
-            string functionName,
-            object requestBody,
-            bool autoSignInIfNeeded) =>
-            SupabaseSDK.InvokeFunctionAsync<TResponse>(functionName, requestBody, autoSignInIfNeeded);
-
-        /// <inheritdoc cref="SupabaseSDK.TryInvokeFunctionAsync{TResponse}(string, object, bool, TResponse)"/>
+        /// <inheritdoc cref="SupabaseSDK.TryInvokeFunctionAsync{TResponse}(string, object, TResponse)"/>
         public static Task<TResponse> TryInvokeFunctionAsync<TResponse>(
             string functionName,
             object requestBody = null,
-            bool autoSignInIfNeeded = true,
             TResponse defaultValue = default) =>
-            SupabaseSDK.TryInvokeFunctionAsync(functionName, requestBody, autoSignInIfNeeded, defaultValue);
+            SupabaseSDK.TryInvokeFunctionAsync(functionName, requestBody, defaultValue);
 
         /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load/Events는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);

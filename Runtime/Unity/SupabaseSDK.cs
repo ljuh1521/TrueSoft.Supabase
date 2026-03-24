@@ -17,8 +17,7 @@ namespace Truesoft.Supabase.Unity
     /// <remarks>
     /// <b>구글 로그인 두 가지</b><br/>
     /// • <see cref="SignInWithGoogleAsync()"/> / <see cref="SignInWithGoogleAsync(string, bool)"/> — Android 네이티브 플러그인으로 계정 선택·ID 토큰 획득까지 포함한 끝단 흐름.<br/>
-    /// • <see cref="SignInWithGoogleIdTokenAsync"/> — 이미 가진 Google ID 토큰 문자열만 넘겨 Supabase에만 맞출 때(iOS, 커스텀 OAuth, 테스트 등). 입력 형태가 달라 둘 다 유지합니다.<br/>
-    /// <b>autoSignInIfNeeded</b> — Save/Load/이벤트/함수/채팅 등에서 미로그인일 때 익명 로그인을 자동으로 할지 여부입니다. 구글만 쓰려면 false로 끄고 <see cref="StartAsync"/> 또는 개별 로그인 API를 조합합니다.
+    /// • <see cref="SignInWithGoogleIdTokenAsync"/> — 이미 가진 Google ID 토큰 문자열만 넘겨 Supabase에만 맞출 때(iOS, 커스텀 OAuth, 테스트 등). 입력 형태가 달라 둘 다 유지합니다.
     /// </remarks>
     public static class SupabaseSDK
     {
@@ -280,10 +279,9 @@ namespace Truesoft.Supabase.Unity
         /// <summary><see cref="StartAsync"/>를 bool 기반으로 호출합니다.</summary>
         public static async Task<bool> TryStartAsync(
             bool restoreSessionFirst = true,
-            bool autoSignInIfNeeded = true,
             bool refreshRemoteConfigOnStart = false)
         {
-            var ok = await StartAsync(restoreSessionFirst, autoSignInIfNeeded, refreshRemoteConfigOnStart);
+            var ok = await StartAsync(restoreSessionFirst, refreshRemoteConfigOnStart);
             LogApiResult(ApiLogTags.BootStart, ok, ok ? null : "start_failed");
             return ok;
         }
@@ -295,42 +293,41 @@ namespace Truesoft.Supabase.Unity
             return LogAndReturn(ApiLogTags.AuthRefreshSession, r);
         }
 
-        /// <summary><see cref="SaveUserDataAsync{T}(T, bool)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySaveUserDataAsync<T>(T data, bool autoSignInIfNeeded = true)
+        /// <summary><see cref="SaveUserDataAsync{T}(T)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySaveUserDataAsync<T>(T data)
         {
-            var r = await SaveUserDataAsync(data, autoSignInIfNeeded);
+            var r = await SaveUserDataAsync(data);
             return LogAndReturn(ApiLogTags.UserDataSave, r);
         }
 
-        /// <summary><see cref="LoadUserDataAsync{T}(bool)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
-        public static async Task<T> TryLoadUserDataAsync<T>(bool autoSignInIfNeeded = true, T defaultValue = default) where T : class, new()
+        /// <summary><see cref="LoadUserDataAsync{T}()"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
+        public static async Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new()
         {
-            var r = await LoadUserDataAsync<T>(autoSignInIfNeeded);
+            var r = await LoadUserDataAsync<T>();
             return LogAndReturnData(ApiLogTags.UserDataLoad, r, defaultValue);
         }
 
-        /// <summary><see cref="SendUserEventAsync(string, bool)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySendUserEventAsync(string eventType, bool autoSignInIfNeeded = true)
+        /// <summary><see cref="SendUserEventAsync(string)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySendUserEventAsync(string eventType)
         {
-            var r = await SendUserEventAsync(eventType, autoSignInIfNeeded);
+            var r = await SendUserEventAsync(eventType);
             return LogAndReturn(ApiLogTags.UserEventSend, r);
         }
 
-        /// <summary><see cref="SendUserEventAsync{T}(string, T, bool)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySendUserEventAsync<T>(string eventType, T payload, bool autoSignInIfNeeded = true)
+        /// <summary><see cref="SendUserEventAsync{T}(string, T)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySendUserEventAsync<T>(string eventType, T payload)
         {
-            var r = await SendUserEventAsync(eventType, payload, autoSignInIfNeeded);
+            var r = await SendUserEventAsync(eventType, payload);
             return LogAndReturn(ApiLogTags.UserEventSendPayload, r);
         }
 
-        /// <summary><see cref="InvokeFunctionAsync{TResponse}(string, object, bool)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
+        /// <summary><see cref="InvokeFunctionAsync{TResponse}(string, object)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
         public static async Task<TResponse> TryInvokeFunctionAsync<TResponse>(
             string functionName,
             object requestBody = null,
-            bool autoSignInIfNeeded = true,
             TResponse defaultValue = default)
         {
-            var r = await InvokeFunctionAsync<TResponse>(functionName, requestBody, autoSignInIfNeeded);
+            var r = await InvokeFunctionAsync<TResponse>(functionName, requestBody);
             return LogAndReturnData(ApiLogTags.EdgeFunctionInvoke, r, defaultValue);
         }
 
@@ -359,14 +356,13 @@ namespace Truesoft.Supabase.Unity
             return value;
         }
 
-        /// <summary><see cref="SendChatMessageAsync(string, string, string, bool)"/>를 bool 기반으로 호출합니다.</summary>
+        /// <summary><see cref="SendChatMessageAsync(string, string, string)"/>를 bool 기반으로 호출합니다.</summary>
         public static async Task<bool> TrySendChatMessageAsync(
             string channelId,
             string content,
-            string displayName = null,
-            bool autoSignInIfNeeded = true)
+            string displayName = null)
         {
-            var ok = await SendChatMessageAsync(channelId, content, displayName, autoSignInIfNeeded);
+            var ok = await SendChatMessageAsync(channelId, content, displayName);
             LogApiResult(ApiLogTags.ChatSend, ok, ok ? null : "chat_send_failed");
             return ok;
         }
@@ -378,10 +374,9 @@ namespace Truesoft.Supabase.Unity
             Action<SupabaseChatService.ChatMessageRow> onMessageReceived,
             float pollIntervalSeconds = 1.5f,
             bool loadHistory = true,
-            int historyCount = 50,
-            bool autoSignInIfNeeded = true)
+            int historyCount = 50)
         {
-            var channel = await JoinChatChannelAsync(channelId, pollHost, onMessageReceived, pollIntervalSeconds, loadHistory, historyCount, autoSignInIfNeeded);
+            var channel = await JoinChatChannelAsync(channelId, pollHost, onMessageReceived, pollIntervalSeconds, loadHistory, historyCount);
             LogApiResult(ApiLogTags.ChatJoin, channel != null, channel != null ? null : "chat_join_failed");
             return channel;
         }
@@ -471,15 +466,10 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 초기화 + 로그인 세션을 보장합니다.
-        /// autoSignInIfNeeded=true면 미로그인 상태에서 자동으로 익명 로그인을 시도합니다.
+        /// 초기화 후 로그인 세션이 준비되었는지 확인합니다.
+        /// 미로그인 상태면 실패를 반환하며, 자동 익명 로그인은 수행하지 않습니다.
         /// </summary>
-        /// <remarks>
-        /// 데이터/이벤트/함수/채팅 등 «한 줄 호출»에서 내부적으로 사용합니다. 구글 전용 로그인만 쓰려면 익명 자동 로그인을 끄는 오버로드(<c>autoSignInIfNeeded: false</c>)와 조합하세요.
-        /// </remarks>
-        public static async Task<SupabaseResult<SupabaseSession>> EnsureReadySessionAsync(
-            bool autoSignInIfNeeded = true,
-            bool saveSessionToStorage = true)
+        public static async Task<SupabaseResult<SupabaseSession>> EnsureReadySessionAsync()
         {
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
@@ -488,28 +478,15 @@ namespace Truesoft.Supabase.Unity
             if (IsLoggedIn)
                 return SupabaseResult<SupabaseSession>.Success(_currentSession);
 
-            if (!autoSignInIfNeeded)
-                return SupabaseResult<SupabaseSession>.Fail("auth_not_signed_in");
-
-            // "한 줄 사용" 기본 경험을 위해 필요 시 자동 익명 로그인을 수행합니다.
-            var signIn = await SignInAnonymouslyAsync(saveSessionToStorage);
-            if (!signIn.IsSuccess)
-                return SupabaseResult<SupabaseSession>.Fail(signIn.ErrorMessage ?? "auth_not_signed_in");
-
-            return SupabaseResult<SupabaseSession>.Success(signIn.Data ?? _currentSession);
+            return SupabaseResult<SupabaseSession>.Fail("auth_not_signed_in");
         }
 
         /// <summary>
         /// 앱 시작 시 자주 필요한 준비를 한 번에 수행합니다.
-        /// 초기화 → (선택) 저장 세션 복원 → (선택) 익명 로그인 → (선택) RemoteConfig 새로고침.
-        /// </summary>
-        /// <remarks>
-        /// 호출 시점은 고정되지 않습니다(첫 프레임, 로딩 완료, 버튼 클릭 등). 익명 자동 로그인 없이 세션 복원만 하려면 <paramref name="autoSignInIfNeeded"/>를 false로 두고,
-        /// 이후 <see cref="SignInWithGoogleAsync()"/> 등으로 로그인합니다.
+        /// 초기화 → (선택) 저장 세션 복원 → (선택) RemoteConfig 새로고침.
         /// </remarks>
         public static async Task<bool> StartAsync(
             bool restoreSessionFirst = true,
-            bool autoSignInIfNeeded = true,
             bool refreshRemoteConfigOnStart = false)
         {
             if (!await EnsureInitializedAsync())
@@ -517,13 +494,6 @@ namespace Truesoft.Supabase.Unity
 
             if (restoreSessionFirst && !IsLoggedIn)
                 _ = await RestoreSessionAsync();
-
-            if (!IsLoggedIn && autoSignInIfNeeded)
-            {
-                var signIn = await SignInAnonymouslyAsync();
-                if (!signIn.IsSuccess)
-                    return false;
-            }
 
             if (refreshRemoteConfigOnStart)
                 _ = await RefreshRemoteConfigAsync();
@@ -568,16 +538,9 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>현재 세션으로 유저 데이터 저장.</summary>
-        public static Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data)
+        public static async Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data)
         {
-            return SaveUserDataAsync(data, autoSignInIfNeeded: true);
-        }
-
-        /// <summary>현재 세션으로 유저 데이터 저장 (옵션: 미로그인 시 자동 익명 로그인).</summary>
-        public static async Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data, bool autoSignInIfNeeded)
-        {
-            // 저장 API 단독 호출만으로도 동작하도록 세션 준비를 내부에서 보장합니다.
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
+            var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
@@ -585,16 +548,9 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>현재 세션으로 유저 데이터 로드.</summary>
-        public static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new()
+        public static async Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new()
         {
-            return LoadUserDataAsync<T>(autoSignInIfNeeded: true);
-        }
-
-        /// <summary>현재 세션으로 유저 데이터 로드 (옵션: 미로그인 시 자동 익명 로그인).</summary>
-        public static async Task<SupabaseResult<T>> LoadUserDataAsync<T>(bool autoSignInIfNeeded) where T : class, new()
-        {
-            // 로드 API 단독 호출만으로도 동작하도록 세션 준비를 내부에서 보장합니다.
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
+            var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<T>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
@@ -615,16 +571,10 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>현재 세션으로 이벤트 전송 (payload 없음).</summary>
-        public static Task<SupabaseResult<bool>> SendUserEventAsync(string eventType)
-        {
-            return SendUserEventAsync(eventType, autoSignInIfNeeded: true);
-        }
-
-        /// <summary>현재 세션으로 이벤트 전송 (payload 없음, 옵션: 미로그인 시 자동 익명 로그인).</summary>
-        public static async Task<SupabaseResult<bool>> SendUserEventAsync(string eventType, bool autoSignInIfNeeded)
+        public static async Task<SupabaseResult<bool>> SendUserEventAsync(string eventType)
         {
             // 이벤트 API 단독 호출만으로도 동작하도록 세션 준비를 내부에서 보장합니다.
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
+            var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
@@ -632,15 +582,9 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>현재 세션으로 이벤트+payload 전송.</summary>
-        public static Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload)
+        public static async Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload)
         {
-            return SendUserEventAsync(eventType, payload, autoSignInIfNeeded: true);
-        }
-
-        /// <summary>현재 세션으로 이벤트+payload 전송 (옵션: 미로그인 시 자동 익명 로그인).</summary>
-        public static async Task<SupabaseResult<bool>> SendUserEventAsync<T>(string eventType, T payload, bool autoSignInIfNeeded)
-        {
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
+            var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
@@ -773,20 +717,10 @@ namespace Truesoft.Supabase.Unity
         /// 채팅 메시지 한 건 전송 (인스턴스를 직접 들고 있지 않아도 됨).
         /// UI에서 채널 접속/폴링 여부는 여전히 OpenChatChannel/StartPolling으로 직접 관리하세요.
         /// </summary>
-        public static Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null)
+        public static async Task<bool> SendChatMessageAsync(string channelId, string content, string displayName = null)
         {
-            return SendChatMessageAsync(channelId, content, displayName, autoSignInIfNeeded: true);
-        }
-
-        /// <summary>채팅 메시지 한 건 전송 (옵션: 미로그인 시 자동 익명 로그인).</summary>
-        public static async Task<bool> SendChatMessageAsync(
-            string channelId,
-            string content,
-            string displayName,
-            bool autoSignInIfNeeded)
-        {
-            // 채팅 전송도 동일하게 세션을 자동 준비합니다.
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
+            // 채팅 전송도 동일하게 세션이 준비되어 있어야 합니다.
+            var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return false;
 
@@ -800,24 +734,10 @@ namespace Truesoft.Supabase.Unity
             return GetChatChannel(channelId) != null;
         }
 
-        /// <summary>서버 함수 호출(로그인 세션 필요).</summary>
-        public static Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(string functionName, object requestBody = null)
+        /// <summary>서버 함수 호출(세션 여부와 무관하게 요청 시도).</summary>
+        public static async Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(string functionName, object requestBody = null)
         {
-            return InvokeFunctionAsync<TResponse>(functionName, requestBody, autoSignInIfNeeded: true);
-        }
-
-        /// <summary>서버 함수 호출(옵션: 미로그인 시 자동 익명 로그인).</summary>
-        public static async Task<SupabaseResult<TResponse>> InvokeFunctionAsync<TResponse>(
-            string functionName,
-            object requestBody,
-            bool autoSignInIfNeeded)
-        {
-            // Functions 호출 전 인증 세션을 자동 확보합니다.
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
-            if (!ready.IsSuccess)
-                return SupabaseResult<TResponse>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
-
-            return await Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: true);
+            return await Functions.InvokeAsync<TResponse>(functionName, requestBody, requireAuth: false);
         }
 
         /// <summary>
@@ -850,7 +770,7 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 채팅 채널 join + 이벤트 구독 + 폴링 시작 (옵션: 미로그인 시 자동 익명 로그인).
+        /// 채팅 채널 join + 이벤트 구독 + 폴링 시작.
         /// 한 줄 사용을 위한 비동기 진입점입니다.
         /// </summary>
         public static async Task<ChatChannelFacade> JoinChatChannelAsync(
@@ -859,11 +779,10 @@ namespace Truesoft.Supabase.Unity
             Action<SupabaseChatService.ChatMessageRow> onMessageReceived,
             float pollIntervalSeconds = 1.5f,
             bool loadHistory = true,
-            int historyCount = 50,
-            bool autoSignInIfNeeded = true)
+            int historyCount = 50)
         {
-            // Join + Polling 시작까지 한 번에 쓰되, 로그인 상태도 내부에서 맞춰 줍니다.
-            var ready = await EnsureReadySessionAsync(autoSignInIfNeeded);
+            // Join + Polling 시작까지 한 번에 쓰되, 로그인 상태를 먼저 확인합니다.
+            var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return null;
 
