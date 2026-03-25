@@ -16,6 +16,7 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseUserDataService UserDataService { get; private set; }
         public SupabaseRemoteConfigService RemoteConfigService { get; private set; }
         public SupabaseChatService ChatService { get; private set; }
+        public SupabasePublicProfileService PublicProfileService { get; private set; }
         public SupabaseEdgeFunctionsService EdgeFunctionsService { get; private set; }
 
         public void Initialize(SupabaseSettings settings)
@@ -56,6 +57,13 @@ namespace Truesoft.Supabase.Unity.Config
                 http,
                 json,
                 options.ChatMessagesTable);
+
+            PublicProfileService = new SupabasePublicProfileService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                json,
+                options.PublicProfilesTable);
 
             EdgeFunctionsService = new SupabaseEdgeFunctionsService(
                 options.ProjectURL,

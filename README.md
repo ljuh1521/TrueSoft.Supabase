@@ -31,8 +31,9 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 - **User Saves** (`TrySaveUserDataAsync` / `TryLoadUserDataAsync`): 필드 `userSavesTable` (비우면 기본값 `user_saves`)
 - **Remote Config**: `remoteConfigTable` (기본 `remote_config`)
 - **채팅**: `chatMessagesTable` (기본 `chat_messages`)
+- **공개 프로필**: `publicProfilesTable` (기본 `profiles`) — `TryGetPublicNicknameAsync`, `TrySetMyNicknameAsync`
 
-코드에서 `SupabaseOptions`의 `UserSavesTable`, `RemoteConfigTable`, `ChatMessagesTable`도 같은 역할을 합니다. Unity 에셋 경로로 쓸 때는 `SupabaseSettings.ToOptions()`가 비어 있는 테이블 필드를 기본 이름으로 채웁니다. `SupabaseOptions`만 직접 만들 때는 빈 문자열을 넣지 말고, 필드 기본값을 두거나 유효한 이름을 지정하세요. 스키마가 `public`이 아니면 `schema.table` 형식으로 지정할 수 있습니다. 잘못된 문자(`..`, `/`, `\` 등)는 초기화 시 검증되어 예외가 납니다.
+코드에서 `SupabaseOptions`의 `UserSavesTable`, `RemoteConfigTable`, `ChatMessagesTable`, `PublicProfilesTable`도 같은 역할을 합니다. Unity 에셋 경로로 쓸 때는 `SupabaseSettings.ToOptions()`가 비어 있는 테이블 필드를 기본 이름으로 채웁니다. `SupabaseOptions`만 직접 만들 때는 빈 문자열을 넣지 말고, 필드 기본값을 두거나 유효한 이름을 지정하세요. 스키마가 `public`이 아니면 `schema.table` 형식으로 지정할 수 있습니다. 잘못된 문자(`..`, `/`, `\` 등)는 초기화 시 검증되어 예외가 납니다.
 
 ### 아직 “고정”인 부분 (하드코딩이 없다는 뜻은 아님)
 
@@ -44,14 +45,65 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 | **User Saves** | 컬럼 `user_id`, `save_data`, `updated_at`, upsert 시 `on_conflict=user_id` — DB를 이 형태에 맞추거나 SDK를 확장해야 함 |
 | **Remote Config** | 조회 컬럼 `key`, `value_json`, `updated_at`, `version` |
 | **채팅** | 컬럼 `id`, `channel_id`, `user_id`, `display_name`, `content`, `created_at` |
+| **공개 프로필** | 컬럼 `id`(auth UUID, PK), `nickname`, 선택 `withdrawn_at`(soft 탈퇴 시각). 조회는 anon, 수정은 JWT + RLS(본인만) |
 
 즉, **REST 대상 테이블명**은 유연하고, **각 기능이 쓰는 컬럼·쿼리 형태**는 아직 코드에 박혀 있습니다. 다른 스키마를 쓰려면 해당 서비스를 감싼 별도 레이어나 포크가 필요합니다.
+
+### 공개 프로필·닉네임·탈퇴 표시 (`profiles`)
+
+**탈퇴(비활성) 상태를 어디에 둘까?** 게임에서 “이 유저는 탈퇴했다”를 **다른 클라이언트가 조회**해야 하면 `profiles` 같은 **공개 프로필 테이블**에 두는 편이 맞습니다. `auth.users`만 건드리면 anon으로는 확인이 어렵고, 닉네임·아바타와 같은 **공개 메타**와 한곳에 모이므로 유지보수도 쉽습니다. 완전 삭제(hard delete)와 `auth` 계정 삭제는 별도 정책(Edge Function·관리자 API 등)으로 처리하는 경우가 많고, 앱에서는 **`withdrawn_at`이 비어 있지 않으면 탈퇴 처리**처럼 쓰면 됩니다.
+
+조회는 **로그인 없이** publishable key만으로 되게 하려면 `SELECT`를 공개하고, 쓰기는 본인만 허용하는 RLS가 필요합니다.
+
+```sql
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  nickname text not null default '',
+  withdrawn_at timestamptz null
+);
+
+alter table public.profiles enable row level security;
+
+create policy "profiles_select_public"
+on public.profiles for select
+using (true);
+
+create policy "profiles_insert_own"
+on public.profiles for insert
+with check (auth.uid() = id);
+
+create policy "profiles_update_own"
+on public.profiles for update
+using (auth.uid() = id);
+
+-- 닉네임 중복 방지(빈 문자열 제외·대소문자 무시). 클라이언트 TryIsNicknameAvailableAsync와 함께 쓰는 것을 권장합니다.
+create unique index if not exists profiles_nickname_unique
+on public.profiles (lower(trim(nickname)))
+where trim(nickname) <> '';
+```
+
+기존 테이블에만 `nickname`이 있다면:
+
+```sql
+alter table public.profiles add column if not exists withdrawn_at timestamptz null;
+```
+
+**Unity API 요약**
+
+- 중복 확인: `TryIsNicknameAvailableAsync("후보닉")` — 가입·로그인 후 **본인 닉을 바꿀 때**는 `TryIsNicknameAvailableAsync("후보닉", ignoreUserIdForSelf: Supabase.Session.User.Id)`처럼 자기 id를 넘겨 같은 닉을 허용합니다.
+- 최초/수정 저장: `TrySetMyNicknameAsync` 또는 별칭 `TryUpdateMyNicknameAsync`(동일 upsert).
+- 프로필 한 번에 조회: `TryGetPublicProfileAsync(userId)` → `Nickname`, `IsWithdrawn`, `WithdrawnAtIso`.
+- 탈퇴 표시: `TryMarkMyWithdrawnAsync()`(UTC 시각 기록) / 해제: `TryClearMyWithdrawalAsync()` / 임의 시각: `TrySetMyWithdrawnAtAsync(iso8601)`.
+- 닉네임만: `TryGetPublicNicknameAsync`는 그대로 사용 가능합니다.
+
+닉네임 길이는 클라이언트에서 최대 64자로 잘립니다. DB 유니크 인덱스는 `lower(trim(...))` 기준이므로, **저장되는 문자열과 중복 검사**가 가능한 한 같은 규칙(공백·대소문자)을 맞추는 것이 좋습니다.
 
 ## 제공 범위
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync`
+- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsNicknameAvailableAsync`, `TrySetMyNicknameAsync` / `TryUpdateMyNicknameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (위 SQL·RLS·선택 유니크 인덱스)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
 - **Edge Functions**: `TryInvokeFunctionAsync`
 - **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈

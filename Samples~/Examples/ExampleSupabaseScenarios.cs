@@ -25,6 +25,9 @@ namespace Truesoft.SupabaseUnity.Samples
         [Header("Edge Function")]
         [SerializeField] private string functionName = "gacha";
 
+        [Header("Public nickname (profiles 테이블 + RLS 필요)")]
+        [SerializeField] private string demoNickname = "SamplePlayer";
+
         private void Start()
         {
             if (runAllOnStart)
@@ -59,6 +62,12 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunFunctionExample()
         {
             _ = RunFunctionExampleAsync();
+        }
+
+        [ContextMenu("Run Public Nickname Example")]
+        public void RunPublicNicknameExample()
+        {
+            _ = RunPublicNicknameExampleAsync();
         }
 
         private async Task<bool> RunLoginExampleAsync()
@@ -102,6 +111,34 @@ namespace Truesoft.SupabaseUnity.Samples
             return true;
         }
 
+        private async Task<bool> RunPublicNicknameExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn || SupabaseClient.Session?.User == null)
+            {
+                Debug.LogWarning("[Sample] nickname example skipped: sign in first.");
+                return false;
+            }
+
+            var userId = SupabaseClient.Session.User.Id;
+            if (!await SupabaseClient.TryIsNicknameAvailableAsync(demoNickname, ignoreUserIdForSelf: userId))
+            {
+                Debug.LogWarning("[Sample] nickname example: nickname already taken (or check failed).");
+                return false;
+            }
+
+            if (!await SupabaseClient.TrySetMyNicknameAsync(demoNickname))
+            {
+                Debug.LogWarning("[Sample] nickname example failed at set (profiles 테이블·RLS·유니크 인덱스 확인).");
+                return false;
+            }
+
+            var readBack = await SupabaseClient.TryGetPublicNicknameAsync(userId, defaultValue: "");
+            Debug.Log(readBack == demoNickname
+                ? $"[Sample] nickname example success: '{readBack}'"
+                : $"[Sample] nickname example: set ok but read '{readBack}' (expected '{demoNickname}').");
+            return readBack == demoNickname;
+        }
+
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
             if (!await SupabaseClient.TryRefreshRemoteConfigAsync())
@@ -136,6 +173,7 @@ namespace Truesoft.SupabaseUnity.Samples
 
             await RunLoginExampleAsync();
             await RunSaveLoadExampleAsync();
+            await RunPublicNicknameExampleAsync();
             await RunRemoteConfigExampleAsync();
             await RunFunctionExampleAsync();
 

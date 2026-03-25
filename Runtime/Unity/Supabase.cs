@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
+using Truesoft.Supabase.Core.Data;
 
 namespace Truesoft.Supabase.Unity
 {
@@ -11,6 +12,7 @@ namespace Truesoft.Supabase.Unity
     /// <remarks>
     /// • 구글: <see cref="TrySignInWithGoogleAsync(bool)"/>는 Android 네이티브 전체 플로우(설정의 Web Client ID), <see cref="TrySignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
     /// • <see cref="TryStartAsync"/>는 초기화·(선택)세션 복원·(선택)RC를 한 번에 수행합니다.<br/>
+    /// • 공개 프로필: <see cref="TryGetPublicProfileAsync"/>, 닉네임 <see cref="TryIsNicknameAvailableAsync"/> → <see cref="TrySetMyNicknameAsync"/>(수정 동일), 탈퇴 표시 <see cref="TryMarkMyWithdrawnAsync"/> 등 (DB <c>profiles</c>, README).<br/>
     /// • Try API들은 <c>SupabaseSettings.enableApiResultLogs</c>에 따라 API별 고정 태그로 성공/실패 로그를 자동 출력합니다.
     /// </remarks>
     public static class Supabase
@@ -113,6 +115,54 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataAsync{T}(T)"/>
         public static Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new() =>
             SupabaseSDK.TryLoadUserDataAsync(defaultValue);
+
+        /// <summary>다른 사용자 공개 닉네임 조회 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<string>> GetPublicNicknameAsync(string userId) =>
+            SupabaseSDK.GetPublicNicknameAsync(userId);
+
+        /// <summary>현재 사용자 공개 닉네임 저장 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> UpsertMyNicknameAsync(string nickname) =>
+            SupabaseSDK.UpsertMyNicknameAsync(nickname);
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetPublicNicknameAsync(string, string)"/>
+        public static Task<string> TryGetPublicNicknameAsync(string userId, string defaultValue = "") =>
+            SupabaseSDK.TryGetPublicNicknameAsync(userId, defaultValue);
+
+        /// <inheritdoc cref="SupabaseSDK.TrySetMyNicknameAsync"/>
+        public static Task<bool> TrySetMyNicknameAsync(string nickname) =>
+            SupabaseSDK.TrySetMyNicknameAsync(nickname);
+
+        /// <summary>닉네임 수정. <see cref="TrySetMyNicknameAsync"/>와 동일(upsert).</summary>
+        public static Task<bool> TryUpdateMyNicknameAsync(string nickname) =>
+            SupabaseSDK.TrySetMyNicknameAsync(nickname);
+
+        /// <inheritdoc cref="SupabaseSDK.TryIsNicknameAvailableAsync"/>
+        public static Task<bool> TryIsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null) =>
+            SupabaseSDK.TryIsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+
+        /// <summary>닉네임 사용 가능 여부 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> IsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null) =>
+            SupabaseSDK.IsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetPublicProfileAsync"/>
+        public static Task<PublicProfileSnapshot> TryGetPublicProfileAsync(string userId) =>
+            SupabaseSDK.TryGetPublicProfileAsync(userId);
+
+        /// <summary>공개 프로필 조회 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<PublicProfileSnapshot>> GetPublicProfileAsync(string userId) =>
+            SupabaseSDK.GetPublicProfileAsync(userId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryMarkMyWithdrawnAsync"/>
+        public static Task<bool> TryMarkMyWithdrawnAsync() =>
+            SupabaseSDK.TryMarkMyWithdrawnAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryClearMyWithdrawalAsync"/>
+        public static Task<bool> TryClearMyWithdrawalAsync() =>
+            SupabaseSDK.TryClearMyWithdrawalAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TrySetMyWithdrawnAtAsync"/>
+        public static Task<bool> TrySetMyWithdrawnAtAsync(string withdrawnAtIsoUtc) =>
+            SupabaseSDK.TrySetMyWithdrawnAtAsync(withdrawnAtIsoUtc);
 
         /// <summary>특정 key가 갱신될 때마다 콜백 (코드 연결, 실제 JSON 문자열 전달).</summary>
         public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true) =>

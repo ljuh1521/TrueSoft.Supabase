@@ -12,7 +12,7 @@ using UnityEngine;
 namespace Truesoft.Supabase.Unity
 {
     /// <summary>
-    /// Unity용 Supabase 정적 진입점. 초기화·인증·유저 데이터·Remote Config·Edge Functions·채팅 API를 한 곳에 둡니다.
+    /// Unity용 Supabase 정적 진입점. 초기화·인증·유저 데이터·공개 닉네임·Remote Config·Edge Functions·채팅 API를 한 곳에 둡니다.
     /// </summary>
     /// <remarks>
     /// <b>구글 로그인 두 가지</b><br/>
@@ -50,6 +50,11 @@ namespace Truesoft.Supabase.Unity
             public const string ChatSend = "Supabase.Chat.Send";
             public const string ChatJoin = "Supabase.Chat.Join";
             public const string AuthRestoreSession = "Supabase.Auth.RestoreSession";
+            public const string ProfilePublicNicknameGet = "Supabase.Profile.Nickname.Get";
+            public const string ProfileMyNicknameSet = "Supabase.Profile.Nickname.Set";
+            public const string ProfileNicknameAvailable = "Supabase.Profile.Nickname.Available";
+            public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
+            public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
         }
 
         /// <summary><see cref="EnsureInitializedAsync"/> 기본 대기 시간(ms). 씬의 <c>SupabaseRuntime</c> Awake를 기다립니다.</summary>
@@ -514,6 +519,170 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<T>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
             return await UserSaves.LoadAsync<T>();
+        }
+
+        /// <summary>
+        /// 로그인 없이 다른 사용자의 공개 닉네임을 조회합니다. 테이블 RLS에서 anon <c>SELECT</c>가 허용되어야 합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<string>> GetPublicNicknameAsync(string userId)
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<string>.Fail("sdk_not_initialized");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<string>.Fail("sdk_not_initialized");
+
+            return await _bootstrap.PublicProfileService.GetNicknameAsync(userId);
+        }
+
+        /// <summary>현재 로그인 사용자의 공개 닉네임을 upsert합니다.</summary>
+        public static async Task<SupabaseResult<bool>> UpsertMyNicknameAsync(string nickname)
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            return await _bootstrap.PublicProfileService.UpsertMyNicknameAsync(
+                _currentSession.AccessToken,
+                _currentSession.User.Id,
+                nickname);
+        }
+
+        /// <inheritdoc cref="GetPublicNicknameAsync"/>
+        public static async Task<string> TryGetPublicNicknameAsync(string userId, string defaultValue = "")
+        {
+            var r = await GetPublicNicknameAsync(userId);
+            return LogAndReturnData(ApiLogTags.ProfilePublicNicknameGet, r, defaultValue);
+        }
+
+        /// <inheritdoc cref="UpsertMyNicknameAsync"/>
+        public static async Task<bool> TrySetMyNicknameAsync(string nickname)
+        {
+            var r = await UpsertMyNicknameAsync(nickname);
+            return LogAndReturn(ApiLogTags.ProfileMyNicknameSet, r);
+        }
+
+        /// <summary>
+        /// 닉네임이 사용 가능한지 조회합니다. 로그인 후 본인 닉을 유지한 채 검사할 때는 <paramref name="ignoreUserIdForSelf"/>에 현재 사용자 id를 넘깁니다.
+        /// </summary>
+        public static async Task<SupabaseResult<bool>> IsNicknameAvailableAsync(
+            string nickname,
+            string ignoreUserIdForSelf = null)
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            return await _bootstrap.PublicProfileService.IsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+        }
+
+        /// <inheritdoc cref="IsNicknameAvailableAsync"/>
+        public static async Task<bool> TryIsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null)
+        {
+            var r = await IsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+            if (r == null || !r.IsSuccess)
+            {
+                LogApiResult(ApiLogTags.ProfileNicknameAvailable, false, r?.ErrorMessage ?? "unknown");
+                return false;
+            }
+
+            if (!r.Data)
+                LogApiResult(ApiLogTags.ProfileNicknameAvailable, false, "nickname_taken");
+            else
+                LogApiResult(ApiLogTags.ProfileNicknameAvailable, true, null);
+
+            return r.Data;
+        }
+
+        /// <summary>공개 프로필(닉네임·탈퇴 시각)을 한 번에 조회합니다.</summary>
+        public static async Task<SupabaseResult<PublicProfileSnapshot>> GetPublicProfileAsync(string userId)
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<PublicProfileSnapshot>.Fail("sdk_not_initialized");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<PublicProfileSnapshot>.Fail("sdk_not_initialized");
+
+            return await _bootstrap.PublicProfileService.GetProfileAsync(userId);
+        }
+
+        /// <inheritdoc cref="GetPublicProfileAsync"/>
+        public static async Task<PublicProfileSnapshot> TryGetPublicProfileAsync(string userId)
+        {
+            var r = await GetPublicProfileAsync(userId);
+            if (r == null || !r.IsSuccess)
+            {
+                LogApiResult(ApiLogTags.ProfileSnapshotGet, false, r?.ErrorMessage ?? "unknown");
+                return null;
+            }
+
+            LogApiResult(ApiLogTags.ProfileSnapshotGet, true, null);
+            return r.Data;
+        }
+
+        /// <summary>본인 <c>withdrawn_at</c>을 ISO 8601로 설정합니다(soft 탈퇴 표시).</summary>
+        public static async Task<SupabaseResult<bool>> SetMyWithdrawnAtAsync(string withdrawnAtIsoUtc)
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            if (string.IsNullOrWhiteSpace(withdrawnAtIsoUtc))
+                return SupabaseResult<bool>.Fail("withdrawn_at_empty");
+
+            return await _bootstrap.PublicProfileService.PatchMyWithdrawnAtAsync(
+                _currentSession.AccessToken,
+                _currentSession.User.Id,
+                withdrawnAtIsoUtc);
+        }
+
+        /// <summary>본인 <c>withdrawn_at</c>을 비웁니다(SQL NULL).</summary>
+        public static async Task<SupabaseResult<bool>> ClearMyWithdrawalAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            return await _bootstrap.PublicProfileService.PatchMyWithdrawnAtAsync(
+                _currentSession.AccessToken,
+                _currentSession.User.Id,
+                withdrawnAtIso: null);
+        }
+
+        /// <summary>현재 시각(UTC)으로 soft 탈퇴 시각을 기록합니다.</summary>
+        public static Task<SupabaseResult<bool>> MarkMyWithdrawnAsync() =>
+            SetMyWithdrawnAtAsync(DateTime.UtcNow.ToString("o"));
+
+        /// <inheritdoc cref="MarkMyWithdrawnAsync"/>
+        public static async Task<bool> TryMarkMyWithdrawnAsync()
+        {
+            var r = await MarkMyWithdrawnAsync();
+            return LogAndReturn(ApiLogTags.ProfileWithdrawnAt, r);
+        }
+
+        /// <inheritdoc cref="ClearMyWithdrawalAsync"/>
+        public static async Task<bool> TryClearMyWithdrawalAsync()
+        {
+            var r = await ClearMyWithdrawalAsync();
+            return LogAndReturn(ApiLogTags.ProfileWithdrawnAt, r);
+        }
+
+        /// <inheritdoc cref="SetMyWithdrawnAtAsync"/>
+        public static async Task<bool> TrySetMyWithdrawnAtAsync(string withdrawnAtIsoUtc)
+        {
+            var r = await SetMyWithdrawnAtAsync(withdrawnAtIsoUtc);
+            return LogAndReturn(ApiLogTags.ProfileWithdrawnAt, r);
         }
 
         /// <summary>Remote Config 캐시·구독·서버 동기화 퍼사드.</summary>

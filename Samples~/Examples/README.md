@@ -4,6 +4,7 @@
 
 - 로그인 예시
 - 저장/불러오기 예시
+- 공개 닉네임(`profiles` + RLS) 예시 — 루트 README의 SQL 적용 후 **Run Public Nickname Example** 또는 전체 실행 시 포함
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
 

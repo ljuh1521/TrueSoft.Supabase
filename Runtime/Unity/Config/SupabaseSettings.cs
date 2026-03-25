@@ -6,7 +6,7 @@ namespace Truesoft.Supabase.Unity
     /// Supabase 프로젝트의 "공통 설정값"을 담는 에셋입니다.
     /// </summary>
     /// <remarks>
-    /// 이 에셋은 프로젝트 전역에서 재사용되는 정적 값(서버 주소, 키, 기본 옵션)만 정의합니다.
+    /// 이 에셋은 프로젝트 전역에서 재사용되는 정적 값(서버 주소, 키, REST 테이블명, 기본 옵션)만 정의합니다.
     /// 씬 실행 정책(자동 복원, 폴링 주기 등)은 <see cref="Config.SupabaseRuntime"/>에서 제어합니다.
     /// 런타임에서는 <c>Resources/SupabaseSettings</c> 이름으로 로드되므로 경로·파일명을 맞춰야 합니다.
     /// <see cref="Supabase.TrySignInWithGoogleAsync(bool)"/> 호출 시 <see cref="googleWebClientId"/>를 읽습니다.
@@ -31,7 +31,7 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("HTTP 요청 타임아웃(초).")]
         public int timeoutSeconds = 30;
 
-        [Header("REST Table Names (PostgREST)")]
+        [Header("REST Table Names (테이블 이름)")]
         [Tooltip("Save/Load 유저 데이터에 사용하는 테이블 이름. 스키마가 public이 아니면 schema.table 형식으로 지정할 수 있습니다.")]
         public string userSavesTable = "user_saves";
 
@@ -40,6 +40,9 @@ namespace Truesoft.Supabase.Unity
 
         [Tooltip("채팅 메시지를 저장·조회하는 테이블 이름.")]
         public string chatMessagesTable = "chat_messages";
+
+        [Tooltip("공개 프로필 테이블 (컬럼 id UUID PK, nickname text). RLS로 누구나 SELECT, 본인만 INSERT/UPDATE.")]
+        public string publicProfilesTable = "profiles";
 
         public SupabaseOptions ToOptions()
         {
@@ -50,7 +53,8 @@ namespace Truesoft.Supabase.Unity
                 TimeoutSeconds = timeoutSeconds,
                 UserSavesTable = string.IsNullOrWhiteSpace(userSavesTable) ? "user_saves" : userSavesTable.Trim(),
                 RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
-                ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim()
+                ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
+                PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim()
             };
         }
     }
