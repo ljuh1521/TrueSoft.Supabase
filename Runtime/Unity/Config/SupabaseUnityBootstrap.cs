@@ -40,19 +40,22 @@ namespace Truesoft.Supabase.Unity.Config
                 options.ProjectURL,
                 options.PublishableKey,
                 http,
-                json);
+                json,
+                options.UserSavesTable);
 
             RemoteConfigService = new SupabaseRemoteConfigService(
                 options.ProjectURL,
                 options.PublishableKey,
                 http,
-                json);
+                json,
+                options.RemoteConfigTable);
 
             ChatService = new SupabaseChatService(
                 options.ProjectURL,
                 options.PublishableKey,
                 http,
-                json);
+                json,
+                options.ChatMessagesTable);
 
             EdgeFunctionsService = new SupabaseEdgeFunctionsService(
                 options.ProjectURL,

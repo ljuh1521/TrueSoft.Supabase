@@ -24,6 +24,29 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
    - 인증/데이터/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  
    - 자동 세션 복원/RemoteConfig 주기 폴링까지 씬 라이프사이클로 관리하려면 `SupabaseRuntime` 배치를 권장합니다.
 
+## REST 테이블 이름 (프로젝트마다 테이블명이 다를 때)
+
+PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 있으므로, `SupabaseSettings`에서 바꿀 수 있습니다.
+
+- **User Saves** (`TrySaveUserDataAsync` / `TryLoadUserDataAsync`): 필드 `userSavesTable` (비우면 기본값 `user_saves`)
+- **Remote Config**: `remoteConfigTable` (기본 `remote_config`)
+- **채팅**: `chatMessagesTable` (기본 `chat_messages`)
+
+코드에서 `SupabaseOptions`의 `UserSavesTable`, `RemoteConfigTable`, `ChatMessagesTable`도 같은 역할을 합니다. Unity 에셋 경로로 쓸 때는 `SupabaseSettings.ToOptions()`가 비어 있는 테이블 필드를 기본 이름으로 채웁니다. `SupabaseOptions`만 직접 만들 때는 빈 문자열을 넣지 말고, 필드 기본값을 두거나 유효한 이름을 지정하세요. 스키마가 `public`이 아니면 `schema.table` 형식으로 지정할 수 있습니다. 잘못된 문자(`..`, `/`, `\` 등)는 초기화 시 검증되어 예외가 납니다.
+
+### 아직 “고정”인 부분 (하드코딩이 없다는 뜻은 아님)
+
+테이블 **이름**만 설정 가능합니다. 다음은 Supabase 표준이거나 이 SDK가 전제로 두는 스키마입니다.
+
+| 구분 | 고정에 가까운 내용 |
+|------|-------------------|
+| **URL 경로** | `…/auth/v1/…`, `…/rest/v1/{테이블}`, `…/functions/v1/{함수명}` — Supabase API 규격 (프로젝트 URL·함수 이름은 설정/인자로 바뀜) |
+| **User Saves** | 컬럼 `user_id`, `save_data`, `updated_at`, upsert 시 `on_conflict=user_id` — DB를 이 형태에 맞추거나 SDK를 확장해야 함 |
+| **Remote Config** | 조회 컬럼 `key`, `value_json`, `updated_at`, `version` |
+| **채팅** | 컬럼 `id`, `channel_id`, `user_id`, `display_name`, `content`, `created_at` |
+
+즉, **REST 대상 테이블명**은 유연하고, **각 기능이 쓰는 컬럼·쿼리 형태**는 아직 코드에 박혀 있습니다. 다른 스키마를 쓰려면 해당 서비스를 감싼 별도 레이어나 포크가 필요합니다.
+
 ## 제공 범위
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.

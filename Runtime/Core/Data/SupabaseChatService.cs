@@ -7,12 +7,13 @@ using Truesoft.Supabase.Core.Http;
 namespace Truesoft.Supabase.Core.Data
 {
     /// <summary>
-    /// 채널 단위 채팅. 테이블 chat_messages (channel_id, user_id, display_name, content, created_at) + RLS 권장.
+    /// 채널 단위 채팅. 기본 테이블 chat_messages (channel_id, user_id, display_name, content, created_at) + RLS 권장. 테이블명은 생성자에서 변경 가능.
     /// </summary>
     public sealed class SupabaseChatService
     {
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
+        private readonly string _chatMessagesTable;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
 
@@ -20,12 +21,14 @@ namespace Truesoft.Supabase.Core.Data
             string supabaseUrl,
             string publishableKey,
             ISupabaseHttpClient httpClient,
-            ISupabaseJsonSerializer jsonSerializer)
+            ISupabaseJsonSerializer jsonSerializer,
+            string chatMessagesTable = "chat_messages")
         {
             _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
             _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
+            _chatMessagesTable = SupabaseRestTableRef.Normalize(chatMessagesTable, nameof(chatMessagesTable));
         }
 
         public async Task<SupabaseResult<bool>> SendAsync(
@@ -47,7 +50,7 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(content))
                 return SupabaseResult<bool>.Fail("content_empty");
 
-            var url = $"{_supabaseUrl}/rest/v1/chat_messages";
+            var url = SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _chatMessagesTable);
 
             var row = new ChatInsertRow
             {
@@ -90,7 +93,7 @@ namespace Truesoft.Supabase.Core.Data
             limit = Math.Clamp(limit, 1, 200);
 
             var url =
-                $"{_supabaseUrl}/rest/v1/chat_messages" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _chatMessagesTable)}" +
                 $"?select=id,channel_id,user_id,display_name,content,created_at" +
                 $"&channel_id=eq.{Uri.EscapeDataString(channelId)}" +
                 $"&order=created_at.desc" +
@@ -115,7 +118,7 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<ChatMessageRow[]>.Success(Array.Empty<ChatMessageRow>());
 
             var url =
-                $"{_supabaseUrl}/rest/v1/chat_messages" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _chatMessagesTable)}" +
                 $"?select=id,channel_id,user_id,display_name,content,created_at" +
                 $"&channel_id=eq.{Uri.EscapeDataString(channelId)}" +
                 $"&created_at=gt.{Uri.EscapeDataString(createdAfterIso)}" +

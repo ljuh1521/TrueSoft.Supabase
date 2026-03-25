@@ -31,13 +31,26 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("HTTP 요청 타임아웃(초).")]
         public int timeoutSeconds = 30;
 
+        [Header("REST Table Names (PostgREST)")]
+        [Tooltip("Save/Load 유저 데이터에 사용하는 테이블 이름. 스키마가 public이 아니면 schema.table 형식으로 지정할 수 있습니다.")]
+        public string userSavesTable = "user_saves";
+
+        [Tooltip("Remote Config 행을 읽는 테이블 이름.")]
+        public string remoteConfigTable = "remote_config";
+
+        [Tooltip("채팅 메시지를 저장·조회하는 테이블 이름.")]
+        public string chatMessagesTable = "chat_messages";
+
         public SupabaseOptions ToOptions()
         {
             return new SupabaseOptions
             {
                 ProjectURL = projectUrl,
                 PublishableKey = publishableKey,
-                TimeoutSeconds = timeoutSeconds
+                TimeoutSeconds = timeoutSeconds,
+                UserSavesTable = string.IsNullOrWhiteSpace(userSavesTable) ? "user_saves" : userSavesTable.Trim(),
+                RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
+                ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim()
             };
         }
     }

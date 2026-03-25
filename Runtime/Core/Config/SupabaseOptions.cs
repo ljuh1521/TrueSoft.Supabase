@@ -5,5 +5,14 @@ namespace Truesoft.Supabase
         public string ProjectURL;
         public string PublishableKey;
         public int TimeoutSeconds = 30;
+
+        /// <summary>유저 세이브 REST 테이블 (기본 <c>user_saves</c>).</summary>
+        public string UserSavesTable = "user_saves";
+
+        /// <summary>Remote Config REST 테이블 (기본 <c>remote_config</c>).</summary>
+        public string RemoteConfigTable = "remote_config";
+
+        /// <summary>채팅 메시지 REST 테이블 (기본 <c>chat_messages</c>).</summary>
+        public string ChatMessagesTable = "chat_messages";
     }
 }

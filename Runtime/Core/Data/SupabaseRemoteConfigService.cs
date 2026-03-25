@@ -14,6 +14,7 @@ namespace Truesoft.Supabase.Core.Data
     {
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
+        private readonly string _remoteConfigTable;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
 
@@ -21,18 +22,20 @@ namespace Truesoft.Supabase.Core.Data
             string supabaseUrl,
             string publishableKey,
             ISupabaseHttpClient httpClient,
-            ISupabaseJsonSerializer jsonSerializer)
+            ISupabaseJsonSerializer jsonSerializer,
+            string remoteConfigTable = "remote_config")
         {
             _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
             _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
+            _remoteConfigTable = SupabaseRestTableRef.Normalize(remoteConfigTable, nameof(remoteConfigTable));
         }
 
         public async Task<SupabaseResult<RemoteConfigRow[]>> GetAllAsync(string accessToken = null)
         {
             var url =
-                $"{_supabaseUrl}/rest/v1/remote_config" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _remoteConfigTable)}" +
                 $"?select=key,value_json,updated_at,version";
 
             var response = await _httpClient.SendAsync(
@@ -50,7 +53,7 @@ namespace Truesoft.Supabase.Core.Data
                 return await GetAllAsync(accessToken);
 
             var url =
-                $"{_supabaseUrl}/rest/v1/remote_config" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _remoteConfigTable)}" +
                 $"?select=key,value_json,updated_at,version" +
                 $"&updated_at=gt.{Uri.EscapeDataString(updatedAfterIso)}";
 

@@ -10,6 +10,7 @@ namespace Truesoft.Supabase.Core.Data
     {
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
+        private readonly string _userSavesTable;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
 
@@ -17,12 +18,14 @@ namespace Truesoft.Supabase.Core.Data
             string supabaseUrl,
             string publishableKey,
             ISupabaseHttpClient httpClient,
-            ISupabaseJsonSerializer jsonSerializer)
+            ISupabaseJsonSerializer jsonSerializer,
+            string userSavesTable = "user_saves")
         {
             _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
             _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
+            _userSavesTable = SupabaseRestTableRef.Normalize(userSavesTable, nameof(userSavesTable));
         }
 
         public async Task<SupabaseResult<bool>> SaveAsync<T>(
@@ -39,7 +42,7 @@ namespace Truesoft.Supabase.Core.Data
             if (data == null)
                 return SupabaseResult<bool>.Fail("save_data_null");
 
-            var url = $"{_supabaseUrl}/rest/v1/user_saves?on_conflict=user_id";
+            var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}?on_conflict=user_id";
 
             var body = new SaveRowRequest<T>
             {
@@ -77,7 +80,7 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<T>.Fail("user_id_empty");
 
             var url =
-                $"{_supabaseUrl}/rest/v1/user_saves" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}" +
                 $"?select=save_data,updated_at" +
                 $"&user_id=eq.{Uri.EscapeDataString(userId)}" +
                 $"&limit=1";
