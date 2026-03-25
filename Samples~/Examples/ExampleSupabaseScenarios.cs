@@ -32,6 +32,33 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("켜면 OnEnable에서 OnDuplicateLoginDetected를 구독합니다. 다른 기기에서 같은 계정으로 로그인했을 때(이미 ClearSession 후) 호출됩니다.")]
         [SerializeField] private bool subscribeDuplicateLoginOnEnable = true;
 
+        [Header("Keyboard Test (간단 키보드로 Try API 호출)")]
+        [Tooltip("켜면 Update에서 키보드 입력(Q/W/E/R/T/Y 등)을 감지해 샘플 함수를 실행합니다.")]
+        [SerializeField] private bool enableKeyboardTest = true;
+
+        [Tooltip("Q: 익명 로그인 시도")]
+        [SerializeField] private KeyCode keyLoginAnonymous = KeyCode.Q;
+
+        [Tooltip("W: 로그아웃(ClearSession)")]
+        [SerializeField] private KeyCode keyLogout = KeyCode.W;
+
+        [Tooltip("E: 공개 닉네임(demoNickname) 설정")]
+        [SerializeField] private KeyCode keySetNickname = KeyCode.E;
+
+        [Tooltip("R: 세이브/불러오기")]
+        [SerializeField] private KeyCode keySaveLoad = KeyCode.R;
+
+        [Tooltip("T: RemoteConfig refresh + 조회")]
+        [SerializeField] private KeyCode keyRemoteConfig = KeyCode.T;
+
+        [Tooltip("Y: Edge function 호출")]
+        [SerializeField] private KeyCode keyInvokeFunction = KeyCode.Y;
+
+        [Tooltip("L: 중복 로그인 테스트 방법 안내 출력")]
+        [SerializeField] private KeyCode keyDuplicateLoginInfo = KeyCode.L;
+
+        private bool _keyboardBusy;
+
         private void OnEnable()
         {
             if (subscribeDuplicateLoginOnEnable)
@@ -54,6 +81,66 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             if (runAllOnStart)
                 _ = RunAllExamplesAsync();
+        }
+
+        private void Update()
+        {
+            if (!enableKeyboardTest)
+                return;
+
+            if (_keyboardBusy)
+                return;
+
+            if (Input.GetKeyDown(keyLoginAnonymous))
+                _ = RunAsyncGuarded(RunLoginExampleAsync);
+            else if (Input.GetKeyDown(keyLogout))
+                _ = RunAsyncGuarded(RunLogoutExampleAsync);
+            else if (Input.GetKeyDown(keySetNickname))
+                _ = RunAsyncGuarded(RunPublicNicknameExampleAsync);
+            else if (Input.GetKeyDown(keySaveLoad))
+                _ = RunAsyncGuarded(RunSaveLoadExampleAsync);
+            else if (Input.GetKeyDown(keyRemoteConfig))
+                _ = RunAsyncGuarded(RunRemoteConfigExampleAsync);
+            else if (Input.GetKeyDown(keyInvokeFunction))
+                _ = RunAsyncGuarded(RunFunctionExampleAsync);
+            else if (Input.GetKeyDown(keyDuplicateLoginInfo))
+                LogDuplicateLoginHowToTest();
+        }
+
+        private async Task RunAsyncGuarded(Func<Task<bool>> body)
+        {
+            try
+            {
+                _keyboardBusy = true;
+                var ok = await body();
+                if (ok == false)
+                    Debug.LogWarning("[Sample] Keyboard test failed (see previous logs).");
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[Sample] Keyboard test exception: " + e.Message);
+            }
+            finally
+            {
+                _keyboardBusy = false;
+            }
+        }
+
+        private async Task RunAsyncGuarded(Func<Task> body)
+        {
+            try
+            {
+                _keyboardBusy = true;
+                await body();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("[Sample] Keyboard test exception: " + e.Message);
+            }
+            finally
+            {
+                _keyboardBusy = false;
+            }
         }
 
         [ContextMenu("Run All Examples")]
@@ -218,7 +305,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             var result = await SupabaseClient.TryInvokeFunctionAsync<object>(
                 functionName,
-                new { ping = true },
+                new { bannerId = "asd", drawCount = 4, seed = 15 },
                 defaultValue: null);
 
             var ok = result != null;
