@@ -51,6 +51,9 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("T: RemoteConfig refresh + 조회")]
         [SerializeField] private KeyCode keyRemoteConfig = KeyCode.T;
 
+        [Tooltip("U: RemoteConfig on-demand 동기화(즉시 갱신 + 캐시 반영)")]
+        [SerializeField] private KeyCode keyRemoteConfigOnDemand = KeyCode.U;
+
         [Tooltip("Y: Edge function 호출")]
         [SerializeField] private KeyCode keyInvokeFunction = KeyCode.Y;
 
@@ -101,6 +104,8 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunSaveLoadExampleAsync);
             else if (Input.GetKeyDown(keyRemoteConfig))
                 _ = RunAsyncGuarded(RunRemoteConfigExampleAsync);
+            else if (Input.GetKeyDown(keyRemoteConfigOnDemand))
+                _ = RunAsyncGuarded(RunRemoteConfigOnDemandExampleAsync);
             else if (Input.GetKeyDown(keyInvokeFunction))
                 _ = RunAsyncGuarded(RunFunctionExampleAsync);
             else if (Input.GetKeyDown(keyDuplicateLoginInfo))
@@ -165,6 +170,12 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunRemoteConfigExample()
         {
             _ = RunRemoteConfigExampleAsync();
+        }
+
+        [ContextMenu("Run RemoteConfig On-Demand Example")]
+        public void RunRemoteConfigOnDemandExample()
+        {
+            _ = RunRemoteConfigOnDemandExampleAsync();
         }
 
         [ContextMenu("Run Function Example")]
@@ -299,6 +310,22 @@ namespace Truesoft.SupabaseUnity.Samples
             SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
             Debug.Log("[Sample] remote config raw: " + raw);
             return true;
+        }
+
+        private async Task<bool> RunRemoteConfigOnDemandExampleAsync()
+        {
+            if (!await SupabaseClient.RefreshRemoteConfigOnDemandAsync())
+            {
+                Debug.LogWarning("[Sample] remote config on-demand example failed.");
+                return false;
+            }
+
+            // on-demand로 서버 값을 캐시에 반영한 뒤에는, raw를 바로 읽어오는 편이 네트워크 호출을 줄입니다.
+            var has = SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
+            Debug.Log(has
+                ? "[Sample] remote config on-demand raw: " + raw
+                : "[Sample] remote config on-demand raw: (null)");
+            return has;
         }
 
         private async Task<bool> RunFunctionExampleAsync()

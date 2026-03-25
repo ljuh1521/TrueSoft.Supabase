@@ -192,6 +192,13 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TryPollRemoteConfigAsync() =>
             SupabaseSDK.TryPollRemoteConfigAsync();
 
+        /// <summary>
+        /// RemoteConfig를 온디맨드 방식으로 즉시 동기화합니다(서버에서 다시 가져와 캐시 갱신).
+        /// 호출 직후에는 다음 주기 폴링을 뒤로 미뤄 의도치 않은 잦은 호출을 방지합니다.
+        /// </summary>
+        public static Task<bool> RefreshRemoteConfigOnDemandAsync() =>
+            SupabaseSDK.RefreshRemoteConfigOnDemandAsync();
+
         /// <inheritdoc cref="SupabaseSDK.TryGetRemoteConfigAsync{T}(string, T, bool)"/>
         public static Task<T> TryGetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false) =>
             SupabaseSDK.TryGetRemoteConfigAsync(key, defaultValue, pollOnly);

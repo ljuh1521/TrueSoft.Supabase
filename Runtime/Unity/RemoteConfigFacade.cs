@@ -22,6 +22,12 @@ namespace Truesoft.Supabase.Unity
 
         public string LastUpdatedAtIso { get; private set; }
 
+        /// <summary>
+        /// 최근 <c>RefreshAllAsync</c>/<c>PollAsync</c>에서 캐시에 실제 변경(값 갱신/키 추가·삭제)이 있었는지 여부입니다.
+        /// 로그/콜백을 조건부로 제어할 때 사용합니다.
+        /// </summary>
+        public bool LastApplyHadChanges { get; private set; }
+
         public RemoteConfigFacade(SupabaseRemoteConfigService service, Func<string> accessTokenGetter = null)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
@@ -97,6 +103,7 @@ namespace Truesoft.Supabase.Unity
         /// <summary>전체 설정을 다시 받아 캐시를 교체합니다.</summary>
         public async Task<bool> RefreshAllAsync()
         {
+            LastApplyHadChanges = false;
             var accessToken = _accessTokenGetter?.Invoke();
             var result = await _service.GetAllAsync(accessToken);
             if (result.IsSuccess == false || result.Data == null)
@@ -112,6 +119,7 @@ namespace Truesoft.Supabase.Unity
         /// </summary>
         public async Task<bool> PollAsync()
         {
+            LastApplyHadChanges = false;
             var accessToken = _accessTokenGetter?.Invoke();
             var result = await _service.GetChangedSinceAsync(LastUpdatedAtIso, accessToken);
             if (result.IsSuccess == false || result.Data == null)
@@ -121,13 +129,20 @@ namespace Truesoft.Supabase.Unity
             return true;
         }
 
-        private void ApplyRows(SupabaseRemoteConfigService.RemoteConfigRow[] rows, bool replace)
+        private bool ApplyRows(SupabaseRemoteConfigService.RemoteConfigRow[] rows, bool replace)
         {
             if (rows == null)
                 rows = Array.Empty<SupabaseRemoteConfigService.RemoteConfigRow>();
 
+            Dictionary<string, string> previousValues = null;
+            HashSet<string> acceptedKeys = null;
+
             if (replace)
+            {
+                previousValues = new Dictionary<string, string>(_cache);
                 _cache.Clear();
+                acceptedKeys = new HashSet<string>(StringComparer.Ordinal);
+            }
 
             var changedKeys = new List<string>();
 
@@ -135,6 +150,13 @@ namespace Truesoft.Supabase.Unity
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.key))
                     continue;
+
+                // Poll 정확성: value가 같거나(혹은 invalid)해도 updated_at이 바뀌었으면 LastUpdatedAtIso는 갱신합니다.
+                if (string.IsNullOrWhiteSpace(row.updated_at) == false)
+                {
+                    if (string.IsNullOrWhiteSpace(LastUpdatedAtIso) || string.CompareOrdinal(row.updated_at, LastUpdatedAtIso) > 0)
+                        LastUpdatedAtIso = row.updated_at;
+                }
 
                 var newValue = row.value_json ?? string.Empty;
                 // 엄격 모드: 객체 루트 JSON만 캐시/알림 대상으로 허용합니다.
@@ -144,26 +166,47 @@ namespace Truesoft.Supabase.Unity
                     continue;
                 }
 
-                if (_cache.TryGetValue(row.key, out var oldValue))
+                if (replace)
+                    acceptedKeys.Add(row.key);
+
+                if (replace)
                 {
-                    if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
-                        continue;
+                    previousValues.TryGetValue(row.key, out var oldValue);
+                    if (string.Equals(oldValue, newValue, StringComparison.Ordinal) == false)
+                        changedKeys.Add(row.key);
+
+                    // replace 모드에서는 캐시를 비웠으므로, 값이 같아도 다시 적재합니다.
+                    _cache[row.key] = newValue;
                 }
-
-                _cache[row.key] = newValue;
-                changedKeys.Add(row.key);
-
-                if (string.IsNullOrWhiteSpace(row.updated_at) == false)
+                else
                 {
-                    // ISO8601은 문자열 비교로도 대체로 증가 정렬이 가능하지만,
-                    // 여기서는 가장 최근 값을 단순히 "최대"로 잡습니다.
-                    if (string.IsNullOrWhiteSpace(LastUpdatedAtIso) || string.CompareOrdinal(row.updated_at, LastUpdatedAtIso) > 0)
-                        LastUpdatedAtIso = row.updated_at;
+                    if (_cache.TryGetValue(row.key, out var oldValue))
+                    {
+                        if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
+                            continue;
+                    }
+
+                    _cache[row.key] = newValue;
+                    changedKeys.Add(row.key);
+                }
+            }
+
+            // replace 모드: 원격에 없는 키는 캐시에서 제거되므로 이것도 변경입니다.
+            if (replace && previousValues != null && previousValues.Count > 0)
+            {
+                foreach (var pair in previousValues)
+                {
+                    var key = pair.Key;
+                    if (string.IsNullOrWhiteSpace(key))
+                        continue;
+
+                    if (acceptedKeys.Contains(key) == false)
+                        changedKeys.Add(key);
                 }
             }
 
             if (changedKeys.Count == 0)
-                return;
+                return false;
 
             var notified = new HashSet<string>(StringComparer.Ordinal);
             foreach (var key in changedKeys)
@@ -174,6 +217,8 @@ namespace Truesoft.Supabase.Unity
             }
 
             OnChanged?.Invoke(changedKeys);
+            LastApplyHadChanges = true;
+            return true;
         }
 
         private void NotifyKeySubscribers(string key)

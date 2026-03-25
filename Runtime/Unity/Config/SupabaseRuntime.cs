@@ -118,11 +118,20 @@ namespace Truesoft.Supabase.Unity.Config
             if (pollIntervalSeconds <= 0f)
                 yield break;
 
+            // 주기 동기화 스케줄을 등록하고, 온디맨드 호출이 있으면 next poll 시점을 뒤로 미룹니다.
+            SupabaseSDK.UpdateRemoteConfigPollIntervalSeconds(pollIntervalSeconds);
+            SupabaseSDK.ForceRemoteConfigNextPollAt(Time.realtimeSinceStartup);
+
             while (true)
             {
+                while (Time.realtimeSinceStartup < SupabaseSDK.RemoteConfigNextPollAtRealtime)
+                    yield return null;
+
                 var pollTask = Supabase.TryPollRemoteConfigAsync();
                 yield return new WaitUntil(() => pollTask.IsCompleted);
-                yield return new WaitForSeconds(pollIntervalSeconds);
+
+                // 다음 폴링 시점을 설정합니다(더 늦어진 스케줄이 있으면 보존).
+                SupabaseSDK.ScheduleRemoteConfigNextPollAt(Time.realtimeSinceStartup + pollIntervalSeconds);
             }
         }
 

@@ -166,12 +166,27 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
 - **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsNicknameAvailableAsync`, `TrySetMyNicknameAsync` / `TryUpdateMyNicknameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql`의 `profiles` 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
+- **원격 설정(하이브리드 추천)**: `SupabaseRuntime`의 **주기 폴링은 유지**하되, RemoteConfig의 성공 로그는 **실제 변경이 적용된 경우에만** 출력됩니다. 또한 중요한 화면/행동 전에는 `Supabase.RefreshRemoteConfigOnDemandAsync()`로 **온디맨드 즉시 동기화**를 수행한 뒤, 다음 주기 폴링 타이밍을 미뤄 의도치 않은 잦은 호출을 방지합니다.
 - **Edge Functions**: `TryInvokeFunctionAsync`
 - **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈
 
 ## 샘플
 
 Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해 사용합니다.
+
+### 원격 설정 하이브리드(폴링 + 온디맨드)
+
+- **주기적 폴링(기본)**: `SupabaseRuntime`이 씬/앱 라이프사이클에 따라 `TryPollRemoteConfigAsync()`를 호출해 캐시를 갱신합니다.
+- **로그 줄이기**: RemoteConfig는 캐시/구독자에 실제 변경이 있을 때만 성공 로그가 출력되도록 동작합니다(값이 그대로면 success 로그가 줄어듭니다).
+- **온디맨드(권장)**: 게임 로딩 화면, 상점 오픈, 이벤트 시작 등 “그 시점에 최신값이 꼭 필요”할 때는 `Supabase.RefreshRemoteConfigOnDemandAsync()`를 호출해 즉시 최신값을 동기화합니다.
+- **온디맨드 직후 주기 폴링 방지**: 온디맨드 호출 직후에는 다음 폴링 타이밍을 뒤로 미뤄, 의도치 않게 추가 네트워크 호출이 자주 발생하는 것을 줄입니다.
+
+예시:
+
+```csharp
+await Supabase.RefreshRemoteConfigOnDemandAsync();
+var balance = Supabase.GetRemoteConfig<int>(\"game_balance\", 0);
+```
 
 | 샘플 | 내용 |
 |------|------|

@@ -35,6 +35,9 @@ namespace Truesoft.Supabase.Unity
         private static string _initializedProjectUrl;
         private static bool _enableApiResultLogs = true;
 
+        private static float _remoteConfigPollIntervalSeconds = 0f;
+        private static float _remoteConfigNextPollAtRealtime = 0f;
+
         private static bool _duplicateSessionMonitorEnabled = true;
         private static float _duplicateSessionPollSeconds = 15f;
 
@@ -76,6 +79,34 @@ namespace Truesoft.Supabase.Unity
             public const string ProfileNicknameAvailable = "Supabase.Profile.Nickname.Available";
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
+        }
+
+        internal static float RemoteConfigNextPollAtRealtime => _remoteConfigNextPollAtRealtime;
+
+        internal static void ForceRemoteConfigNextPollAt(float realtimeAt)
+        {
+            _remoteConfigNextPollAtRealtime = realtimeAt;
+        }
+
+        internal static void UpdateRemoteConfigPollIntervalSeconds(float intervalSeconds)
+        {
+            _remoteConfigPollIntervalSeconds = intervalSeconds <= 0f ? 0f : intervalSeconds;
+        }
+
+        internal static void ScheduleRemoteConfigNextPollAt(float realtimeAt)
+        {
+            if (realtimeAt > _remoteConfigNextPollAtRealtime)
+                _remoteConfigNextPollAtRealtime = realtimeAt;
+        }
+
+        private static void RequestRemoteConfigPollingReset()
+        {
+            if (_remoteConfigPollIntervalSeconds <= 0f)
+                return;
+
+            // 의도치 않게 더 자주 호출되지 않도록, "현재 스케줄보다 더 늦게"만 확장합니다.
+            var target = Time.realtimeSinceStartup + _remoteConfigPollIntervalSeconds;
+            ScheduleRemoteConfigNextPollAt(target);
         }
 
         /// <summary><see cref="EnsureInitializedAsync"/> 기본 대기 시간(ms). 씬의 <c>SupabaseRuntime</c> Awake를 기다립니다.</summary>
@@ -320,7 +351,16 @@ namespace Truesoft.Supabase.Unity
         public static async Task<bool> TryRefreshRemoteConfigAsync()
         {
             var ok = await RefreshRemoteConfigAsync();
-            LogApiResult(ApiLogTags.RemoteConfigRefresh, ok, ok ? null : "remote_config_refresh_failed");
+            if (ok == false)
+            {
+                LogApiResult(ApiLogTags.RemoteConfigRefresh, ok, "remote_config_refresh_failed");
+                return false;
+            }
+
+            // 변경이 없으면 로그를 찍지 않습니다(폴링 성공 로그 스팸 방지).
+            if (_remoteConfig != null && _remoteConfig.LastApplyHadChanges)
+                LogApiResult(ApiLogTags.RemoteConfigRefresh, true, null);
+
             return ok;
         }
 
@@ -328,7 +368,28 @@ namespace Truesoft.Supabase.Unity
         public static async Task<bool> TryPollRemoteConfigAsync()
         {
             var ok = await PollRemoteConfigAsync();
-            LogApiResult(ApiLogTags.RemoteConfigPoll, ok, ok ? null : "remote_config_poll_failed");
+            if (ok == false)
+            {
+                LogApiResult(ApiLogTags.RemoteConfigPoll, ok, "remote_config_poll_failed");
+                return false;
+            }
+
+            // 실제 변경이 있을 때만 success 로그를 찍습니다.
+            if (_remoteConfig != null && _remoteConfig.LastApplyHadChanges)
+                LogApiResult(ApiLogTags.RemoteConfigPoll, true, null);
+
+            return ok;
+        }
+
+        /// <summary>
+        /// 온디맨드 RemoteConfig 동기화: 서버에서 즉시 최신 값을 받아 캐시를 갱신합니다.
+        /// 호출 직후에는 주기 폴링 타이머를 초기화(의도치 않게 더 자주 호출되지 않도록 다음 폴링을 뒤로 미룸)합니다.
+        /// </summary>
+        public static async Task<bool> RefreshRemoteConfigOnDemandAsync()
+        {
+            var ok = await TryRefreshRemoteConfigAsync();
+            if (ok)
+                RequestRemoteConfigPollingReset();
             return ok;
         }
 
