@@ -42,68 +42,129 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 | 구분 | 고정에 가까운 내용 |
 |------|-------------------|
 | **URL 경로** | `…/auth/v1/…`, `…/rest/v1/{테이블}`, `…/functions/v1/{함수명}` — Supabase API 규격 (프로젝트 URL·함수 이름은 설정/인자로 바뀜) |
-| **User Saves** | 컬럼 `user_id`, `save_data`, `updated_at`, upsert 시 `on_conflict=user_id` — DB를 이 형태에 맞추거나 SDK를 확장해야 함 |
+| **User Saves** | 권장: **게임 조회·수정은 `account_id`만**. **`user_id`**는 동일인 식별·운영용(동일 Google이면 재가입 후에도 **같은 `user_id` 가능**). 행은 **서로게이트 PK**로 두어 재가입 시 **새 `account_id` 행 INSERT**, 옛 행은 `account_id` NULL. SDK 기본 컬럼명 `user_id`에 Auth id → 매핑·확장 필요 |
 | **Remote Config** | 조회 컬럼 `key`, `value_json`, `updated_at`, `version` |
-| **채팅** | 컬럼 `id`, `channel_id`, `user_id`, `display_name`, `content`, `created_at` |
-| **공개 프로필** | 컬럼 `id`(auth UUID, PK), `nickname`, 선택 `withdrawn_at`(soft 탈퇴 시각). 조회는 anon, 수정은 JWT + RLS(본인만) |
+| **채팅** | 컬럼 `id`, `channel_id`, `user_id`(보낸 이 식별 — 정책에 따라 `account_id` 또는 플레이어 `user_id`), `display_name`, `content`, `created_at` |
+| **공개 프로필** | 권장: **`id`**(PK) + **`user_id`** + **`account_id`**. DDL은 [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql) |
 
 즉, **REST 대상 테이블명**은 유연하고, **각 기능이 쓰는 컬럼·쿼리 형태**는 아직 코드에 박혀 있습니다. 다른 스키마를 쓰려면 해당 서비스를 감싼 별도 레이어나 포크가 필요합니다.
 
+### 플레이어 데이터 테이블 구조 (요약)
+
+| 구분 | 역할 |
+|------|------|
+| **`account_id`** | `auth.users.id`. **게임 클라이언트가 데이터를 읽고 쓸 때 쓰는 기준** — RLS도 보통 `account_id = auth.uid()`. 계정 삭제 시 Auth 행이 없어지고, DB 행에는 **`account_id`만 NULL**로 남기는 패턴. |
+| **`user_id`** | **플레이어(사람) 단위 불변 id** — 같은 Google이면 탈퇴 후 재가입해도 **같은 값**으로 둘 수 있음. **운영툴·수동 조회·감사**에서 “동일인의 과거 행”을 묶을 때 사용. **게임은 이 키로 직접 조회하지 않음.** |
+| **행 PK (`id`)** | `profiles`·`user_saves`는 **`id` UUID**를 PK로 두고, **한 `user_id`에 대해 “계정 생애”마다 다른 행**이 생기게 함(재가입 = 새 `account_id` = **새 행 INSERT**). |
+
+**한 줄로:** 게임은 **항상 현재 로그인 계정(`account_id`)** 만 보고, **같은 사람의 히스토리**는 **`user_id`로 운영 쪽에서만** 묶는다. 탈퇴하면 그 계정에 붙었던 행은 `account_id`가 NULL이 되어 **게임에서는 더 이상 안 보이고**, 재가입 시 **옛 행을 UPDATE로 다시 연결하지 않고** **새 행**을 만든다 → **예전 세이브·프로필이 게임에 자동 복구되지 않음**.
+
+별도 `app_users` 테이블은 두지 않고, **`profiles`·`user_saves` 행 안에 `user_id` + `account_id`를 같이 둡니다.**
+
+**통합 SQL:** [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql) — `profiles`·`user_saves`·`account_closures` 생성, 인덱스, RLS(`DROP POLICY IF EXISTS` 포함). Supabase SQL Editor에 통째로 실행하면 됩니다.
+
 ### 공개 프로필·닉네임·탈퇴 표시 (`profiles`)
 
-**탈퇴(비활성) 상태를 어디에 둘까?** 게임에서 “이 유저는 탈퇴했다”를 **다른 클라이언트가 조회**해야 하면 `profiles` 같은 **공개 프로필 테이블**에 두는 편이 맞습니다. `auth.users`만 건드리면 anon으로는 확인이 어렵고, 닉네임·아바타와 같은 **공개 메타**와 한곳에 모이므로 유지보수도 쉽습니다. 완전 삭제(hard delete)와 `auth` 계정 삭제는 별도 정책(Edge Function·관리자 API 등)으로 처리하는 경우가 많고, 앱에서는 **`withdrawn_at`이 비어 있지 않으면 탈퇴 처리**처럼 쓰면 됩니다.
+**탈퇴 표시**를 다른 클라이언트가 볼 필요가 있으면 `profiles`에 `withdrawn_at` 등을 두는 패턴이 흔합니다. **스키마·정책 전체**는 위 SQL 파일의 `profiles`와 동일합니다.
 
-조회는 **로그인 없이** publishable key만으로 되게 하려면 `SELECT`를 공개하고, 쓰기는 본인만 허용하는 RLS가 필요합니다.
+- **SELECT:** anon 공개(닉네임 등). 탈퇴 후 `account_id` NULL 행을 숨길지는 정책 선택.
+- **INSERT/UPDATE:** `account_id = auth.uid()`(게임은 **계정 기준**만).
+- **닉네임 유니크:** SQL 파일 내 부분 인덱스(`lower(trim(nickname))`, 빈 닉 제외) 참고.
 
-```sql
-create table if not exists public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  nickname text not null default '',
-  withdrawn_at timestamptz null
-);
+**`user_id` / 재가입 / RLS**에 대한 공통 설명은 위 **「플레이어 데이터 테이블 구조 (요약)」** 와 아래 **5번 절**(`user_id`·`account_id` — 동작·재가입·SDK)을 봅니다.
 
-alter table public.profiles enable row level security;
-
-create policy "profiles_select_public"
-on public.profiles for select
-using (true);
-
-create policy "profiles_insert_own"
-on public.profiles for insert
-with check (auth.uid() = id);
-
-create policy "profiles_update_own"
-on public.profiles for update
-using (auth.uid() = id);
-
--- 닉네임 중복 방지(빈 문자열 제외·대소문자 무시). 클라이언트 TryIsNicknameAvailableAsync와 함께 쓰는 것을 권장합니다.
-create unique index if not exists profiles_nickname_unique
-on public.profiles (lower(trim(nickname)))
-where trim(nickname) <> '';
-```
-
-기존 테이블에만 `nickname`이 있다면:
-
-```sql
-alter table public.profiles add column if not exists withdrawn_at timestamptz null;
-```
+기존 테이블에서 옮길 때는 마이그레이션으로 `user_id`·`account_id`·`id`(PK)를 채웁니다.
 
 **Unity API 요약**
 
-- 중복 확인: `TryIsNicknameAvailableAsync("후보닉")` — 가입·로그인 후 **본인 닉을 바꿀 때**는 `TryIsNicknameAvailableAsync("후보닉", ignoreUserIdForSelf: Supabase.Session.User.Id)`처럼 자기 id를 넘겨 같은 닉을 허용합니다.
+- 중복 확인: `TryIsNicknameAvailableAsync("후보닉")` — 본인 닉 유지 시 `ignoreUserIdForSelf`에는 **프로필에서 닉네임 중복 검사에 쓰는 키와 동일**하게 넘깁니다. (권장 스키마에서는 **`account_id`** = 현재 세션의 `Session.User.Id`, 즉 `auth.uid()`와 같다고 보면 됩니다.)
 - 최초/수정 저장: `TrySetMyNicknameAsync` 또는 별칭 `TryUpdateMyNicknameAsync`(동일 upsert).
-- 프로필 한 번에 조회: `TryGetPublicProfileAsync(userId)` → `Nickname`, `IsWithdrawn`, `WithdrawnAtIso`.
+- 프로필 한 번에 조회: `TryGetPublicProfileAsync(userId)` — SDK는 URL 필터에 넘긴 값으로 조회하므로, **공개 조회를 `user_id`로 할지 `account_id`로 할지**에 맞춰 호출 인자를 통일합니다.
 - 탈퇴 표시: `TryMarkMyWithdrawnAsync()`(UTC 시각 기록) / 해제: `TryClearMyWithdrawalAsync()` / 임의 시각: `TrySetMyWithdrawnAtAsync(iso8601)`.
 - 닉네임만: `TryGetPublicNicknameAsync`는 그대로 사용 가능합니다.
 
 닉네임 길이는 클라이언트에서 최대 64자로 잘립니다. DB 유니크 인덱스는 `lower(trim(...))` 기준이므로, **저장되는 문자열과 중복 검사**가 가능한 한 같은 규칙(공백·대소문자)을 맞추는 것이 좋습니다.
 
+### 법적 대응을 고려한 테이블 구분 (탈퇴 시 삭제 vs 보관)
+
+법률 검토는 별도로 받아야 하며, 아래는 **글로벌 서비스에서 흔히 쓰는 설계 패턴**입니다. 핵심은 **“탈퇴 완료 시 지울 데이터”**와 **“법령·분쟁 대응으로 남길 데이터”**를 **스키마·RLS·접근 주체**로 분리하는 것입니다.
+
+#### 1. 두 갈래로 나누기
+
+| 구분 | 목적 | 탈퇴 완료 시 일반적인 처리 |
+|------|------|---------------------------|
+| **운영·서비스 데이터** | 게임 플레이, 공개 프로필, 채팅, 친구, 인벤 등 | **삭제** 또는 **비식별화**(식별자·닉네임 제거). 클라이언트·일반 API(RLS)에서 접근. |
+| **법정 보존·감사 데이터** | 전자상거래·세금·결제 분쟁, 부정 이용 소명 등 | **항목·기간을 최소화**해 **별도 테이블**(또는 별도 스키마)에만 보관. **서비스 롤·내부 도구**만 접근, 일반 유저 RLS와 분리. |
+
+같은 Postgres 안에서도 **`public`(또는 `app_*`)** 과 **`compliance`**(이름은 팀 규칙에 맞게)처럼 **스키마를 나누면** “어디까지 클라이언트가 닿는지”를 정리하기 쉽습니다.
+
+#### 탈퇴 시 비활성화 대신 삭제
+
+삭제 가능한 운영 데이터는 `withdrawn_at` 같은 **표시만 남기는 방식** 대신 **행 삭제**를 택할 수 있습니다. `profiles`·`user_saves`·`chat_messages` 등은 `auth.users` 삭제와 **CASCADE** 또는 탈퇴 전용 **Edge Function**에서 순서대로 제거하고, 아래 **법정 보존 테이블만** 사용자 레코드와 **FK로 묶이지 않게** 남기는 패턴이 흔합니다. (SDK의 `TryMarkMyWithdrawnAsync` 등은 “soft 탈퇴 표시”용이므로, hard delete 전략이면 앱·서버 플로우에서 대체합니다.)
+
+#### 2. 운영 측에 두기 좋은 것 (탈퇴 시 정리 대상)
+
+- `profiles` — 탈퇴 절차에 따라 **행 삭제**(auth `ON DELETE CASCADE`와 맞춤) 또는 닉네임 비우기 + `withdrawn_at`만 남기기 등 **정책 선택**.
+- `user_saves`, `chat_messages`, 기타 게임 전용 테이블 — **삭제 또는 익명화**.
+- 이 SDK가 직접 다루는 REST 테이블들은 대부분 여기에 해당.
+
+#### 3. 보관 측에 두기 좋은 것 (예시)
+
+**“법적 대비로 결제 정보만 남기면 될까?”** — **항상 그렇다고 단정하기 어렵습니다.** 관할·업종·유료 여부에 따라 더 적거나 더 필요할 수 있습니다.
+
+- **결제/거래** — Stripe 등 **PG가 원장**이면 카드 정보마저 자사 DB에 없을 수 있습니다. 그 경우에도 **세금·전자상거래·환불 분쟁** 대비로 **거래 요약**(주문·금액·통화·일시·상태, 가능하면 PG 결제 id)을 **최소 필드**로 `compliance` 쪽에 두는 팀이 많습니다. PCI 때문에 **카드 번호·CVC는 저장하지 않는 것**이 원칙입니다.
+- **결제 외** — 약관/부정이용 대응으로 **짧은 기간의 보안·감사 로그**를 남기는 경우, **세금 전용 장부**를 별도 시스템에 두는 경우 등은 “결제 한 가지”만으로는 부족할 수 있습니다.
+- **`compliance.data_retention_ledger`** (이름 예시) — 탈퇴·삭제 요청 **이벤트**와 `retain_until` 추적용. 결제 보관과 별도로 두기도 합니다.  
+  - 필드 예: `event_type`(예: `account_closed`), `user_id`(플레이어 고유 id 등 **최소 식별자**), `occurred_at`, `legal_basis`, `retain_until`, `payload_minimal`(JSON 최소).  
+  - **append-only**에 가깝게 두고, 탈퇴 **이벤트**와 **보존 만료**를 추적.
+- **삭제 요청 재적용용** — DB 롤백 대비 시, 복구 후 재삭제에 쓰는 **불변에 가까운 이벤트 로그**(Postgres 밖 스토리지와 병행하는 경우도 많음).
+
+정리하면, **보관 테이블을 “결제(거래) 최소 레코드 한 세트”로 시작**하는 것은 현실적이지만, **그 한 세트에 어떤 컬럼이 들어가는지**는 법무·회계와 맞춘 뒤 처리방침에 적는 것이 안전합니다.
+
+#### 4. FK·삭제 순서
+
+- `auth.users` 삭제 시 **운영 테이블**은 `ON DELETE CASCADE`로 함께 지우기 쉽게 설계할 수 있음.
+- **보관 테이블**은 `auth.users`에 직접 FK를 두면 사용자 삭제 시 **함께 지워져** 보존 의무와 충돌할 수 있음. 이 경우 **FK 없음** + 플레이어 **`user_id`만** 두거나, **보존 기간 후 배치 삭제** 등으로 모델링합니다.
+
+#### 5. `user_id`·`account_id` — 동작·재가입·SDK (용어 표는 위 요약과 동일)
+
+Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQL 파일과 같이 **`ON DELETE SET NULL`**이면 해당 게임 행의 **`account_id`만 NULL**로 남습니다. **`user_id`는 유지**되어 운영툴로 과거 행을 조회할 수 있습니다.
+
+- **게임:** RLS·쿼리는 **`account_id = auth.uid()`** 만.
+- **같은 Google 재가입:** `user_id`는 같은 값으로 둘 수 있으나, **옛 행에 `account_id`를 UPDATE하지 않고** **새 `account_id`로 새 행 INSERT** → 게임은 새 데이터만 사용.
+- **운영:** **`user_id`**로 동일인의 과거·현재 행을 함께 조회.
+
+**`user_id`를 같게 유지:** OAuth 제공자 안정 식별자(예: Google `sub`)로 결정(해시·UUID v5·매핑 테이블 등). 익명·다중 제공자는 정책으로 정의.
+
+**재가입 요약**
+
+| 경우 | `user_id` | 게임 데이터 행 |
+|------|-----------|----------------|
+| 동일 Google 재가입 | 같게 둘 수 있음 | **새 `account_id`로 새 행 INSERT**, 옛 행은 NULL 유지 |
+| 다른 계정 | 다른 `user_id` | 새 행 INSERT |
+| 탈퇴 직후 | 행에 남음 | `account_id` → NULL, 게임 접근 불가 |
+
+**이 SDK:** REST 바디의 **`user_id` 컬럼에 Auth id**를 넣는 전제라, 위 스키마의 **`account_id`**와 맞추려면 **컬럼명/매핑** 또는 **서버·Edge Function에서 변환**이 필요합니다.
+
+**`user_saves`·`account_closures` 테이블 정의와 `user_saves` RLS**는 [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에만 적어 두었습니다. `account_closures`는 RLS만 켜고 정책 없음(일반 JWT 차단, service role 사용 전제).
+
+**앱 쪽**
+
+1. 로그인 성공 시 **플레이어 `user_id`를 결정**(동일 Google이면 항상 같은 값). **`user_saves` / `profiles`는 `account_id` = 현재 `auth.uid()` 인 행이 있는지 보고**, 없으면 **새 행 INSERT**(`user_id` + `account_id`). **옛 행(`account_id` NULL)에는 새 `account_id`를 UPDATE로 붙이지 않음.**  
+2. 게임은 **항상 `account_id`(RLS / `auth.uid()`)** 만으로 읽기·쓰기.  
+3. 탈퇴 후 재가입해도 **게임은 새 `account_id` 전용 새 행**만 보므로 **이전 세이브·프로필과 자동으로 이어지지 않음**. **`user_id`는 운영·감사용으로만** 같은 사람 아래 여러 행을 묶는 데 사용.  
+4. 공개 프로필·리더보드 등에서 **“현재 활성 닉네임”**만 보이게 하려면 `account_id is not null` 조건 등을 두는 식으로 정책을 정합니다.
+
+#### 6. 문서
+
+- 개인정보 처리방침에 **보유 항목·기간·목적**을 테이블 단위로 대응시켜 두면, 설계와 운영이 맞물립니다.
+
 ## 제공 범위
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
-- **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync`
-- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsNicknameAvailableAsync`, `TrySetMyNicknameAsync` / `TryUpdateMyNicknameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (위 SQL·RLS·선택 유니크 인덱스)
+- **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
+- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsNicknameAvailableAsync`, `TrySetMyNicknameAsync` / `TryUpdateMyNicknameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql`의 `profiles` 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
 - **Edge Functions**: `TryInvokeFunctionAsync`
 - **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈

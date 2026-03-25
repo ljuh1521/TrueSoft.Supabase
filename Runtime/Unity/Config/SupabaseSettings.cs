@@ -44,6 +44,16 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("공개 프로필 테이블 (컬럼 id UUID PK, nickname text). RLS로 누구나 SELECT, 본인만 INSERT/UPDATE.")]
         public string publicProfilesTable = "profiles";
 
+        [Header("Duplicate login (중복 로그인)")]
+        [Tooltip("켜면 user_sessions 테이블을 폴링해 다른 기기에서 같은 계정으로 로그인했을 때 이 기기에서 세션을 끊고 OnDuplicateLoginDetected를 호출합니다. Sql/supabase_player_tables.sql에 user_sessions가 있어야 합니다.")]
+        public bool enableDuplicateSessionMonitor = true;
+
+        [Tooltip("세션 토큰 폴링 주기(초). 0 이하면 등록 직후 비교만 하고 주기 폴링은 하지 않습니다.")]
+        public float duplicateSessionPollSeconds = 15f;
+
+        [Tooltip("중복 로그인 감지용 테이블 이름 (기본 user_sessions).")]
+        public string userSessionsTable = "user_sessions";
+
         public SupabaseOptions ToOptions()
         {
             return new SupabaseOptions
@@ -54,7 +64,8 @@ namespace Truesoft.Supabase.Unity
                 UserSavesTable = string.IsNullOrWhiteSpace(userSavesTable) ? "user_saves" : userSavesTable.Trim(),
                 RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
                 ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
-                PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim()
+                PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim(),
+                UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim()
             };
         }
     }

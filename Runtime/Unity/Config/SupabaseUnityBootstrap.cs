@@ -18,6 +18,13 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseChatService ChatService { get; private set; }
         public SupabasePublicProfileService PublicProfileService { get; private set; }
         public SupabaseEdgeFunctionsService EdgeFunctionsService { get; private set; }
+        public SupabaseUserSessionService UserSessionService { get; private set; }
+
+        /// <summary><see cref="SupabaseSettings.enableDuplicateSessionMonitor"/>.</summary>
+        public bool EnableDuplicateSessionMonitor { get; private set; }
+
+        /// <summary><see cref="SupabaseSettings.duplicateSessionPollSeconds"/>.</summary>
+        public float DuplicateSessionPollSeconds { get; private set; }
 
         public void Initialize(SupabaseSettings settings)
         {
@@ -70,6 +77,16 @@ namespace Truesoft.Supabase.Unity.Config
                 options.PublishableKey,
                 http,
                 json);
+
+            UserSessionService = new SupabaseUserSessionService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                json,
+                options.UserSessionsTable);
+
+            EnableDuplicateSessionMonitor = settings.enableDuplicateSessionMonitor;
+            DuplicateSessionPollSeconds = settings.duplicateSessionPollSeconds;
 
             SupabaseSDK.Initialize(this);
         }

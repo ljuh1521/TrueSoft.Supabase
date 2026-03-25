@@ -23,6 +23,9 @@ namespace Truesoft.Supabase.Unity
     {
         private const string RefreshTokenKey = "Truesoft.Supabase.RefreshToken";
 
+        /// <summary>계정별 로컬 세션 토큰 저장 키 접두어. <c>PlayerPrefs</c> 키는 <c>{접두어}{account_id}</c> 입니다.</summary>
+        public const string SessionTokenPlayerPrefsKeyPrefix = "Truesoft.Supabase.SessionToken.";
+
         private static SupabaseUnityBootstrap _bootstrap;
         private static SupabaseSession _currentSession;
         private static UserSavesFacade _userSaves;
@@ -31,6 +34,24 @@ namespace Truesoft.Supabase.Unity
         private static readonly Dictionary<string, ChatChannelFacade> _chatChannels = new(StringComparer.Ordinal);
         private static string _initializedProjectUrl;
         private static bool _enableApiResultLogs = true;
+
+        private static bool _duplicateSessionMonitorEnabled = true;
+        private static float _duplicateSessionPollSeconds = 15f;
+
+        /// <summary>
+        /// 다른 기기에서 같은 계정으로 로그인해 서버 세션 토큰이 바뀐 경우 호출됩니다(이미 <see cref="ClearSession"/> 후).
+        /// UI에서 팝업을 띄우세요.
+        /// </summary>
+        public static event Action OnDuplicateLoginDetected;
+
+        /// <summary><see cref="Config.SupabaseSettings.enableDuplicateSessionMonitor"/>.</summary>
+        public static bool DuplicateSessionMonitorEnabled => _duplicateSessionMonitorEnabled;
+
+        /// <summary><see cref="Config.SupabaseSettings.duplicateSessionPollSeconds"/>.</summary>
+        public static float DuplicateSessionPollSeconds => _duplicateSessionPollSeconds;
+
+        /// <summary>중복 로그인 감지용 <c>user_sessions</c> REST 서비스. 미초기화 시 null.</summary>
+        public static SupabaseUserSessionService UserSessionService => _bootstrap?.UserSessionService;
 
         /// <summary>Try* API 결과 로그 접두어. API마다 고정이며 호출자가 넘기지 않습니다.</summary>
         private static class ApiLogTags
@@ -173,7 +194,7 @@ namespace Truesoft.Supabase.Unity
             var result = await Auth.SignInWithGoogleIdTokenAsync(idToken);
             if (result.IsSuccess && result.Data != null)
             {
-                SetSession(result.Data);
+                SetSession(result.Data, SupabaseSessionChangeKind.NewSignIn);
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
             }
@@ -214,7 +235,7 @@ namespace Truesoft.Supabase.Unity
                         return;
                     }
 
-                    SetSession(session);
+                    SetSession(session, SupabaseSessionChangeKind.NewSignIn);
                     if (saveSessionToStorage)
                         SaveSessionToStorage();
 
@@ -421,7 +442,7 @@ namespace Truesoft.Supabase.Unity
             var result = await Auth.SignInAnonymouslyAsync();
             if (result.IsSuccess && result.Data != null)
             {
-                SetSession(result.Data);
+                SetSession(result.Data, SupabaseSessionChangeKind.NewSignIn);
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
             }
@@ -480,7 +501,7 @@ namespace Truesoft.Supabase.Unity
             var result = await Auth.RefreshSessionAsync(refreshToken);
             if (result.IsSuccess && result.Data != null)
             {
-                SetSession(result.Data);
+                SetSession(result.Data, SupabaseSessionChangeKind.RestoredOrRefreshed);
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
             }
@@ -522,7 +543,7 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 로그인 없이 다른 사용자의 공개 닉네임을 조회합니다. 테이블 RLS에서 anon <c>SELECT</c>가 허용되어야 합니다.
+        /// 로그인 없이 다른 사용자의 공개 닉네임을 조회합니다. <paramref name="userId"/>는 DB <c>profiles.user_id</c>(OAuth <c>sub</c> 등 안정 id)입니다. 테이블 RLS에서 anon <c>SELECT</c>가 허용되어야 합니다.
         /// </summary>
         public static async Task<SupabaseResult<string>> GetPublicNicknameAsync(string userId)
         {
@@ -548,6 +569,7 @@ namespace Truesoft.Supabase.Unity
             return await _bootstrap.PublicProfileService.UpsertMyNicknameAsync(
                 _currentSession.AccessToken,
                 _currentSession.User.Id,
+                _currentSession.User.PlayerUserId,
                 nickname);
         }
 
@@ -566,7 +588,7 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 닉네임이 사용 가능한지 조회합니다. 로그인 후 본인 닉을 유지한 채 검사할 때는 <paramref name="ignoreUserIdForSelf"/>에 현재 사용자 id를 넘깁니다.
+        /// 닉네임이 사용 가능한지 조회합니다. 로그인 후 본인 닉을 유지한 채 검사할 때는 <paramref name="ignoreUserIdForSelf"/>에 현재 Auth 사용자 id(<c>auth.uid()</c>, <c>profiles.account_id</c>)를 넘깁니다.
         /// </summary>
         public static async Task<SupabaseResult<bool>> IsNicknameAvailableAsync(
             string nickname,
@@ -599,7 +621,7 @@ namespace Truesoft.Supabase.Unity
             return r.Data;
         }
 
-        /// <summary>공개 프로필(닉네임·탈퇴 시각)을 한 번에 조회합니다.</summary>
+        /// <summary>공개 프로필(닉네임·탈퇴 시각)을 한 번에 조회합니다. <paramref name="userId"/>는 <c>profiles.user_id</c>(안정 플레이어 id)입니다.</summary>
         public static async Task<SupabaseResult<PublicProfileSnapshot>> GetPublicProfileAsync(string userId)
         {
             if (!await EnsureInitializedAsync())
@@ -946,12 +968,31 @@ namespace Truesoft.Supabase.Unity
         /// <summary>로그인 성공 시 세션을 SDK에 설정하세요. 이후 SaveAsync/LoadAsync/Events는 세션 없이 호출 가능.</summary>
         public static void SetSession(SupabaseSession session)
         {
+            SetSession(session, SupabaseSessionChangeKind.RestoredOrRefreshed);
+        }
+
+        /// <summary>
+        /// 세션을 설정합니다. <paramref name="kind"/>가 <see cref="SupabaseSessionChangeKind.NewSignIn"/>이면 서버에 새 세션 토큰을 등록합니다(중복 로그인 감지).
+        /// </summary>
+        public static void SetSession(SupabaseSession session, SupabaseSessionChangeKind kind)
+        {
             _currentSession = session;
+            if (session == null || session.User == null || string.IsNullOrWhiteSpace(session.User.Id))
+                return;
+
+            SupabaseDuplicateSessionCoordinator.ScheduleSyncAfterSessionChange(kind);
         }
 
         /// <summary>로그아웃 시 호출. clearStorage가 true면 PlayerPrefs에 저장된 refresh_token도 삭제합니다.</summary>
-        public static void ClearSession(bool clearStorage = true)
+        /// <param name="clearStorage">저장된 refresh_token 삭제 여부.</param>
+        /// <param name="deleteUserSessionRow">true면 <c>user_sessions</c>에서 본인 행을 삭제합니다. 다른 기기에 의해 세션이 무효화된 경우 false로 두세요.</param>
+        public static void ClearSession(bool clearStorage = true, bool deleteUserSessionRow = true)
         {
+            var accessToken = _currentSession?.AccessToken;
+            var accountId = _currentSession?.User?.Id;
+
+            SupabaseDuplicateSessionCoordinator.StopPolling();
+
             // 채널 상태는 세션이 끊기면 더 이상 의미가 없으므로 정리
             foreach (var pair in _chatChannels)
             {
@@ -962,6 +1003,27 @@ namespace Truesoft.Supabase.Unity
             _currentSession = null;
             if (clearStorage)
                 PlayerPrefs.DeleteKey(RefreshTokenKey);
+
+            if (string.IsNullOrWhiteSpace(accountId) == false)
+                PlayerPrefs.DeleteKey(SessionTokenPlayerPrefsKeyPrefix + accountId);
+
+            PlayerPrefs.Save();
+
+            if (deleteUserSessionRow
+                && string.IsNullOrWhiteSpace(accessToken) == false
+                && string.IsNullOrWhiteSpace(accountId) == false)
+            {
+                var svc = _bootstrap?.UserSessionService;
+                if (svc != null)
+                    _ = svc.DeleteMySessionRowAsync(accessToken, accountId);
+            }
+        }
+
+        /// <summary>내부: 다른 기기 로그인으로 서버 토큰이 바뀐 경우 세션을 끊고 이벤트를 올립니다.</summary>
+        internal static void RaiseDuplicateLoginDetected()
+        {
+            ClearSession(clearStorage: true, deleteUserSessionRow: false);
+            OnDuplicateLoginDetected?.Invoke();
         }
 
         /// <summary>현재 세션의 refresh_token을 PlayerPrefs에 저장. 앱 재시작 후 RestoreSessionAsync로 복원할 수 있습니다.</summary>
@@ -992,7 +1054,7 @@ namespace Truesoft.Supabase.Unity
             var result = await _bootstrap.AuthService.RefreshSessionAsync(refreshToken);
             if (result.IsSuccess && result.Data != null)
             {
-                _currentSession = result.Data;
+                SetSession(result.Data, SupabaseSessionChangeKind.RestoredOrRefreshed);
                 return true;
             }
 
@@ -1020,6 +1082,8 @@ namespace Truesoft.Supabase.Unity
             _bootstrap = bootstrap;
             _initializedProjectUrl = newUrl;
             _enableApiResultLogs = bootstrap.EnableApiResultLogs;
+            _duplicateSessionMonitorEnabled = bootstrap.EnableDuplicateSessionMonitor;
+            _duplicateSessionPollSeconds = bootstrap.DuplicateSessionPollSeconds;
 
             if (!preserveSession)
                 _currentSession = null;
@@ -1028,6 +1092,9 @@ namespace Truesoft.Supabase.Unity
             _remoteConfig = null;
             _functions = null;
             _chatChannels.Clear();
+
+            if (preserveSession && IsLoggedIn)
+                SupabaseDuplicateSessionCoordinator.ScheduleSyncAfterSessionChange(SupabaseSessionChangeKind.RestoredOrRefreshed);
         }
 
         /// <summary>

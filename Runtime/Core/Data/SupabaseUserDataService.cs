@@ -28,25 +28,31 @@ namespace Truesoft.Supabase.Core.Data
             _userSavesTable = SupabaseRestTableRef.Normalize(userSavesTable, nameof(userSavesTable));
         }
 
+        /// <param name="accountId"><c>auth.users.id</c> — RLS의 <c>auth.uid()</c>와 같아야 합니다.</param>
+        /// <param name="playerUserId"><c>user_saves.user_id</c> — OAuth <c>sub</c> 등 안정 id(익명이면 <paramref name="accountId"/>와 같아도 됨).</param>
         public async Task<SupabaseResult<bool>> SaveAsync<T>(
             string accessToken,
-            string userId,
+            string accountId,
+            string playerUserId,
             T data)
         {
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<bool>.Fail("access_token_empty");
 
-            if (string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<bool>.Fail("user_id_empty");
+            if (string.IsNullOrWhiteSpace(accountId))
+                return SupabaseResult<bool>.Fail("account_id_empty");
+
+            var stable = string.IsNullOrWhiteSpace(playerUserId) ? accountId.Trim() : playerUserId.Trim();
 
             if (data == null)
                 return SupabaseResult<bool>.Fail("save_data_null");
 
-            var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}?on_conflict=user_id";
+            var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}?on_conflict=account_id";
 
             var body = new SaveRowRequest<T>
             {
-                user_id = userId,
+                user_id = stable,
+                account_id = accountId.Trim(),
                 save_data = data,
                 updated_at = DateTime.UtcNow.ToString("o")
             };
@@ -69,20 +75,21 @@ namespace Truesoft.Supabase.Core.Data
             return SupabaseResult<bool>.Success(true);
         }
 
+        /// <param name="accountId">현재 세션의 Auth 사용자 id (<c>auth.uid()</c>).</param>
         public async Task<SupabaseResult<T>> LoadAsync<T>(
             string accessToken,
-            string userId) where T : class, new()
+            string accountId) where T : class, new()
         {
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<T>.Fail("access_token_empty");
 
-            if (string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<T>.Fail("user_id_empty");
+            if (string.IsNullOrWhiteSpace(accountId))
+                return SupabaseResult<T>.Fail("account_id_empty");
 
             var url =
                 $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}" +
                 $"?select=save_data,updated_at" +
-                $"&user_id=eq.{Uri.EscapeDataString(userId)}" +
+                $"&account_id=eq.{Uri.EscapeDataString(accountId.Trim())}" +
                 $"&limit=1";
 
             var response = await _httpClient.SendAsync(
@@ -133,6 +140,7 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class SaveRowRequest<T>
         {
             public string user_id;
+            public string account_id;
             public T save_data;
             public string updated_at;
         }

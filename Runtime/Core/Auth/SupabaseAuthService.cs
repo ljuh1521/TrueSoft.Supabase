@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
 
@@ -201,12 +202,59 @@ namespace Truesoft.Supabase.Core.Auth
                 if (string.IsNullOrWhiteSpace(session.access_token))
                     return SupabaseResult<SupabaseSession>.Fail("access_token_empty");
 
+                // profiles.user_id / user_saves.user_id에 넣을 안정 id를 session에 반영합니다.
+                ApplyStablePlayerUserId(session, response.Body);
+
                 return SupabaseResult<SupabaseSession>.Success(session);
             }
             catch (Exception e)
             {
                 return SupabaseResult<SupabaseSession>.Fail("session_parse_exception:" + e.Message);
             }
+        }
+
+        /// <summary>
+        /// <c>profiles</c>/<c>user_saves</c>의 <c>user_id</c> 컬럼용. OAuth <c>identity_data.sub</c>가 있으면 사용하고, 없으면 auth user id.
+        /// </summary>
+        private static void ApplyStablePlayerUserId(SupabaseSession session, string responseBody)
+        {
+            if (session?.user == null || string.IsNullOrWhiteSpace(responseBody))
+                return;
+
+            try
+            {
+                var jo = JObject.Parse(responseBody);
+                var userToken = jo["user"];
+                var stable = ExtractStablePlayerUserId(userToken);
+                if (string.IsNullOrWhiteSpace(stable) == false)
+                    session.user.player_user_id = stable.Trim();
+                else if (string.IsNullOrWhiteSpace(session.user.id) == false)
+                    session.user.player_user_id = session.user.id.Trim();
+            }
+            catch
+            {
+                if (string.IsNullOrWhiteSpace(session.user.id) == false)
+                    session.user.player_user_id = session.user.id.Trim();
+            }
+        }
+
+        private static string ExtractStablePlayerUserId(JToken userToken)
+        {
+            if (userToken == null)
+                return null;
+
+            if (userToken["identities"] is JArray identities && identities.Count > 0)
+            {
+                var idData = identities[0]?["identity_data"];
+                if (idData != null)
+                {
+                    var sub = idData["sub"]?.Value<string>();
+                    if (string.IsNullOrWhiteSpace(sub) == false)
+                        return sub;
+                }
+            }
+
+            return userToken["id"]?.Value<string>();
         }
 
         private string ExtractErrorMessage(string body)

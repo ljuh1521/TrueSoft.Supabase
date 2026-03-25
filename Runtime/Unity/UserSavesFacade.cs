@@ -37,7 +37,8 @@ namespace Truesoft.Supabase.Unity
 
             return await _userDataService.SaveAsync(
                 accessToken: accessToken,
-                userId: userId,
+                accountId: userId,
+                playerUserId: session.User.PlayerUserId,
                 data: data);
         }
 
@@ -61,7 +62,7 @@ namespace Truesoft.Supabase.Unity
 
             return await _userDataService.LoadAsync<T>(
                 accessToken: accessToken,
-                userId: userId);
+                accountId: userId);
         }
     }
 }

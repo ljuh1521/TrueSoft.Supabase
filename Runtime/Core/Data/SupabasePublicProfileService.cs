@@ -7,11 +7,14 @@ using Truesoft.Supabase.Core.Http;
 namespace Truesoft.Supabase.Core.Data
 {
     /// <summary>
-    /// 공개 프로필(닉네임·soft 탈퇴 시각). <c>profiles</c>에 <c>id</c>(auth UUID), <c>nickname</c>, 선택 <c>withdrawn_at</c>을 두고 RLS로 조회/수정을 제어하는 패턴을 가정합니다.
+    /// 공개 프로필(닉네임·soft 탈퇴 시각). <c>profiles</c>에 <c>id</c>(행 PK), <c>user_id</c>(안정 플레이어 id), <c>account_id</c>(<c>auth.users.id</c>), <c>nickname</c>, <c>withdrawn_at</c>를 두고 RLS로 조회/수정하는 패턴을 가정합니다.
     /// </summary>
     public sealed class SupabasePublicProfileService
     {
         private const int NicknameMaxLength = 64;
+
+        /// <summary>PostgREST <c>IS NOT NULL</c> — 활성 행만 (<c>account_id</c>가 있는 프로필).</summary>
+        private const string ActiveProfileFilter = "account_id=is.not_null";
 
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
@@ -34,18 +37,19 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 로그인 없이 publishable key만으로 닉네임을 조회합니다. RLS에서 <c>SELECT</c>가 공개(anon)여야 합니다.
+        /// 로그인 없이 publishable key만으로 닉네임을 조회합니다. <paramref name="playerUserId"/>는 <c>profiles.user_id</c>입니다.
         /// </summary>
-        public async Task<SupabaseResult<string>> GetNicknameAsync(string userId)
+        public async Task<SupabaseResult<string>> GetNicknameAsync(string playerUserId)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<string>.Fail("user_id_empty");
+            if (string.IsNullOrWhiteSpace(playerUserId))
+                return SupabaseResult<string>.Fail("player_user_id_empty");
 
-            var id = userId.Trim();
+            var id = playerUserId.Trim();
             var url =
                 $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}" +
                 $"?select=nickname" +
-                $"&id=eq.{Uri.EscapeDataString(id)}" +
+                $"&user_id=eq.{Uri.EscapeDataString(id)}" +
+                $"&{ActiveProfileFilter}" +
                 $"&limit=1";
 
             var response = await _httpClient.SendAsync(
@@ -75,26 +79,33 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 현재 사용자 행을 upsert하여 닉네임을 설정합니다. RLS에서 본인 <c>id</c>만 쓰기 가능해야 합니다.
+        /// 현재 사용자 행을 upsert하여 닉네임을 설정합니다. RLS에서 본인 <c>account_id</c>만 쓰기 가능해야 합니다.
         /// </summary>
-        public async Task<SupabaseResult<bool>> UpsertMyNicknameAsync(string accessToken, string userId, string nickname)
+        public async Task<SupabaseResult<bool>> UpsertMyNicknameAsync(
+            string accessToken,
+            string accountId,
+            string playerUserId,
+            string nickname)
         {
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<bool>.Fail("access_token_empty");
 
-            if (string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<bool>.Fail("user_id_empty");
+            if (string.IsNullOrWhiteSpace(accountId))
+                return SupabaseResult<bool>.Fail("account_id_empty");
+
+            if (string.IsNullOrWhiteSpace(playerUserId))
+                return SupabaseResult<bool>.Fail("player_user_id_empty");
 
             var norm = NormalizeNickname(nickname);
             if (norm.Length > NicknameMaxLength)
                 return SupabaseResult<bool>.Fail("nickname_too_long");
 
-            var id = userId.Trim();
-            var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}?on_conflict=id";
+            var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}?on_conflict=account_id";
 
             var body = new UpsertNicknameRow
             {
-                id = id,
+                user_id = playerUserId.Trim(),
+                account_id = accountId.Trim(),
                 nickname = norm
             };
 
@@ -117,10 +128,10 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 닉네임이 다른 사용자에게 이미 쓰이지 않는지 확인합니다. <paramref name="exceptUserId"/>가 있으면 해당 사용자 행은 제외(본인 닉 유지·변경 시 사용).
-        /// DB에 닉네임 유니크 인덱스를 두면 저장 시 최종 일관성이 보장됩니다.
+        /// 닉네임이 다른 사용자에게 이미 쓰이지 않는지 확인합니다.
+        /// <paramref name="ignoreUserIdForSelf"/>가 있으면 해당 <c>profiles.account_id</c>(= 현재 세션 <c>auth.uid()</c>) 행은 제외(본인 닉 유지·변경 시 사용).
         /// </summary>
-        public async Task<SupabaseResult<bool>> IsNicknameAvailableAsync(string nickname, string exceptUserId = null)
+        public async Task<SupabaseResult<bool>> IsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null)
         {
             var norm = NormalizeNickname(nickname);
             if (norm.Length == 0)
@@ -131,7 +142,7 @@ namespace Truesoft.Supabase.Core.Data
 
             var url =
                 $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}" +
-                $"?select=id" +
+                $"?select=account_id" +
                 $"&nickname=eq.{Uri.EscapeDataString(norm)}" +
                 $"&limit=1";
 
@@ -149,13 +160,13 @@ namespace Truesoft.Supabase.Core.Data
 
             try
             {
-                var rows = _jsonSerializer.FromJsonArray<IdRow>(response.Body);
-                if (rows == null || rows.Length == 0 || string.IsNullOrWhiteSpace(rows[0]?.id))
+                var rows = _jsonSerializer.FromJsonArray<AccountIdRow>(response.Body);
+                if (rows == null || rows.Length == 0 || string.IsNullOrWhiteSpace(rows[0]?.account_id))
                     return SupabaseResult<bool>.Success(true);
 
-                var holderId = rows[0].id.Trim();
-                if (string.IsNullOrWhiteSpace(exceptUserId) == false
-                    && string.Equals(holderId, exceptUserId.Trim(), StringComparison.OrdinalIgnoreCase))
+                var holder = rows[0].account_id.Trim();
+                if (string.IsNullOrWhiteSpace(ignoreUserIdForSelf) == false
+                    && string.Equals(holder, ignoreUserIdForSelf.Trim(), StringComparison.OrdinalIgnoreCase))
                     return SupabaseResult<bool>.Success(true);
 
                 return SupabaseResult<bool>.Success(false);
@@ -167,18 +178,19 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 공개 프로필 한 행을 조회합니다. 행이 없으면 닉네임·탈퇴 시각은 비어 있는 스냅샷을 반환합니다.
+        /// 공개 프로필 한 행을 조회합니다. <paramref name="playerUserId"/>는 <c>profiles.user_id</c>입니다. 행이 없으면 닉네임·탈퇴 시각은 비어 있는 스냅샷을 반환합니다.
         /// </summary>
-        public async Task<SupabaseResult<PublicProfileSnapshot>> GetProfileAsync(string userId)
+        public async Task<SupabaseResult<PublicProfileSnapshot>> GetProfileAsync(string playerUserId)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<PublicProfileSnapshot>.Fail("user_id_empty");
+            if (string.IsNullOrWhiteSpace(playerUserId))
+                return SupabaseResult<PublicProfileSnapshot>.Fail("player_user_id_empty");
 
-            var id = userId.Trim();
+            var id = playerUserId.Trim();
             var url =
                 $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}" +
-                $"?select=id,nickname,withdrawn_at" +
-                $"&id=eq.{Uri.EscapeDataString(id)}" +
+                $"?select=id,user_id,nickname,withdrawn_at" +
+                $"&user_id=eq.{Uri.EscapeDataString(id)}" +
+                $"&{ActiveProfileFilter}" +
                 $"&limit=1";
 
             var response = await _httpClient.SendAsync(
@@ -197,16 +209,17 @@ namespace Truesoft.Supabase.Core.Data
             {
                 var rows = _jsonSerializer.FromJsonArray<ProfileRowFull>(response.Body);
                 if (rows == null || rows.Length == 0 || rows[0] == null)
-                    return SupabaseResult<PublicProfileSnapshot>.Success(new PublicProfileSnapshot(id, string.Empty, null));
+                    return SupabaseResult<PublicProfileSnapshot>.Success(new PublicProfileSnapshot(string.Empty, id, string.Empty, null));
 
                 var row = rows[0];
                 var w = row.withdrawn_at;
                 if (string.IsNullOrWhiteSpace(w))
                     w = null;
 
-                var uid = string.IsNullOrWhiteSpace(row.id) ? id : row.id.Trim();
+                var rowId = string.IsNullOrWhiteSpace(row.id) ? string.Empty : row.id.Trim();
+                var stable = string.IsNullOrWhiteSpace(row.user_id) ? id : row.user_id.Trim();
                 return SupabaseResult<PublicProfileSnapshot>.Success(
-                    new PublicProfileSnapshot(uid, row.nickname ?? string.Empty, w));
+                    new PublicProfileSnapshot(rowId, stable, row.nickname ?? string.Empty, w));
             }
             catch (Exception e)
             {
@@ -219,19 +232,18 @@ namespace Truesoft.Supabase.Core.Data
         /// </summary>
         public async Task<SupabaseResult<bool>> PatchMyWithdrawnAtAsync(
             string accessToken,
-            string userId,
+            string accountId,
             string withdrawnAtIso)
         {
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<bool>.Fail("access_token_empty");
 
-            if (string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<bool>.Fail("user_id_empty");
+            if (string.IsNullOrWhiteSpace(accountId))
+                return SupabaseResult<bool>.Fail("account_id_empty");
 
-            var id = userId.Trim();
             var url =
                 $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}" +
-                $"?id=eq.{Uri.EscapeDataString(id)}";
+                $"?account_id=eq.{Uri.EscapeDataString(accountId.Trim())}";
 
             string jsonBody;
             if (string.IsNullOrWhiteSpace(withdrawnAtIso))
@@ -292,20 +304,22 @@ namespace Truesoft.Supabase.Core.Data
         [Serializable]
         private sealed class UpsertNicknameRow
         {
-            public string id;
+            public string user_id;
+            public string account_id;
             public string nickname;
         }
 
         [Serializable]
-        private sealed class IdRow
+        private sealed class AccountIdRow
         {
-            public string id;
+            public string account_id;
         }
 
         [Serializable]
         private sealed class ProfileRowFull
         {
             public string id;
+            public string user_id;
             public string nickname;
             public string withdrawn_at;
         }

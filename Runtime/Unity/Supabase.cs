@@ -287,8 +287,23 @@ namespace Truesoft.Supabase.Unity
         /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load API는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
 
+        /// <inheritdoc cref="SupabaseSDK.SetSession(SupabaseSession, SupabaseSessionChangeKind)"/>
+        public static void SetSession(SupabaseSession session, SupabaseSessionChangeKind kind) =>
+            SupabaseSDK.SetSession(session, kind);
+
+        /// <summary>다른 기기에서 같은 계정으로 로그인해 이 기기 세션이 무효화된 경우(이미 로그아웃 처리 후). UI 팝업에 구독하세요.</summary>
+        public static event Action OnDuplicateLoginDetected
+        {
+            add => SupabaseSDK.OnDuplicateLoginDetected += value;
+            remove => SupabaseSDK.OnDuplicateLoginDetected -= value;
+        }
+
         /// <summary>로그아웃 시 호출. clearStorage가 true면 저장된 refresh_token도 삭제.</summary>
         public static void ClearSession(bool clearStorage = true) => SupabaseSDK.ClearSession(clearStorage);
+
+        /// <inheritdoc cref="SupabaseSDK.ClearSession(bool, bool)"/>
+        public static void ClearSession(bool clearStorage, bool deleteUserSessionRow) =>
+            SupabaseSDK.ClearSession(clearStorage, deleteUserSessionRow);
 
         /// <summary>현재 세션을 기기에 저장. 앱 재시작 후 RestoreSessionAsync로 복원 가능.</summary>
         public static void SaveSessionToStorage() => SupabaseSDK.SaveSessionToStorage();

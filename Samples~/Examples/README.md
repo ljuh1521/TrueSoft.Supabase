@@ -3,6 +3,8 @@
 하나의 컴포넌트에서 Supabase 주요 기능 예시를 **함수별로 분리**해 제공합니다.
 
 - 로그인 예시
+- 로그아웃 예시 (`ClearSession` — refresh·`user_sessions` 정리)
+- 중복 로그인 감지 예시 (`OnDuplicateLoginDetected` 구독 + 콘솔 안내)
 - 저장/불러오기 예시
 - 공개 닉네임(`profiles` + RLS) 예시 — 루트 README의 SQL 적용 후 **Run Public Nickname Example** 또는 전체 실행 시 포함
 - RemoteConfig 조회 예시
@@ -27,6 +29,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 3. Android 네이티브 Google 로그인을 쓸 경우 `googleWebClientId` 입력
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장
 5. (선택) 게스트 로그인 흐름을 쓰면 Supabase 대시보드에서 **Anonymous sign-ins** 활성화
+6. (선택) 중복 로그인·`user_sessions`를 쓰려면 패키지 루트 `Sql/supabase_player_tables.sql`의 `user_sessions` 블록을 적용하고, `SupabaseSettings`에서 **Enable Duplicate Session Monitor**를 켭니다.
 
 ## 3. 씬에서 실행
 
@@ -39,11 +42,14 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
      - **Run Save/Load Example**
      - **Run RemoteConfig Example**
      - **Run Function Example**
+     - **Run Logout Example** — 로그인된 상태에서만 의미 있음
+     - **Run Duplicate Login Info (Console)** — 두 기기에서 같은 계정으로 로그인해 볼 때의 동작 안내
 
 ## 4. 확인
 
 - Console에 `[Supabase.*]` Try API 로그와 `[Sample] ...` 로그가 출력되면 정상입니다.
 - 로그인 필요 예시는 미로그인 상태에서 건너뛰도록 되어 있습니다.
+- 중복 로그인은 실제로 **다른 기기(또는 에뮬+실기)** 에서 같은 계정으로 다시 로그인해야 콘솔에 감지 로그가 뜹니다. 인스펙터에서 `subscribeDuplicateLoginOnEnable`(Duplicate login / Logout 섹션)이 켜져 있어야 `OnDuplicateLoginDetected`가 구독됩니다.
 
 ## 5. 샘플 삭제
 

@@ -28,6 +28,28 @@ namespace Truesoft.SupabaseUnity.Samples
         [Header("Public nickname (profiles 테이블 + RLS 필요)")]
         [SerializeField] private string demoNickname = "SamplePlayer";
 
+        [Header("Duplicate login / Logout (user_sessions + Sql 참고)")]
+        [Tooltip("켜면 OnEnable에서 OnDuplicateLoginDetected를 구독합니다. 다른 기기에서 같은 계정으로 로그인했을 때(이미 ClearSession 후) 호출됩니다.")]
+        [SerializeField] private bool subscribeDuplicateLoginOnEnable = true;
+
+        private void OnEnable()
+        {
+            if (subscribeDuplicateLoginOnEnable)
+                SupabaseClient.OnDuplicateLoginDetected += HandleDuplicateLoginDetected;
+        }
+
+        private void OnDisable()
+        {
+            SupabaseClient.OnDuplicateLoginDetected -= HandleDuplicateLoginDetected;
+        }
+
+        private void HandleDuplicateLoginDetected()
+        {
+            Debug.Log(
+                "[Sample] OnDuplicateLoginDetected: 다른 기기에서 같은 계정으로 로그인했습니다. "
+                + "이미 Supabase 세션은 정리되었으므로 로그인 화면으로 보내거나 팝업만 띄우면 됩니다.");
+        }
+
         private void Start()
         {
             if (runAllOnStart)
@@ -68,6 +90,18 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunPublicNicknameExample()
         {
             _ = RunPublicNicknameExampleAsync();
+        }
+
+        [ContextMenu("Run Logout Example")]
+        public void RunLogoutExample()
+        {
+            _ = RunLogoutExampleAsync();
+        }
+
+        [ContextMenu("Run Duplicate Login Info (Console)")]
+        public void RunDuplicateLoginInfoExample()
+        {
+            LogDuplicateLoginHowToTest();
         }
 
         private async Task<bool> RunLoginExampleAsync()
@@ -119,8 +153,9 @@ namespace Truesoft.SupabaseUnity.Samples
                 return false;
             }
 
-            var userId = SupabaseClient.Session.User.Id;
-            if (!await SupabaseClient.TryIsNicknameAvailableAsync(demoNickname, ignoreUserIdForSelf: userId))
+            var accountId = SupabaseClient.Session.User.Id;
+            var playerUserId = SupabaseClient.Session.User.PlayerUserId;
+            if (!await SupabaseClient.TryIsNicknameAvailableAsync(demoNickname, ignoreUserIdForSelf: accountId))
             {
                 Debug.LogWarning("[Sample] nickname example: nickname already taken (or check failed).");
                 return false;
@@ -132,11 +167,37 @@ namespace Truesoft.SupabaseUnity.Samples
                 return false;
             }
 
-            var readBack = await SupabaseClient.TryGetPublicNicknameAsync(userId, defaultValue: "");
+            var readBack = await SupabaseClient.TryGetPublicNicknameAsync(playerUserId, defaultValue: "");
             Debug.Log(readBack == demoNickname
                 ? $"[Sample] nickname example success: '{readBack}'"
                 : $"[Sample] nickname example: set ok but read '{readBack}' (expected '{demoNickname}').");
             return readBack == demoNickname;
+        }
+
+        /// <summary>
+        /// Supabase 세션 로그아웃: 저장된 refresh_token 삭제, <c>user_sessions</c> 행 삭제(루트 SQL 적용 시).
+        /// Android 네이티브 Google 계정까지 끊으려면 <c>TrySignOutFromGoogleAsync</c> 후 <c>ClearSession</c>을 호출하세요.
+        /// </summary>
+        private Task<bool> RunLogoutExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn)
+            {
+                Debug.LogWarning("[Sample] logout example skipped: not signed in.");
+                return Task.FromResult(false);
+            }
+
+            SupabaseClient.ClearSession();
+            Debug.Log("[Sample] logout example: ClearSession 완료 (refresh 삭제·로컬 세션 토큰 삭제, user_sessions는 deleteUserSessionRow 기본값으로 서버 행 삭제).");
+            return Task.FromResult(true);
+        }
+
+        private static void LogDuplicateLoginHowToTest()
+        {
+            Debug.Log(
+                "[Sample] 중복 로그인 테스트: Sql/supabase_player_tables.sql의 user_sessions 적용 후, "
+                + "SupabaseSettings에서 enableDuplicateSessionMonitor를 켠 뒤 "
+                + "기기 A·B(또는 에뮬+실기)에서 같은 계정으로 순서대로 로그인하면, "
+                + "먼저 켜 둔 쪽에서 OnDuplicateLoginDetected가 호출됩니다.");
         }
 
         private async Task<bool> RunRemoteConfigExampleAsync()
