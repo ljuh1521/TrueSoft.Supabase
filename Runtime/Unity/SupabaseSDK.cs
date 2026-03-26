@@ -490,6 +490,10 @@ namespace Truesoft.Supabase.Unity
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
+            // RestoreSessionOnStart가 꺼져 있어도, 저장된 refresh_token이 있으면 동일 계정을 이어갑니다.
+            if (!IsLoggedIn)
+                await RestoreSessionAsync();
+
             // #region agent log
             AgentDebugLog(
                 "H4",
@@ -500,7 +504,8 @@ namespace Truesoft.Supabase.Unity
                     ["isLoggedIn"] = IsLoggedIn,
                     ["hasSession"] = _currentSession != null,
                     ["userIdLen"] = _currentSession?.User?.Id?.Length ?? 0,
-                    ["saveSessionToStorage"] = saveSessionToStorage
+                    ["saveSessionToStorage"] = saveSessionToStorage,
+                    ["runId"] = "post-fix"
                 });
             // #endregion
 
