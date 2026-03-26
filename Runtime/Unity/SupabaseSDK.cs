@@ -485,6 +485,7 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>게스트(익명)로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
+        /// <remarks>저장된 refresh_token이 있으면 먼저 <see cref="RestoreSessionAsync"/>를 시도해 동일 계정을 이어갑니다(<see cref="Config.SupabaseRuntime"/>의 Restore Session On Start가 꺼져 있어도 동일).</remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(bool saveSessionToStorage = true)
         {
             if (!await EnsureInitializedAsync())
@@ -493,21 +494,6 @@ namespace Truesoft.Supabase.Unity
             // RestoreSessionOnStart가 꺼져 있어도, 저장된 refresh_token이 있으면 동일 계정을 이어갑니다.
             if (!IsLoggedIn)
                 await RestoreSessionAsync();
-
-            // #region agent log
-            AgentDebugLog(
-                "H4",
-                "SupabaseSDK.SignInAnonymouslyAsync:enter",
-                "anonymous_signin_entered",
-                new Dictionary<string, object>
-                {
-                    ["isLoggedIn"] = IsLoggedIn,
-                    ["hasSession"] = _currentSession != null,
-                    ["userIdLen"] = _currentSession?.User?.Id?.Length ?? 0,
-                    ["saveSessionToStorage"] = saveSessionToStorage,
-                    ["runId"] = "post-fix"
-                });
-            // #endregion
 
             if (IsLoggedIn)
             {
@@ -520,23 +506,6 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
             var result = await Auth.SignInAnonymouslyAsync();
-
-            // #region agent log
-            var rtLen = result?.Data?.RefreshToken?.Length ?? 0;
-            AgentDebugLog(
-                "H1",
-                "SupabaseSDK.SignInAnonymouslyAsync:after_http",
-                "anonymous_signin_http_done",
-                new Dictionary<string, object>
-                {
-                    ["isSuccess"] = result != null && result.IsSuccess,
-                    ["refreshTokenLen"] = rtLen,
-                    ["accessTokenLen"] = result?.Data?.AccessToken?.Length ?? 0,
-                    ["userIdLen"] = result?.Data?.User?.Id?.Length ?? 0,
-                    ["isAnonymousFlag"] = result?.Data?.User?.IsAnonymous ?? false,
-                    ["err"] = result != null && !result.IsSuccess ? (result.ErrorMessage ?? "") : ""
-                });
-            // #endregion
 
             if (result.IsSuccess && result.Data != null)
             {
@@ -1127,21 +1096,6 @@ namespace Truesoft.Supabase.Unity
         /// <summary>현재 세션의 refresh_token을 PlayerPrefs에 저장. 앱 재시작 후 RestoreSessionAsync로 복원할 수 있습니다.</summary>
         public static void SaveSessionToStorage()
         {
-            // #region agent log
-            var skipNoSession = _currentSession == null;
-            var skipNoToken = !skipNoSession && string.IsNullOrWhiteSpace(_currentSession.RefreshToken);
-            AgentDebugLog(
-                "H1",
-                "SupabaseSDK.SaveSessionToStorage",
-                "save_session_invoked",
-                new Dictionary<string, object>
-                {
-                    ["skipNoSession"] = skipNoSession,
-                    ["skipNoRefreshToken"] = skipNoToken,
-                    ["refreshTokenLen"] = skipNoSession ? 0 : (_currentSession.RefreshToken?.Length ?? 0)
-                });
-            // #endregion
-
             if (_currentSession == null || string.IsNullOrWhiteSpace(_currentSession.RefreshToken))
                 return;
             PlayerPrefs.SetString(RefreshTokenKey, _currentSession.RefreshToken);
@@ -1161,17 +1115,6 @@ namespace Truesoft.Supabase.Unity
                 return false;
 
             var refreshToken = PlayerPrefs.GetString(RefreshTokenKey, null);
-            // #region agent log
-            AgentDebugLog(
-                "H2",
-                "SupabaseSDK.RestoreSessionAsync:enter",
-                "restore_enter",
-                new Dictionary<string, object>
-                {
-                    ["prefsRefreshTokenLen"] = string.IsNullOrEmpty(refreshToken) ? 0 : refreshToken.Length,
-                    ["isLoggedInBefore"] = IsLoggedIn
-                });
-            // #endregion
 
             if (string.IsNullOrWhiteSpace(refreshToken))
                 return false;
@@ -1180,30 +1123,8 @@ namespace Truesoft.Supabase.Unity
             if (result.IsSuccess && result.Data != null)
             {
                 SetSession(result.Data, SupabaseSessionChangeKind.RestoredOrRefreshed);
-                // #region agent log
-                AgentDebugLog(
-                    "H3",
-                    "SupabaseSDK.RestoreSessionAsync:success",
-                    "restore_ok",
-                    new Dictionary<string, object>
-                    {
-                        ["userIdLen"] = result.Data.User?.Id?.Length ?? 0,
-                        ["isAnonymous"] = result.Data.User?.IsAnonymous ?? false
-                    });
-                // #endregion
                 return true;
             }
-
-            // #region agent log
-            AgentDebugLog(
-                "H3",
-                "SupabaseSDK.RestoreSessionAsync:fail",
-                "restore_failed",
-                new Dictionary<string, object>
-                {
-                    ["err"] = result?.ErrorMessage ?? "null_result"
-                });
-            // #endregion
 
             PlayerPrefs.DeleteKey(RefreshTokenKey);
             return false;
@@ -1278,57 +1199,6 @@ namespace Truesoft.Supabase.Unity
 
             return session.User.IsAnonymous;
         }
-
-        // #region agent log
-        private static void AgentDebugLog(string hypothesisId, string location, string message, Dictionary<string, object> data)
-        {
-            try
-            {
-                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                var parts = new List<string>
-                {
-                    "\"sessionId\":\"a19a0d\"",
-                    "\"hypothesisId\":\"" + AgentDebugJsonEscape(hypothesisId) + "\"",
-                    "\"location\":\"" + AgentDebugJsonEscape(location) + "\"",
-                    "\"message\":\"" + AgentDebugJsonEscape(message) + "\"",
-                    "\"timestamp\":" + ts
-                };
-
-                if (data != null && data.Count > 0)
-                {
-                    var dp = new List<string>();
-                    foreach (var kv in data)
-                    {
-                        var v = kv.Value;
-                        if (v is bool b)
-                            dp.Add("\"" + AgentDebugJsonEscape(kv.Key) + "\":" + (b ? "true" : "false"));
-                        else if (v is int iv)
-                            dp.Add("\"" + AgentDebugJsonEscape(kv.Key) + "\":" + iv);
-                        else if (v is long lv)
-                            dp.Add("\"" + AgentDebugJsonEscape(kv.Key) + "\":" + lv);
-                        else
-                            dp.Add("\"" + AgentDebugJsonEscape(kv.Key) + "\":\"" + AgentDebugJsonEscape(v?.ToString() ?? "") + "\"");
-                    }
-
-                    parts.Add("\"data\":{" + string.Join(",", dp) + "}");
-                }
-
-                var line = "{" + string.Join(",", parts) + "}" + Environment.NewLine;
-                System.IO.File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line);
-            }
-            catch
-            {
-                // ignore debug logging failures
-            }
-        }
-
-        private static string AgentDebugJsonEscape(string s)
-        {
-            if (string.IsNullOrEmpty(s))
-                return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ").Replace("\r", "");
-        }
-        // #endregion
     }
 }
 

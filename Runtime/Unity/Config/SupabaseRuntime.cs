@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.IO;
 using Truesoft.Supabase.Unity;
 using Truesoft.Supabase.Unity.Auth.Google;
 using UnityEngine;
@@ -105,45 +104,6 @@ namespace Truesoft.Supabase.Unity.Config
             {
                 var restoreTask = Supabase.TryRestoreSessionAsync();
                 yield return new WaitUntil(() => restoreTask.IsCompleted);
-                // #region agent log
-                try
-                {
-                    var ok = restoreTask.IsCompleted && !restoreTask.IsFaulted && !restoreTask.IsCanceled && restoreTask.Result;
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var line =
-                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H4\",\"location\":\"SupabaseRuntime.RunLifecycle:after_restore\",\"message\":\"runtime_restore_done\",\"timestamp\":"
-                        + ts
-                        + ",\"data\":{\"restoreSessionOnStart\":true,\"restoreOk\":"
-                        + (ok ? "true" : "false")
-                        + ",\"isLoggedInAfter\":"
-                        + (Supabase.IsLoggedIn ? "true" : "false")
-                        + "}}"
-                        + Environment.NewLine;
-                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line);
-                }
-                catch
-                {
-                    // ignore debug logging failures
-                }
-                // #endregion
-            }
-            else
-            {
-                // #region agent log
-                try
-                {
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var line =
-                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H5\",\"location\":\"SupabaseRuntime.RunLifecycle\",\"message\":\"restore_session_skipped\",\"timestamp\":"
-                        + ts
-                        + ",\"data\":{\"restoreSessionOnStart\":false}}"
-                        + Environment.NewLine;
-                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line);
-                }
-                catch
-                {
-                }
-                // #endregion
             }
 
             if (!enableRemoteConfig)
