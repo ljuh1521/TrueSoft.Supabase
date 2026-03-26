@@ -31,6 +31,9 @@ namespace Truesoft.Supabase.Unity.Config
         /// <summary><see cref="SupabaseSettings.duplicateSessionActionCheckCooldownSeconds"/>.</summary>
         public float DuplicateSessionActionCheckCooldownSeconds { get; private set; }
 
+        /// <summary><see cref="SupabaseSettings.withdrawalRequestDelayDays"/>.</summary>
+        public float WithdrawalRequestDelayDays { get; private set; }
+
         public void Initialize(SupabaseSettings settings)
         {
             if (settings == null)
@@ -105,6 +108,7 @@ namespace Truesoft.Supabase.Unity.Config
             EnableDuplicateSessionMonitor = settings.enableDuplicateSessionMonitor;
             DuplicateSessionPollSeconds = settings.duplicateSessionPollSeconds;
             DuplicateSessionActionCheckCooldownSeconds = options.DuplicateSessionActionCheckCooldownSeconds;
+            WithdrawalRequestDelayDays = options.WithdrawalRequestDelayDays;
 
             SupabaseSDK.Initialize(this);
         }

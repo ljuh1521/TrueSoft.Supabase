@@ -266,6 +266,52 @@ namespace Truesoft.Supabase.Core.Data
             return SupabaseResult<bool>.Success(true);
         }
 
+        /// <summary>
+        /// 서버에서 현재 시각 기준으로 유예 기간(일) 뒤의 <c>withdrawn_at</c>을 계산해 예약합니다.
+        /// RPC: <c>ts_request_withdrawal</c>.
+        /// </summary>
+        public async Task<SupabaseResult<string>> RequestMyWithdrawalByDelayDaysAsync(
+            string accessToken,
+            int delayDays)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<string>.Fail("access_token_empty");
+
+            if (delayDays < 0)
+                delayDays = 0;
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_request_withdrawal";
+            var bodyJson = _jsonSerializer.ToJson(new WithdrawalRequestBody
+            {
+                p_delay_days = delayDays
+            });
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateUserHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<string>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<string>.Fail(response.ErrorMessage ?? response.Body ?? "withdrawal_request_failed");
+
+            try
+            {
+                var rows = _jsonSerializer.FromJsonArray<WithdrawalRequestRow>(response.Body);
+                if (rows == null || rows.Length == 0 || rows[0] == null || string.IsNullOrWhiteSpace(rows[0].scheduled_at))
+                    return SupabaseResult<string>.Fail("withdrawal_request_scheduled_at_empty");
+
+                return SupabaseResult<string>.Success(rows[0].scheduled_at.Trim());
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<string>.Fail("withdrawal_request_parse_exception:" + e.Message);
+            }
+        }
+
         private static string NormalizeNickname(string nickname)
         {
             return nickname == null ? string.Empty : nickname.Trim();
@@ -328,6 +374,18 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class WithdrawnPatchBody
         {
             public string withdrawn_at;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalRequestBody
+        {
+            public int p_delay_days;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalRequestRow
+        {
+            public string scheduled_at;
         }
     }
 }

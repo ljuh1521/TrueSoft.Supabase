@@ -57,6 +57,10 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("중복 로그인 감지용 테이블 이름 (기본 user_sessions).")]
         public string userSessionsTable = "user_sessions";
 
+        [Header("Withdrawal Request (탈퇴 요청)")]
+        [Tooltip("탈퇴 요청 시 실제 탈퇴 시각(withdrawn_at)으로 예약할 유예 기간(일). 예: 7이면 요청 시점 + 7일.")]
+        public float withdrawalRequestDelayDays = 7f;
+
         public SupabaseOptions ToOptions()
         {
             return new SupabaseOptions
@@ -71,7 +75,10 @@ namespace Truesoft.Supabase.Unity
                 UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim(),
                 DuplicateSessionActionCheckCooldownSeconds = duplicateSessionActionCheckCooldownSeconds < 0f
                     ? 0f
-                    : duplicateSessionActionCheckCooldownSeconds
+                    : duplicateSessionActionCheckCooldownSeconds,
+                WithdrawalRequestDelayDays = withdrawalRequestDelayDays < 0f
+                    ? 0f
+                    : withdrawalRequestDelayDays
             };
         }
     }

@@ -69,6 +69,9 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("H: 서버 시각(ts_server_now, Sql/supabase_server_time.sql). 로그인 불필요.")]
         [SerializeField] private KeyCode keyServerTime = KeyCode.H;
 
+        [Tooltip("J: 탈퇴 요청(설정 유예일, 서버 계산)")]
+        [SerializeField] private KeyCode keyRequestWithdrawal = KeyCode.J;
+
         private bool _keyboardBusy;
 
         private void OnEnable()
@@ -125,6 +128,8 @@ namespace Truesoft.SupabaseUnity.Samples
                 LogDuplicateLoginHowToTest();
             else if (Input.GetKeyDown(keyServerTime))
                 _ = RunAsyncGuarded(RunServerTimeExampleAsync);
+            else if (Input.GetKeyDown(keyRequestWithdrawal))
+                _ = RunAsyncGuarded(RunWithdrawalRequestExampleAsync);
         }
 
         private async Task RunAsyncGuarded(Func<Task<bool>> body)
@@ -233,6 +238,12 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunServerTimeExample()
         {
             _ = RunServerTimeExampleAsync();
+        }
+
+        [ContextMenu("Run Withdrawal Request Example")]
+        public void RunWithdrawalRequestExample()
+        {
+            _ = RunWithdrawalRequestExampleAsync();
         }
 
         private async Task<bool> RunLoginExampleAsync()
@@ -372,6 +383,25 @@ namespace Truesoft.SupabaseUnity.Samples
             return true;
         }
 
+        /// <summary>
+        /// 설정된 유예 기간(<c>SupabaseSettings.withdrawalRequestDelayDays</c>)으로 탈퇴를 요청합니다.
+        /// 실제 withdrawn_at 계산은 서버 RPC(<c>ts_request_withdrawal</c>)가 처리합니다.
+        /// </summary>
+        private async Task<bool> RunWithdrawalRequestExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn)
+            {
+                Debug.LogWarning("[Sample] withdrawal request skipped: sign in first.");
+                return false;
+            }
+
+            var ok = await SupabaseClient.TryRequestMyWithdrawalAsync();
+            Debug.Log(ok
+                ? "[Sample] withdrawal request success. 서버가 유예 기간 기준으로 withdrawn_at을 예약했습니다(0일이면 즉시 탈퇴 처리)."
+                : "[Sample] withdrawal request failed. Sql/supabase_withdrawal_request.sql 적용 및 profiles/RLS를 확인하세요.");
+            return ok;
+        }
+
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
             if (!await SupabaseClient.TryRefreshRemoteConfigAsync())
@@ -424,6 +454,7 @@ namespace Truesoft.SupabaseUnity.Samples
             await RunLoginExampleAsync();
             await RunSaveLoadExampleAsync();
             await RunPublicNicknameExampleAsync();
+            await RunWithdrawalRequestExampleAsync();
             await RunRemoteConfigExampleAsync();
             await RunFunctionExampleAsync();
 

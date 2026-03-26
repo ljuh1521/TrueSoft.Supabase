@@ -42,6 +42,7 @@ namespace Truesoft.Supabase.Unity
         private static bool _duplicateSessionMonitorEnabled = true;
         private static float _duplicateSessionPollSeconds = 15f;
         private static float _duplicateSessionActionCheckCooldownSeconds = 5f;
+        private static float _withdrawalRequestDelayDays = 7f;
 
         /// <summary>
         /// 다른 기기에서 같은 계정으로 로그인해 서버 세션 토큰이 바뀐 경우 호출됩니다(이미 <see cref="ClearSession"/> 후).
@@ -57,6 +58,9 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary><see cref="Config.SupabaseSettings.duplicateSessionActionCheckCooldownSeconds"/>.</summary>
         public static float DuplicateSessionActionCheckCooldownSeconds => _duplicateSessionActionCheckCooldownSeconds;
+
+        /// <summary><see cref="Config.SupabaseSettings.withdrawalRequestDelayDays"/>.</summary>
+        public static float WithdrawalRequestDelayDays => _withdrawalRequestDelayDays;
 
         /// <summary>중복 로그인 감지용 <c>user_sessions</c> REST 서비스. 미초기화 시 null.</summary>
         public static SupabaseUserSessionService UserSessionService => _bootstrap?.UserSessionService;
@@ -88,6 +92,7 @@ namespace Truesoft.Supabase.Unity
             public const string ProfileNicknameAvailable = "Supabase.Profile.Nickname.Available";
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
+            public const string ProfileWithdrawnRequest = "Supabase.Profile.Withdrawn.Request";
             public const string ServerTime = "Supabase.Server.Time";
         }
 
@@ -797,11 +802,49 @@ namespace Truesoft.Supabase.Unity
         public static Task<SupabaseResult<bool>> MarkMyWithdrawnAsync() =>
             SetMyWithdrawnAtAsync(DateTime.UtcNow.ToString("o"));
 
+        /// <summary>
+        /// 설정(<see cref="WithdrawalRequestDelayDays"/>)에 정의된 유예 기간(일)으로 <c>withdrawn_at</c>을 서버에서 예약합니다.
+        /// 값이 0이면 서버 기준 즉시 탈퇴 처리(현재 시각)로 기록한 뒤 이 기기 세션을 정리합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<bool>> RequestMyWithdrawalAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            var delayDays = _withdrawalRequestDelayDays < 0f ? 0f : _withdrawalRequestDelayDays;
+            var delayInt = Mathf.RoundToInt(delayDays);
+            var request = await _bootstrap.PublicProfileService.RequestMyWithdrawalByDelayDaysAsync(
+                _currentSession.AccessToken,
+                delayInt);
+
+            if (request == null || !request.IsSuccess)
+                return SupabaseResult<bool>.Fail(request?.ErrorMessage ?? "withdrawal_request_failed");
+
+            if (delayInt <= 0)
+            {
+                // 즉시 탈퇴 요청(0일)은 앱에서도 즉시 로그아웃 상태로 전환합니다.
+                ClearSession(clearStorage: true, deleteUserSessionRow: true);
+            }
+
+            return SupabaseResult<bool>.Success(true);
+        }
+
         /// <inheritdoc cref="MarkMyWithdrawnAsync"/>
         public static async Task<bool> TryMarkMyWithdrawnAsync()
         {
             var r = await MarkMyWithdrawnAsync();
             return LogAndReturn(ApiLogTags.ProfileWithdrawnAt, r);
+        }
+
+        /// <inheritdoc cref="RequestMyWithdrawalAsync"/>
+        public static async Task<bool> TryRequestMyWithdrawalAsync()
+        {
+            var r = await RequestMyWithdrawalAsync();
+            return LogAndReturn(ApiLogTags.ProfileWithdrawnRequest, r);
         }
 
         /// <inheritdoc cref="ClearMyWithdrawalAsync"/>
@@ -1197,6 +1240,7 @@ namespace Truesoft.Supabase.Unity
             _duplicateSessionMonitorEnabled = bootstrap.EnableDuplicateSessionMonitor;
             _duplicateSessionPollSeconds = bootstrap.DuplicateSessionPollSeconds;
             _duplicateSessionActionCheckCooldownSeconds = bootstrap.DuplicateSessionActionCheckCooldownSeconds;
+            _withdrawalRequestDelayDays = bootstrap.WithdrawalRequestDelayDays;
 
             if (!preserveSession)
                 _currentSession = null;

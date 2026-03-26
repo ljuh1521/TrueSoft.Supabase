@@ -156,6 +156,17 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TryMarkMyWithdrawnAsync() =>
             SupabaseSDK.TryMarkMyWithdrawnAsync();
 
+        /// <summary>
+        /// 설정(<c>SupabaseSettings.withdrawalRequestDelayDays</c>)에 정의된 유예 기간 뒤 시각으로 탈퇴를 요청합니다.
+        /// 내부적으로 RPC(<c>ts_request_withdrawal</c>)를 호출해 서버 시각 기준으로 <c>profiles.withdrawn_at</c>을 예약합니다.
+        /// </summary>
+        public static Task<SupabaseResult<bool>> RequestMyWithdrawalAsync() =>
+            SupabaseSDK.RequestMyWithdrawalAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryRequestMyWithdrawalAsync"/>
+        public static Task<bool> TryRequestMyWithdrawalAsync() =>
+            SupabaseSDK.TryRequestMyWithdrawalAsync();
+
         /// <inheritdoc cref="SupabaseSDK.TryClearMyWithdrawalAsync"/>
         public static Task<bool> TryClearMyWithdrawalAsync() =>
             SupabaseSDK.TryClearMyWithdrawalAsync();
