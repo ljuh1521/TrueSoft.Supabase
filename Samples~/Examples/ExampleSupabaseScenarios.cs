@@ -39,8 +39,14 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("Q: 익명 로그인 시도")]
         [SerializeField] private KeyCode keyLoginAnonymous = KeyCode.Q;
 
+        [Tooltip("I: 구글 로그인(중복 로그인 테스트용)")]
+        [SerializeField] private KeyCode keyLoginGoogle = KeyCode.I;
+
         [Tooltip("W: 로그아웃(ClearSession)")]
         [SerializeField] private KeyCode keyLogout = KeyCode.W;
+
+        [Tooltip("O: 구글 로그아웃(TrySignOutFromGoogleAsync) + ClearSession")]
+        [SerializeField] private KeyCode keyLogoutGoogle = KeyCode.O;
 
         [Tooltip("E: 공개 닉네임(demoNickname) 설정")]
         [SerializeField] private KeyCode keySetNickname = KeyCode.E;
@@ -96,8 +102,12 @@ namespace Truesoft.SupabaseUnity.Samples
 
             if (Input.GetKeyDown(keyLoginAnonymous))
                 _ = RunAsyncGuarded(RunLoginExampleAsync);
+            else if (Input.GetKeyDown(keyLoginGoogle))
+                _ = RunAsyncGuarded(RunGoogleLoginExampleAsync);
             else if (Input.GetKeyDown(keyLogout))
                 _ = RunAsyncGuarded(RunLogoutExampleAsync);
+            else if (Input.GetKeyDown(keyLogoutGoogle))
+                _ = RunAsyncGuarded(RunGoogleLogoutExampleAsync);
             else if (Input.GetKeyDown(keySetNickname))
                 _ = RunAsyncGuarded(RunPublicNicknameExampleAsync);
             else if (Input.GetKeyDown(keySaveLoad))
@@ -160,6 +170,12 @@ namespace Truesoft.SupabaseUnity.Samples
             _ = RunLoginExampleAsync();
         }
 
+        [ContextMenu("Run Google Login Example")]
+        public void RunGoogleLoginExample()
+        {
+            _ = RunGoogleLoginExampleAsync();
+        }
+
         [ContextMenu("Run Save/Load Example")]
         public void RunSaveLoadExample()
         {
@@ -196,6 +212,12 @@ namespace Truesoft.SupabaseUnity.Samples
             _ = RunLogoutExampleAsync();
         }
 
+        [ContextMenu("Run Google Logout Example")]
+        public void RunGoogleLogoutExample()
+        {
+            _ = RunGoogleLogoutExampleAsync();
+        }
+
         [ContextMenu("Run Duplicate Login Info (Console)")]
         public void RunDuplicateLoginInfoExample()
         {
@@ -208,6 +230,15 @@ namespace Truesoft.SupabaseUnity.Samples
             Debug.Log(ok
                 ? "[Sample] login example success."
                 : "[Sample] login example failed.");
+            return ok;
+        }
+
+        private async Task<bool> RunGoogleLoginExampleAsync()
+        {
+            var ok = await SupabaseClient.TrySignInWithGoogleAsync();
+            Debug.Log(ok
+                ? "[Sample] google login example success."
+                : "[Sample] google login example failed.");
             return ok;
         }
 
@@ -241,6 +272,15 @@ namespace Truesoft.SupabaseUnity.Samples
 
             Debug.Log($"[Sample] save/load example success. level={loaded.level}, coins={loaded.coins}");
             return true;
+        }
+
+        private async Task<bool> RunGoogleLogoutExampleAsync()
+        {
+            // Supabase 세션은 그대로이므로, 구글 네이티브까지 끊으려면 아래를 호출한 뒤 ClearSession도 같이 수행합니다.
+            var ok = await SupabaseClient.TrySignOutFromGoogleAsync();
+            SupabaseClient.ClearSession();
+            Debug.Log("[Sample] google logout example: SignOutFromGoogle + ClearSession 완료. result=" + ok);
+            return ok;
         }
 
         private async Task<bool> RunPublicNicknameExampleAsync()
@@ -294,7 +334,7 @@ namespace Truesoft.SupabaseUnity.Samples
             Debug.Log(
                 "[Sample] 중복 로그인 테스트: Sql/supabase_player_tables.sql의 user_sessions 적용 후, "
                 + "SupabaseSettings에서 enableDuplicateSessionMonitor를 켠 뒤 "
-                + "기기 A·B(또는 에뮬+실기)에서 같은 계정으로 순서대로 로그인하면, "
+                + "기기 A·B(또는 에뮬+실기)에서 같은 계정(익명 또는 구글)으로 순서대로 로그인하면, "
                 + "먼저 켜 둔 쪽에서 OnDuplicateLoginDetected가 호출됩니다.");
         }
 
