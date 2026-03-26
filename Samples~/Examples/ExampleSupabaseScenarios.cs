@@ -8,7 +8,7 @@ using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 namespace Truesoft.SupabaseUnity.Samples
 {
     /// <summary>
-    /// 샘플: 로그인/데이터/RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
+    /// 샘플: 서버 시각·로그인/데이터/RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
     /// </summary>
     public sealed class ExampleSupabaseScenarios : MonoBehaviour
     {
@@ -66,6 +66,9 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("L: 중복 로그인 테스트 방법 안내 출력")]
         [SerializeField] private KeyCode keyDuplicateLoginInfo = KeyCode.L;
 
+        [Tooltip("H: 서버 시각(ts_server_now, Sql/supabase_server_time.sql). 로그인 불필요.")]
+        [SerializeField] private KeyCode keyServerTime = KeyCode.H;
+
         private bool _keyboardBusy;
 
         private void OnEnable()
@@ -120,6 +123,8 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunFunctionExampleAsync);
             else if (Input.GetKeyDown(keyDuplicateLoginInfo))
                 LogDuplicateLoginHowToTest();
+            else if (Input.GetKeyDown(keyServerTime))
+                _ = RunAsyncGuarded(RunServerTimeExampleAsync);
         }
 
         private async Task RunAsyncGuarded(Func<Task<bool>> body)
@@ -222,6 +227,12 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunDuplicateLoginInfoExample()
         {
             LogDuplicateLoginHowToTest();
+        }
+
+        [ContextMenu("Run Server Time Example")]
+        public void RunServerTimeExample()
+        {
+            _ = RunServerTimeExampleAsync();
         }
 
         private async Task<bool> RunLoginExampleAsync()
@@ -338,6 +349,29 @@ namespace Truesoft.SupabaseUnity.Samples
                 + "먼저 켜 둔 쪽에서 OnDuplicateLoginDetected가 호출됩니다.");
         }
 
+        /// <summary>
+        /// RPC <c>ts_server_now</c>로 DB 서버 시각을 가져옵니다. 로그인 세션 없이 호출 가능합니다.
+        /// </summary>
+        private async Task<bool> RunServerTimeExampleAsync()
+        {
+            if (!await SupabaseClient.EnsureInitializedAsync())
+            {
+                Debug.LogWarning("[Sample] server time skipped: SDK not initialized.");
+                return false;
+            }
+
+            var r = await SupabaseClient.GetServerUtcNowAsync();
+            if (r == null || !r.IsSuccess)
+            {
+                Debug.LogWarning("[Sample] server time failed: " + (r?.ErrorMessage ?? "null")
+                    + " (Sql/supabase_server_time.sql 적용 여부 확인)");
+                return false;
+            }
+
+            Debug.Log("[Sample] server time (UTC): " + r.Data.ToString("o"));
+            return true;
+        }
+
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
             if (!await SupabaseClient.TryRefreshRemoteConfigAsync())
@@ -386,6 +420,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             _ = await SupabaseClient.TryStartAsync(restoreSessionFirst: true, refreshRemoteConfigOnStart: false);
 
+            await RunServerTimeExampleAsync();
             await RunLoginExampleAsync();
             await RunSaveLoadExampleAsync();
             await RunPublicNicknameExampleAsync();
