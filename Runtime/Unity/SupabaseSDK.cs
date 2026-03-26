@@ -41,6 +41,7 @@ namespace Truesoft.Supabase.Unity
 
         private static bool _duplicateSessionMonitorEnabled = true;
         private static float _duplicateSessionPollSeconds = 15f;
+        private static float _duplicateSessionActionCheckCooldownSeconds = 5f;
 
         /// <summary>
         /// 다른 기기에서 같은 계정으로 로그인해 서버 세션 토큰이 바뀐 경우 호출됩니다(이미 <see cref="ClearSession"/> 후).
@@ -54,9 +55,15 @@ namespace Truesoft.Supabase.Unity
         /// <summary><see cref="Config.SupabaseSettings.duplicateSessionPollSeconds"/>.</summary>
         public static float DuplicateSessionPollSeconds => _duplicateSessionPollSeconds;
 
+        /// <summary><see cref="Config.SupabaseSettings.duplicateSessionActionCheckCooldownSeconds"/>.</summary>
+        public static float DuplicateSessionActionCheckCooldownSeconds => _duplicateSessionActionCheckCooldownSeconds;
+
         /// <summary>중복 로그인 감지용 <c>user_sessions</c> REST 서비스. 미초기화 시 null.</summary>
         public static SupabaseUserSessionService UserSessionService => _bootstrap?.UserSessionService;
         public static SupabaseAnonymousRecoveryService AnonymousRecoveryService => _bootstrap?.AnonymousRecoveryService;
+
+        /// <summary>서버 기준 시각 RPC. 로그인 없이 호출 가능합니다.</summary>
+        public static SupabaseServerTimeService ServerTimeService => _bootstrap?.ServerTimeService;
 
         /// <summary>Try* API 결과 로그 접두어. API마다 고정이며 호출자가 넘기지 않습니다.</summary>
         private static class ApiLogTags
@@ -81,6 +88,7 @@ namespace Truesoft.Supabase.Unity
             public const string ProfileNicknameAvailable = "Supabase.Profile.Nickname.Available";
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
+            public const string ServerTime = "Supabase.Server.Time";
         }
 
         internal static float RemoteConfigNextPollAtRealtime => _remoteConfigNextPollAtRealtime;
@@ -437,6 +445,28 @@ namespace Truesoft.Supabase.Unity
             return ok;
         }
 
+        /// <summary>
+        /// Postgres RPC <c>ts_server_now</c>로 서버 시각(UTC)을 가져옵니다. 로그인 세션 없이 anon 키로 호출합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<DateTime>> GetServerUtcNowAsync()
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<DateTime>.Fail("sdk_not_initialized");
+
+            var svc = ServerTimeService;
+            if (svc == null)
+                return SupabaseResult<DateTime>.Fail("sdk_not_initialized");
+
+            return await svc.GetServerUtcNowAsync();
+        }
+
+        /// <summary><see cref="GetServerUtcNowAsync"/>를 값 기반으로 호출합니다.</summary>
+        public static async Task<DateTime> TryGetServerUtcNowAsync(DateTime defaultValue = default)
+        {
+            var r = await GetServerUtcNowAsync();
+            return LogAndReturnData(ApiLogTags.ServerTime, r, defaultValue);
+        }
+
         private static bool LogAndReturn<T>(string logTag, SupabaseResult<T> result)
         {
             var ok = result != null && result.IsSuccess;
@@ -536,7 +566,13 @@ namespace Truesoft.Supabase.Unity
 
             // 이미 로그인되어 있으면 재로그인 없이 현재 세션을 그대로 사용합니다.
             if (IsLoggedIn)
+            {
+                var singleSessionOk = await SupabaseDuplicateSessionCoordinator.VerifyCurrentSessionForActionAsync();
+                if (singleSessionOk == false)
+                    return SupabaseResult<SupabaseSession>.Fail("duplicate_login_detected");
+
                 return SupabaseResult<SupabaseSession>.Success(_currentSession);
+            }
 
             return SupabaseResult<SupabaseSession>.Fail("auth_not_signed_in");
         }
@@ -1160,6 +1196,7 @@ namespace Truesoft.Supabase.Unity
             _enableApiResultLogs = bootstrap.EnableApiResultLogs;
             _duplicateSessionMonitorEnabled = bootstrap.EnableDuplicateSessionMonitor;
             _duplicateSessionPollSeconds = bootstrap.DuplicateSessionPollSeconds;
+            _duplicateSessionActionCheckCooldownSeconds = bootstrap.DuplicateSessionActionCheckCooldownSeconds;
 
             if (!preserveSession)
                 _currentSession = null;

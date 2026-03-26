@@ -20,12 +20,16 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseEdgeFunctionsService EdgeFunctionsService { get; private set; }
         public SupabaseUserSessionService UserSessionService { get; private set; }
         public SupabaseAnonymousRecoveryService AnonymousRecoveryService { get; private set; }
+        public SupabaseServerTimeService ServerTimeService { get; private set; }
 
         /// <summary><see cref="SupabaseSettings.enableDuplicateSessionMonitor"/>.</summary>
         public bool EnableDuplicateSessionMonitor { get; private set; }
 
         /// <summary><see cref="SupabaseSettings.duplicateSessionPollSeconds"/>.</summary>
         public float DuplicateSessionPollSeconds { get; private set; }
+
+        /// <summary><see cref="SupabaseSettings.duplicateSessionActionCheckCooldownSeconds"/>.</summary>
+        public float DuplicateSessionActionCheckCooldownSeconds { get; private set; }
 
         public void Initialize(SupabaseSettings settings)
         {
@@ -92,8 +96,15 @@ namespace Truesoft.Supabase.Unity.Config
                 http,
                 json);
 
+            ServerTimeService = new SupabaseServerTimeService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                json);
+
             EnableDuplicateSessionMonitor = settings.enableDuplicateSessionMonitor;
             DuplicateSessionPollSeconds = settings.duplicateSessionPollSeconds;
+            DuplicateSessionActionCheckCooldownSeconds = options.DuplicateSessionActionCheckCooldownSeconds;
 
             SupabaseSDK.Initialize(this);
         }

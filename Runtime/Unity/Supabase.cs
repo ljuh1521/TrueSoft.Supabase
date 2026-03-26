@@ -320,5 +320,12 @@ namespace Truesoft.Supabase.Unity
 
         /// <inheritdoc cref="SupabaseSDK.TryRestoreSessionAsync"/>
         public static Task<bool> TryRestoreSessionAsync() => SupabaseSDK.TryRestoreSessionAsync();
+
+        /// <summary>서버 기준 현재 시각(UTC). 로그인 없이 호출 가능합니다. SQL: <c>Sql/supabase_server_time.sql</c>.</summary>
+        public static Task<SupabaseResult<DateTime>> GetServerUtcNowAsync() => SupabaseSDK.GetServerUtcNowAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetServerUtcNowAsync"/>
+        public static Task<DateTime> TryGetServerUtcNowAsync(DateTime defaultValue = default) =>
+            SupabaseSDK.TryGetServerUtcNowAsync(defaultValue);
     }
 }

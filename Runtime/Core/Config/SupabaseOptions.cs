@@ -20,5 +20,10 @@ namespace Truesoft.Supabase
 
         /// <summary>중복 로그인 감지용 세션 토큰 테이블 (기본 <c>user_sessions</c>).</summary>
         public string UserSessionsTable = "user_sessions";
+
+        /// <summary>
+        /// 행동 시점 중복 로그인 검사 최소 간격(초). 0 이하면 행동마다 검사합니다.
+        /// </summary>
+        public float DuplicateSessionActionCheckCooldownSeconds = 5f;
     }
 }

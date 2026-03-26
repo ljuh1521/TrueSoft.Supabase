@@ -49,7 +49,10 @@ namespace Truesoft.Supabase.Unity
         public bool enableDuplicateSessionMonitor = true;
 
         [Tooltip("세션 토큰 폴링 주기(초). 0 이하면 등록 직후 비교만 하고 주기 폴링은 하지 않습니다.")]
-        public float duplicateSessionPollSeconds = 15f;
+        public float duplicateSessionPollSeconds = 0f;
+
+        [Tooltip("행동 시점(저장/전송/함수호출 등) 중복 로그인 검사 최소 간격(초). 권장 5초.")]
+        public float duplicateSessionActionCheckCooldownSeconds = 5f;
 
         [Tooltip("중복 로그인 감지용 테이블 이름 (기본 user_sessions).")]
         public string userSessionsTable = "user_sessions";
@@ -65,7 +68,10 @@ namespace Truesoft.Supabase.Unity
                 RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
                 ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
                 PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim(),
-                UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim()
+                UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim(),
+                DuplicateSessionActionCheckCooldownSeconds = duplicateSessionActionCheckCooldownSeconds < 0f
+                    ? 0f
+                    : duplicateSessionActionCheckCooldownSeconds
             };
         }
     }

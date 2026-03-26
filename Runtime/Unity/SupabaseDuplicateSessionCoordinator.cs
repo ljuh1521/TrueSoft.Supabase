@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using UnityEngine;
 
@@ -13,6 +14,9 @@ namespace Truesoft.Supabase.Unity
         private static SupabaseDuplicateSessionCoordinator _instance;
         private Coroutine _pollRoutine;
         private Coroutine _syncRoutine;
+        private Coroutine _deferredActionCheckRoutine;
+        private static float _lastActionCheckAtRealtime = -9999f;
+        private static Task<bool> _inflightActionCheck;
 
         internal static void EnsureExists()
         {
@@ -34,6 +38,82 @@ namespace Truesoft.Supabase.Unity
                 _instance.StopCoroutine(_instance._pollRoutine);
                 _instance._pollRoutine = null;
             }
+        }
+
+        internal static async Task<bool> VerifyCurrentSessionForActionAsync()
+        {
+            if (SupabaseSDK.DuplicateSessionMonitorEnabled == false)
+                return true;
+
+            if (SupabaseSDK.IsLoggedIn == false || SupabaseSDK.Session?.User == null)
+                return false;
+
+            var cooldown = SupabaseSDK.DuplicateSessionActionCheckCooldownSeconds;
+            var now = Time.realtimeSinceStartup;
+
+            if (_inflightActionCheck != null)
+                return await _inflightActionCheck;
+
+            if (cooldown > 0f && (now - _lastActionCheckAtRealtime) < cooldown)
+            {
+                EnsureExists();
+                _instance.ScheduleDeferredActionCheck(_lastActionCheckAtRealtime + cooldown);
+                return true;
+            }
+
+            EnsureExists();
+            _inflightActionCheck = _instance.VerifyCurrentSessionCoreAsync();
+
+            try
+            {
+                var ok = await _inflightActionCheck;
+                _lastActionCheckAtRealtime = Time.realtimeSinceStartup;
+                return ok;
+            }
+            finally
+            {
+                _inflightActionCheck = null;
+            }
+        }
+
+        private void ScheduleDeferredActionCheck(float dueAtRealtime)
+        {
+            if (_deferredActionCheckRoutine != null)
+                return;
+
+            _deferredActionCheckRoutine = StartCoroutine(DeferredActionCheckAfterCooldown(dueAtRealtime));
+        }
+
+        private IEnumerator DeferredActionCheckAfterCooldown(float dueAtRealtime)
+        {
+            while (Time.realtimeSinceStartup < dueAtRealtime)
+                yield return null;
+
+            if (SupabaseSDK.DuplicateSessionMonitorEnabled == false)
+            {
+                _deferredActionCheckRoutine = null;
+                yield break;
+            }
+
+            if (SupabaseSDK.IsLoggedIn == false || SupabaseSDK.Session?.User == null)
+            {
+                _deferredActionCheckRoutine = null;
+                yield break;
+            }
+
+            if (_inflightActionCheck != null)
+            {
+                yield return new WaitUntil(() => _inflightActionCheck.IsCompleted);
+                _deferredActionCheckRoutine = null;
+                yield break;
+            }
+
+            _inflightActionCheck = VerifyCurrentSessionCoreAsync();
+            yield return new WaitUntil(() => _inflightActionCheck.IsCompleted);
+
+            _lastActionCheckAtRealtime = Time.realtimeSinceStartup;
+            _inflightActionCheck = null;
+            _deferredActionCheckRoutine = null;
         }
 
         internal static void ScheduleSyncAfterSessionChange(SupabaseSessionChangeKind kind)
@@ -200,6 +280,61 @@ namespace Truesoft.Supabase.Unity
             }
 
             _pollRoutine = null;
+        }
+
+        private async Task<bool> VerifyCurrentSessionCoreAsync()
+        {
+            var svc = SupabaseSDK.UserSessionService;
+            if (svc == null)
+                return true;
+
+            if (SupabaseSDK.Session?.User == null)
+                return false;
+
+            var accountId = SupabaseSDK.Session.User.Id;
+            var accessToken = SupabaseSDK.Session.AccessToken;
+            if (string.IsNullOrWhiteSpace(accountId) || string.IsNullOrWhiteSpace(accessToken))
+                return false;
+
+            var serverResult = await svc.GetSessionTokenAsync(accessToken, accountId);
+            if (serverResult == null || serverResult.IsSuccess == false)
+                return true;
+
+            var serverToken = serverResult.Data;
+            var localKey = SupabaseSDK.SessionTokenPlayerPrefsKeyPrefix + accountId;
+            var localToken = PlayerPrefs.GetString(localKey, "");
+
+            if (string.IsNullOrWhiteSpace(serverToken))
+            {
+                if (string.IsNullOrWhiteSpace(localToken))
+                {
+                    var fresh = Guid.NewGuid().ToString("D");
+                    var t = await svc.UpsertSessionTokenAsync(accessToken, accountId, fresh);
+                    if (t != null && t.IsSuccess)
+                    {
+                        PlayerPrefs.SetString(localKey, fresh);
+                        PlayerPrefs.Save();
+                    }
+
+                    return true;
+                }
+
+                _ = await svc.UpsertSessionTokenAsync(accessToken, accountId, localToken.Trim());
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(localToken))
+            {
+                PlayerPrefs.SetString(localKey, serverToken.Trim());
+                PlayerPrefs.Save();
+                return true;
+            }
+
+            if (string.Equals(localToken.Trim(), serverToken.Trim(), StringComparison.Ordinal))
+                return true;
+
+            SupabaseSDK.RaiseDuplicateLoginDetected();
+            return false;
         }
     }
 }
