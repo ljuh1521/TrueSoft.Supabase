@@ -117,6 +117,77 @@ on public.user_sessions for delete
 using (account_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
+-- anonymous_recovery_tokens (device-only best-effort 익명 복구)
+-- 앱 재설치/로그아웃으로 로컬 refresh_token이 사라진 경우를 대비해
+-- 디바이스 지문 해시 기준으로 refresh_token을 보관합니다.
+-- ---------------------------------------------------------------------------
+create table if not exists public.anonymous_recovery_tokens (
+  fingerprint_hash text primary key,
+  refresh_token text not null,
+  account_id uuid null references auth.users (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.anonymous_recovery_tokens is 'device-only 익명 복구용 refresh_token 저장소(best-effort).';
+comment on column public.anonymous_recovery_tokens.fingerprint_hash is '클라이언트가 만든 SHA-256 해시 지문.';
+comment on column public.anonymous_recovery_tokens.refresh_token is '복구용 refresh_token.';
+
+alter table public.anonymous_recovery_tokens enable row level security;
+
+-- 정책은 두지 않고 RPC(SECURITY DEFINER)로만 접근합니다.
+
+create or replace function public.ts_anon_recovery_get_refresh_token(p_fingerprint_hash text)
+returns table(refresh_token text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_fingerprint_hash is null or length(trim(p_fingerprint_hash)) = 0 then
+    return;
+  end if;
+
+  return query
+  select t.refresh_token
+  from public.anonymous_recovery_tokens t
+  where t.fingerprint_hash = trim(p_fingerprint_hash)
+  limit 1;
+end;
+$$;
+
+create or replace function public.ts_anon_recovery_upsert_refresh_token(
+  p_fingerprint_hash text,
+  p_refresh_token text,
+  p_account_id uuid default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_fingerprint_hash is null or length(trim(p_fingerprint_hash)) = 0 then
+    return;
+  end if;
+
+  if p_refresh_token is null or length(trim(p_refresh_token)) = 0 then
+    return;
+  end if;
+
+  insert into public.anonymous_recovery_tokens (fingerprint_hash, refresh_token, account_id, updated_at)
+  values (trim(p_fingerprint_hash), trim(p_refresh_token), p_account_id, now())
+  on conflict (fingerprint_hash)
+  do update set
+    refresh_token = excluded.refresh_token,
+    account_id = excluded.account_id,
+    updated_at = now();
+end;
+$$;
+
+grant execute on function public.ts_anon_recovery_get_refresh_token(text) to anon, authenticated;
+grant execute on function public.ts_anon_recovery_upsert_refresh_token(text, text, uuid) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- account_closures (탈퇴 이력 예시 — 클라이언트 직접 접근 없음 가정)
 -- ---------------------------------------------------------------------------
 create table if not exists public.account_closures (

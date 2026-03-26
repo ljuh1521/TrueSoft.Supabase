@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Data;
+using Truesoft.Supabase.Unity.Auth.Anonymous;
 using Truesoft.Supabase.Unity.Auth;
 using Truesoft.Supabase.Unity.Auth.Google;
 using Truesoft.Supabase.Unity.Config;
@@ -55,6 +56,7 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>중복 로그인 감지용 <c>user_sessions</c> REST 서비스. 미초기화 시 null.</summary>
         public static SupabaseUserSessionService UserSessionService => _bootstrap?.UserSessionService;
+        public static SupabaseAnonymousRecoveryService AnonymousRecoveryService => _bootstrap?.AnonymousRecoveryService;
 
         /// <summary>Try* API 결과 로그 접두어. API마다 고정이며 호출자가 넘기지 않습니다.</summary>
         private static class ApiLogTags
@@ -495,6 +497,10 @@ namespace Truesoft.Supabase.Unity
             if (!IsLoggedIn)
                 await RestoreSessionAsync();
 
+            // 로컬 토큰이 사라진(재설치/로그아웃) 경우를 위해 서버의 best-effort 복구 토큰을 1회 시도합니다.
+            if (!IsLoggedIn)
+                _ = await TryRestoreSessionFromAnonymousRecoveryAsync();
+
             if (IsLoggedIn)
             {
                 if (saveSessionToStorage)
@@ -512,6 +518,8 @@ namespace Truesoft.Supabase.Unity
                 SetSession(result.Data, SupabaseSessionChangeKind.NewSignIn);
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
+
+                await TryUpsertAnonymousRecoveryTokenAsync(result.Data);
             }
 
             return result;
@@ -1198,6 +1206,50 @@ namespace Truesoft.Supabase.Unity
                 return false;
 
             return session.User.IsAnonymous;
+        }
+
+        private static async Task<bool> TryRestoreSessionFromAnonymousRecoveryAsync()
+        {
+            var svc = AnonymousRecoveryService;
+            if (svc == null)
+                return false;
+
+            var fingerprintHash = DeviceFingerprintProvider.TryCreateHashedFingerprint(_initializedProjectUrl);
+            if (string.IsNullOrWhiteSpace(fingerprintHash))
+                return false;
+
+            var tokenResult = await svc.TryGetRefreshTokenByFingerprintAsync(fingerprintHash);
+            if (tokenResult == null || tokenResult.IsSuccess == false || string.IsNullOrWhiteSpace(tokenResult.Data))
+                return false;
+
+            var refreshResult = await RefreshSessionAsync(tokenResult.Data, saveSessionToStorage: true);
+            return refreshResult != null && refreshResult.IsSuccess && refreshResult.Data != null;
+        }
+
+        private static async Task TryUpsertAnonymousRecoveryTokenAsync(SupabaseSession session)
+        {
+            var svc = AnonymousRecoveryService;
+            if (svc == null)
+                return;
+
+            if (session == null || session.User == null || string.IsNullOrWhiteSpace(session.RefreshToken))
+                return;
+
+            var fingerprintHash = DeviceFingerprintProvider.TryCreateHashedFingerprint(_initializedProjectUrl);
+            if (string.IsNullOrWhiteSpace(fingerprintHash))
+                return;
+
+            try
+            {
+                _ = await svc.UpsertRefreshTokenByFingerprintAsync(
+                    fingerprintHash,
+                    session.RefreshToken,
+                    session.User.Id);
+            }
+            catch
+            {
+                // best-effort 복구 경로이므로 본 로그인 결과를 깨지 않습니다.
+            }
         }
     }
 }

@@ -19,6 +19,7 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabasePublicProfileService PublicProfileService { get; private set; }
         public SupabaseEdgeFunctionsService EdgeFunctionsService { get; private set; }
         public SupabaseUserSessionService UserSessionService { get; private set; }
+        public SupabaseAnonymousRecoveryService AnonymousRecoveryService { get; private set; }
 
         /// <summary><see cref="SupabaseSettings.enableDuplicateSessionMonitor"/>.</summary>
         public bool EnableDuplicateSessionMonitor { get; private set; }
@@ -84,6 +85,12 @@ namespace Truesoft.Supabase.Unity.Config
                 http,
                 json,
                 options.UserSessionsTable);
+
+            AnonymousRecoveryService = new SupabaseAnonymousRecoveryService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                json);
 
             EnableDuplicateSessionMonitor = settings.enableDuplicateSessionMonitor;
             DuplicateSessionPollSeconds = settings.duplicateSessionPollSeconds;
