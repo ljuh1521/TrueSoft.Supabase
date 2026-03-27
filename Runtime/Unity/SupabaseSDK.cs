@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
@@ -1058,6 +1059,15 @@ namespace Truesoft.Supabase.Unity
             var token = string.IsNullOrWhiteSpace(cancelToken)
                 ? ReadStoredWithdrawalCancelToken()
                 : cancelToken.Trim();
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H3",
+                "SupabaseSDK.cs:1061",
+                "redeem token resolved",
+                "provided=" + (string.IsNullOrWhiteSpace(cancelToken) ? "false" : "true")
+                + ";resolved=" + (string.IsNullOrWhiteSpace(token) ? "false" : "true"));
+            #endregion
             if (string.IsNullOrWhiteSpace(token))
                 return SupabaseResult<bool>.Fail("withdrawal_cancel_token_empty");
 
@@ -1618,6 +1628,15 @@ namespace Truesoft.Supabase.Unity
             string accessToken,
             string issueTrigger = "withdrawal_gate")
         {
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H1",
+                "SupabaseSDK.cs:1623",
+                "issue token request enter",
+                "trigger=" + (string.IsNullOrWhiteSpace(issueTrigger) ? "(empty)" : issueTrigger.Trim())
+                + ";hasAccessToken=" + (string.IsNullOrWhiteSpace(accessToken) ? "false" : "true"));
+            #endregion
             if (_bootstrap?.EdgeFunctionsService == null)
                 return SupabaseResult<WithdrawalCancelIssueInfo>.Fail("sdk_not_initialized");
 
@@ -1629,6 +1648,17 @@ namespace Truesoft.Supabase.Unity
                 WithdrawalCancelIssueFunctionName,
                 accessToken,
                 new WithdrawalCancelIssueRequest { trigger = trigger });
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H1",
+                "SupabaseSDK.cs:1635",
+                "issue token invoke result",
+                "isNull=" + (result == null ? "true" : "false")
+                + ";isSuccess=" + (result != null && result.IsSuccess ? "true" : "false")
+                + ";hasData=" + (result?.Data == null ? "false" : "true")
+                + ";error=" + (string.IsNullOrWhiteSpace(result?.ErrorMessage) ? "(none)" : result.ErrorMessage));
+            #endregion
 
             if (result == null || !result.IsSuccess || result.Data == null)
                 return SupabaseResult<WithdrawalCancelIssueInfo>.Fail(result?.ErrorMessage ?? "withdrawal_cancel_issue_failed");
@@ -1645,11 +1675,28 @@ namespace Truesoft.Supabase.Unity
                 string.IsNullOrWhiteSpace(result.Data.expires_at) ? null : result.Data.expires_at.Trim());
 
             SaveStoredWithdrawalCancelToken(info.CancelToken, info.ExpiresAtIso);
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H1",
+                "SupabaseSDK.cs:1663",
+                "issue token save completed",
+                "hasToken=true;hasExpiresAt=" + (string.IsNullOrWhiteSpace(info.ExpiresAtIso) ? "false" : "true"));
+            #endregion
             return SupabaseResult<WithdrawalCancelIssueInfo>.Success(info);
         }
 
         private static async Task<SupabaseResult<SupabaseSession>> HandleWithdrawalReservationGateAfterSignInAsync()
         {
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H2",
+                "SupabaseSDK.cs:1672",
+                "reservation gate enter",
+                "hasSession=" + (_currentSession == null ? "false" : "true")
+                + ";hasAccessToken=" + (string.IsNullOrWhiteSpace(_currentSession?.AccessToken) ? "false" : "true"));
+            #endregion
             if (_bootstrap?.PublicProfileService == null)
                 return null;
 
@@ -1661,6 +1708,15 @@ namespace Truesoft.Supabase.Unity
                 return null;
 
             var status = statusResult.Data;
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H2",
+                "SupabaseSDK.cs:1692",
+                "reservation status loaded",
+                "isScheduled=" + (status.IsScheduled ? "true" : "false")
+                + ";secondsRemaining=" + status.SecondsRemaining.ToString());
+            #endregion
             if (!status.IsScheduled)
             {
                 ClearStoredWithdrawalGateStatus();
@@ -1723,11 +1779,27 @@ namespace Truesoft.Supabase.Unity
             else
                 PlayerPrefs.SetString(WithdrawalCancelTokenExpiresAtKey, expiresAtIso.Trim());
             PlayerPrefs.Save();
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H3",
+                "SupabaseSDK.cs:1760",
+                "stored cancel token",
+                "saved=true;hasExpiresAt=" + (string.IsNullOrWhiteSpace(expiresAtIso) ? "false" : "true"));
+            #endregion
         }
 
         private static string ReadStoredWithdrawalCancelToken()
         {
             var token = PlayerPrefs.GetString(WithdrawalCancelTokenKey, null);
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H3",
+                "SupabaseSDK.cs:1769",
+                "read stored cancel token",
+                "hasToken=" + (string.IsNullOrWhiteSpace(token) ? "false" : "true"));
+            #endregion
             return string.IsNullOrWhiteSpace(token) ? null : token.Trim();
         }
 
@@ -1736,6 +1808,49 @@ namespace Truesoft.Supabase.Unity
             PlayerPrefs.DeleteKey(WithdrawalCancelTokenKey);
             PlayerPrefs.DeleteKey(WithdrawalCancelTokenExpiresAtKey);
             PlayerPrefs.Save();
+            #region agent log
+            WriteDebugLog(
+                "run-1",
+                "H4",
+                "SupabaseSDK.cs:1781",
+                "cleared stored cancel token",
+                "cleared=true");
+            #endregion
+        }
+
+        private static void WriteDebugLog(
+            string runId,
+            string hypothesisId,
+            string location,
+            string message,
+            string data)
+        {
+            try
+            {
+                var payload = "{\"sessionId\":\"a19a0d\",\"runId\":\"" + EscapeJson(runId)
+                    + "\",\"hypothesisId\":\"" + EscapeJson(hypothesisId)
+                    + "\",\"location\":\"" + EscapeJson(location)
+                    + "\",\"message\":\"" + EscapeJson(message)
+                    + "\",\"data\":\"" + EscapeJson(data)
+                    + "\",\"timestamp\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString() + "}";
+                File.AppendAllText("debug-a19a0d.log", payload + Environment.NewLine);
+            }
+            catch
+            {
+                // debug log best-effort
+            }
+        }
+
+        private static string EscapeJson(string value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
         }
 
         private static async Task<SupabaseResult<SupabaseSession>> HandleWithdrawalGuardAfterSignInAsync(
