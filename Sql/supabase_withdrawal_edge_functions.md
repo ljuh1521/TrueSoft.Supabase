@@ -19,14 +19,41 @@
 
 ## 환경변수(Secrets)
 
-필수:
+호스팅(Supabase 클라우드) Edge Function에는 아래 **기본 시크릿**이 자동으로 주입된다. 대시보드에 직접 넣지 않아도 된다.
+
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- (참고) `SUPABASE_DB_URL` 등 — [공식 문서: Environment variables](https://supabase.com/docs/guides/functions/secrets)
 
-철회 토큰(B 방식) 추가:
-- `CANCEL_TOKEN_SECRET` (충분히 긴 랜덤 문자열)
-- `CANCEL_TOKEN_TTL_SECONDS` (선택, 기본 900초)
+**직접 등록해야 하는 값(철회 토큰, B 방식):**
+
+- `CANCEL_TOKEN_SECRET` — 충분히 긴 랜덤 문자열 (필수)
+- `CANCEL_TOKEN_TTL_SECONDS` — 선택, 기본 900초
+
+---
+
+## 웹 대시보드에서 시크릿 설정
+
+1. [Supabase Dashboard](https://supabase.com/dashboard)에서 프로젝트를 연다.
+2. 좌측 **Edge Functions** 메뉴로 이동한 뒤 **Secrets**(또는 **Manage secrets**)를 연다.  
+   - 직접 URL: `https://supabase.com/dashboard/project/<프로젝트_REF>/functions/secrets`  
+     (`<프로젝트_REF>`는 **Project Settings → General → Reference ID**에 있다.)
+3. **Add new secret**에서 Key / Value를 입력하고 저장한다.
+   - `CANCEL_TOKEN_SECRET` = (예: 32바이트 이상 랜덤을 Base64 등으로 인코딩한 값)
+   - (선택) `CANCEL_TOKEN_TTL_SECONDS` = `900`
+4. 시크릿 저장 후 **함수를 다시 배포할 필요는 없다**(이미 배포된 함수에 곧바로 반영된다).
+
+---
+
+## 함수 코드(템플릿)와의 대응
+
+대시보드에 올린 함수 이름·동작은 이 레포의 아래 템플릿과 같게 맞추면 된다.
+
+- `Sql/edge-functions/withdrawal-guard/index.ts`
+- `Sql/edge-functions/withdrawal-cleanup/index.ts`
+- `Sql/edge-functions/withdrawal-cancel-issue/index.ts`
+- `Sql/edge-functions/withdrawal-cancel-redeem/index.ts`
 
 ---
 
@@ -70,15 +97,6 @@
 - 출력(JSON): `{ "ok": true }`
 
 ---
-
-## 배포 예시
-
-```bash
-supabase functions deploy withdrawal-guard
-supabase functions deploy withdrawal-cleanup
-supabase functions deploy withdrawal-cancel-issue
-supabase functions deploy withdrawal-cancel-redeem
-```
 
 ## 스케줄 예시
 
