@@ -1864,11 +1864,9 @@ namespace Truesoft.Supabase.Unity
         {
             try
             {
-                var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
-                if (string.IsNullOrWhiteSpace(projectRoot))
-                    return;
-
-                var logPath = Path.Combine(projectRoot, "debug-a19a0d.log");
+                // Debug mode에서 지정된 고정 로그 경로로만 기록한다.
+                // (Unity의 Application.dataPath는 빌드/플레이 환경에 따라 달라질 수 있어 경로를 직접 못 박는다.)
+                var logPath = @"d:\Project\TrueSoft.Supabase\debug-a19a0d.log";
                 var line = "{" +
                            "\"sessionId\":\"a19a0d\"," +
                            "\"runId\":\"" + JsonEscape(runId) + "\"," +
@@ -1882,7 +1880,8 @@ namespace Truesoft.Supabase.Unity
             }
             catch
             {
-                // 디버그 로깅 실패는 본 흐름에 영향을 주지 않습니다.
+                // 디버그 로깅 실패도 본 흐름에 영향 주지 않지만, 원인을 Unity 콘솔에 표시합니다.
+                Debug.LogWarning("[Supabase] debug log write failed");
             }
         }
 
