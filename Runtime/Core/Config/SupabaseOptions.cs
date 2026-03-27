@@ -15,7 +15,7 @@ namespace Truesoft.Supabase
         /// <summary>채팅 메시지 REST 테이블 (기본 <c>chat_messages</c>).</summary>
         public string ChatMessagesTable = "chat_messages";
 
-        /// <summary>공개 프로필(닉네임) REST 테이블 — <c>id</c>(auth UUID), <c>nickname</c> (기본 <c>profiles</c>).</summary>
+        /// <summary>공개 프로필 REST 테이블 — <c>id</c>(row PK), <c>user_id</c>, <c>account_id</c>, <c>withdrawn_at</c> (기본 <c>profiles</c>).</summary>
         public string PublicProfilesTable = "profiles";
 
         /// <summary>중복 로그인 감지용 세션 토큰 테이블 (기본 <c>user_sessions</c>).</summary>

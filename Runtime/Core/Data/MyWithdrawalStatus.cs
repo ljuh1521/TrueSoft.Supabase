@@ -7,20 +7,20 @@ namespace Truesoft.Supabase.Core.Data
     public sealed class MyWithdrawalStatus
     {
         public MyWithdrawalStatus(
-            string nickname,
+            string displayName,
             string withdrawnAtIso,
             string serverNowIso,
             bool isScheduled,
             long secondsRemaining)
         {
-            Nickname = nickname ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
             WithdrawnAtIso = withdrawnAtIso;
             ServerNowIso = serverNowIso;
             IsScheduled = isScheduled;
             SecondsRemaining = secondsRemaining < 0 ? 0 : secondsRemaining;
         }
 
-        public string Nickname { get; }
+        public string DisplayName { get; }
         public string WithdrawnAtIso { get; }
         public string ServerNowIso { get; }
         public bool IsScheduled { get; }

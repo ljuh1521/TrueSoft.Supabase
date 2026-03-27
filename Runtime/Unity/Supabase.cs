@@ -12,7 +12,7 @@ namespace Truesoft.Supabase.Unity
     /// <remarks>
     /// • 구글: <see cref="TrySignInWithGoogleAsync(bool)"/>는 Android 네이티브 전체 플로우(설정의 Web Client ID), <see cref="TrySignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
     /// • <see cref="TryStartAsync"/>는 초기화·(선택)세션 복원·(선택)RC를 한 번에 수행합니다.<br/>
-    /// • 공개 프로필: <see cref="TryGetPublicProfileAsync"/>, 닉네임 <see cref="TryIsNicknameAvailableAsync"/> → <see cref="TrySetMyNicknameAsync"/>(수정 동일), 탈퇴 표시 <see cref="TryMarkMyWithdrawnAsync"/> 등 (DB <c>profiles</c>, README).<br/>
+        /// • 공개 프로필: <see cref="TryGetPublicProfileAsync"/>, displayName <see cref="TryIsDisplayNameAvailableAsync"/> → <see cref="TrySetMyDisplayNameAsync"/>, 탈퇴 표시 <see cref="TryMarkMyWithdrawnAsync"/> 등 (DB <c>profiles</c>, README).<br/>
     /// • Try API들은 <c>SupabaseSettings.enableApiResultLogs</c>에 따라 API별 고정 태그로 성공/실패 로그를 자동 출력합니다.
     /// </remarks>
     public static class Supabase
@@ -116,33 +116,33 @@ namespace Truesoft.Supabase.Unity
         public static Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new() =>
             SupabaseSDK.TryLoadUserDataAsync(defaultValue);
 
-        /// <summary>다른 사용자 공개 닉네임 조회 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<string>> GetPublicNicknameAsync(string userId) =>
-            SupabaseSDK.GetPublicNicknameAsync(userId);
+        /// <summary>다른 사용자 공개 displayName 조회 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<string>> GetPublicDisplayNameAsync(string userId) =>
+            SupabaseSDK.GetPublicDisplayNameAsync(userId);
 
-        /// <summary>현재 사용자 공개 닉네임 저장 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> UpsertMyNicknameAsync(string nickname) =>
-            SupabaseSDK.UpsertMyNicknameAsync(nickname);
+        /// <summary>현재 사용자 displayName 저장 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> SetMyDisplayNameAsync(string displayName) =>
+            SupabaseSDK.SetMyDisplayNameAsync(displayName);
 
-        /// <inheritdoc cref="SupabaseSDK.TryGetPublicNicknameAsync(string, string)"/>
-        public static Task<string> TryGetPublicNicknameAsync(string userId, string defaultValue = "") =>
-            SupabaseSDK.TryGetPublicNicknameAsync(userId, defaultValue);
+        /// <inheritdoc cref="SupabaseSDK.TryGetPublicDisplayNameAsync(string, string)"/>
+        public static Task<string> TryGetPublicDisplayNameAsync(string userId, string defaultValue = "") =>
+            SupabaseSDK.TryGetPublicDisplayNameAsync(userId, defaultValue);
 
-        /// <inheritdoc cref="SupabaseSDK.TrySetMyNicknameAsync"/>
-        public static Task<bool> TrySetMyNicknameAsync(string nickname) =>
-            SupabaseSDK.TrySetMyNicknameAsync(nickname);
+        /// <inheritdoc cref="SupabaseSDK.TrySetMyDisplayNameAsync"/>
+        public static Task<bool> TrySetMyDisplayNameAsync(string displayName) =>
+            SupabaseSDK.TrySetMyDisplayNameAsync(displayName);
 
-        /// <summary>닉네임 수정. <see cref="TrySetMyNicknameAsync"/>와 동일(upsert).</summary>
-        public static Task<bool> TryUpdateMyNicknameAsync(string nickname) =>
-            SupabaseSDK.TrySetMyNicknameAsync(nickname);
+        /// <summary>displayName 수정. <see cref="TrySetMyDisplayNameAsync"/>와 동일.</summary>
+        public static Task<bool> TryUpdateMyDisplayNameAsync(string displayName) =>
+            SupabaseSDK.TrySetMyDisplayNameAsync(displayName);
 
-        /// <inheritdoc cref="SupabaseSDK.TryIsNicknameAvailableAsync"/>
-        public static Task<bool> TryIsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null) =>
-            SupabaseSDK.TryIsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+        /// <inheritdoc cref="SupabaseSDK.TryIsDisplayNameAvailableAsync"/>
+        public static Task<bool> TryIsDisplayNameAvailableAsync(string displayName) =>
+            SupabaseSDK.TryIsDisplayNameAvailableAsync(displayName);
 
-        /// <summary>닉네임 사용 가능 여부 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> IsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null) =>
-            SupabaseSDK.IsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+        /// <summary>displayName 사용 가능 여부 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(string displayName) =>
+            SupabaseSDK.IsDisplayNameAvailableAsync(displayName);
 
         /// <inheritdoc cref="SupabaseSDK.TryGetPublicProfileAsync"/>
         public static Task<PublicProfileSnapshot> TryGetPublicProfileAsync(string userId) =>

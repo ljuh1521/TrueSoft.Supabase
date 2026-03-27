@@ -25,8 +25,8 @@ namespace Truesoft.SupabaseUnity.Samples
         [Header("Edge Function")]
         [SerializeField] private string functionName = "gacha";
 
-        [Header("Public nickname (profiles 테이블 + RLS 필요)")]
-        [SerializeField] private string demoNickname = "SamplePlayer";
+        [Header("Public displayName (display_names 테이블 + Edge Functions 필요)")]
+        [SerializeField] private string demoDisplayName = "SamplePlayer";
 
         [Header("Duplicate login / Logout (user_sessions + Sql 참고)")]
         [Tooltip("켜면 OnEnable에서 OnDuplicateLoginDetected를 구독합니다. 다른 기기에서 같은 계정으로 로그인했을 때(이미 ClearSession 후) 호출됩니다.")]
@@ -48,8 +48,8 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("O: 구글 로그아웃(TrySignOutFromGoogleAsync) + ClearSession")]
         [SerializeField] private KeyCode keyLogoutGoogle = KeyCode.O;
 
-        [Tooltip("E: 공개 닉네임(demoNickname) 설정")]
-        [SerializeField] private KeyCode keySetNickname = KeyCode.E;
+        [Tooltip("E: 공개 displayName 설정")]
+        [SerializeField] private KeyCode keySetDisplayName = KeyCode.E;
 
         [Tooltip("R: 세이브/불러오기")]
         [SerializeField] private KeyCode keySaveLoad = KeyCode.R;
@@ -120,7 +120,7 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunLogoutExampleAsync);
             else if (Input.GetKeyDown(keyLogoutGoogle))
                 _ = RunAsyncGuarded(RunGoogleLogoutExampleAsync);
-            else if (Input.GetKeyDown(keySetNickname))
+            else if (Input.GetKeyDown(keySetDisplayName))
                 _ = RunAsyncGuarded(RunPublicNicknameExampleAsync);
             else if (Input.GetKeyDown(keySaveLoad))
                 _ = RunAsyncGuarded(RunSaveLoadExampleAsync);
@@ -220,7 +220,7 @@ namespace Truesoft.SupabaseUnity.Samples
             _ = RunFunctionExampleAsync();
         }
 
-        [ContextMenu("Run Public Nickname Example")]
+        [ContextMenu("Run Public DisplayName Example")]
         public void RunPublicNicknameExample()
         {
             _ = RunPublicNicknameExampleAsync();
@@ -331,29 +331,29 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             if (!SupabaseClient.IsLoggedIn || SupabaseClient.Session?.User == null)
             {
-                Debug.LogWarning("[Sample] nickname example skipped: sign in first.");
+                Debug.LogWarning("[Sample] displayName example skipped: sign in first.");
                 return false;
             }
 
             var accountId = SupabaseClient.Session.User.Id;
             var playerUserId = SupabaseClient.Session.User.PlayerUserId;
-            if (!await SupabaseClient.TryIsNicknameAvailableAsync(demoNickname, ignoreUserIdForSelf: accountId))
+            if (!await SupabaseClient.TryIsDisplayNameAvailableAsync(demoDisplayName))
             {
-                Debug.LogWarning("[Sample] nickname example: nickname already taken (or check failed).");
+                Debug.LogWarning("[Sample] displayName example: name already taken (or check failed).");
                 return false;
             }
 
-            if (!await SupabaseClient.TrySetMyNicknameAsync(demoNickname))
+            if (!await SupabaseClient.TrySetMyDisplayNameAsync(demoDisplayName))
             {
-                Debug.LogWarning("[Sample] nickname example failed at set (profiles 테이블·RLS·유니크 인덱스 확인).");
+                Debug.LogWarning("[Sample] displayName example failed at set (display_names 테이블·RLS·유니크 인덱스·Edge Functions 배포 확인).");
                 return false;
             }
 
-            var readBack = await SupabaseClient.TryGetPublicNicknameAsync(playerUserId, defaultValue: "");
-            Debug.Log(readBack == demoNickname
-                ? $"[Sample] nickname example success: '{readBack}'"
-                : $"[Sample] nickname example: set ok but read '{readBack}' (expected '{demoNickname}').");
-            return readBack == demoNickname;
+            var readBack = await SupabaseClient.TryGetPublicDisplayNameAsync(playerUserId, defaultValue: "");
+            Debug.Log(readBack == demoDisplayName
+                ? $"[Sample] displayName example success: '{readBack}'"
+                : $"[Sample] displayName example: set ok but read '{readBack}' (expected '{demoDisplayName}').");
+            return readBack == demoDisplayName;
         }
 
         /// <summary>
@@ -436,7 +436,7 @@ namespace Truesoft.SupabaseUnity.Samples
                     return false;
                 }
 
-                Debug.Log($"[Sample] cached gate status. nickname={cached.Nickname}, withdrawn_at={cached.WithdrawnAtIso}, remain_sec={cached.SecondsRemaining}");
+                Debug.Log($"[Sample] cached gate status. displayName={cached.DisplayName}, withdrawn_at={cached.WithdrawnAtIso}, remain_sec={cached.SecondsRemaining}");
                 return true;
             }
 
@@ -448,7 +448,7 @@ namespace Truesoft.SupabaseUnity.Samples
             }
 
             Debug.Log(
-                $"[Sample] withdrawal status. nickname={status.Nickname}, is_scheduled={status.IsScheduled}, withdrawn_at={status.WithdrawnAtIso}, remain_sec={status.SecondsRemaining}, server_now={status.ServerNowIso}");
+                $"[Sample] withdrawal status. displayName={status.DisplayName}, is_scheduled={status.IsScheduled}, withdrawn_at={status.WithdrawnAtIso}, remain_sec={status.SecondsRemaining}, server_now={status.ServerNowIso}");
             return true;
         }
 

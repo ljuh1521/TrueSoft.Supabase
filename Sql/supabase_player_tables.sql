@@ -19,14 +19,12 @@ create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   account_id uuid unique references auth.users (id) on delete set null,
-  nickname text not null default '',
   withdrawn_at timestamptz null
 );
 
 -- 기존 DB에 컬럼만 없을 때 보강(신규 생성 테이블에서는 IF NOT EXISTS 로 무시됨)
 alter table public.profiles add column if not exists user_id uuid;
 alter table public.profiles add column if not exists account_id uuid;
-alter table public.profiles add column if not exists nickname text not null default '';
 alter table public.profiles add column if not exists withdrawn_at timestamptz;
 
 do $$
@@ -86,9 +84,53 @@ create policy "profiles_update_own"
 on public.profiles for update
 using (account_id is not null and account_id = auth.uid());
 
-create unique index if not exists profiles_nickname_unique
-on public.profiles (lower(trim(nickname)))
-where trim(nickname) <> '';
+-- nickname은 auth.user_metadata.displayName으로 이동했으므로 profiles에 두지 않습니다.
+
+-- ---------------------------------------------------------------------------
+-- display_names (닉네임 유니크/조회용)
+-- - 닉네임 원본은 Auth user metadata(displayName)가 소스이며,
+--   DB에서는 유니크 강제/가벼운 공개 조회를 위해 별도 테이블로 관리합니다.
+-- ---------------------------------------------------------------------------
+create table if not exists public.display_names (
+  account_id uuid primary key references auth.users (id) on delete cascade,
+  user_id uuid not null,
+  display_name text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.display_names add column if not exists account_id uuid;
+alter table public.display_names add column if not exists user_id uuid;
+alter table public.display_names add column if not exists display_name text;
+alter table public.display_names add column if not exists updated_at timestamptz not null default now();
+
+comment on table public.display_names is '닉네임 유니크/공개 조회용. 실제 표시 이름은 auth.user_metadata.displayName이 소스.';
+comment on column public.display_names.account_id is 'auth.users.id (RLS: auth.uid()).';
+comment on column public.display_names.user_id is '플레이어 안정 id (profiles.user_id와 동일 값).';
+comment on column public.display_names.display_name is '표시용 닉네임(원문). 유니크 인덱스는 lower(trim(...)) 기준.';
+
+create index if not exists display_names_user_id_idx on public.display_names (user_id);
+
+alter table public.display_names enable row level security;
+
+drop policy if exists "display_names_select_public" on public.display_names;
+drop policy if exists "display_names_insert_own" on public.display_names;
+drop policy if exists "display_names_update_own" on public.display_names;
+
+create policy "display_names_select_public"
+on public.display_names for select
+using (true);
+
+create policy "display_names_insert_own"
+on public.display_names for insert
+with check (account_id is not null and account_id = auth.uid());
+
+create policy "display_names_update_own"
+on public.display_names for update
+using (account_id is not null and account_id = auth.uid());
+
+create unique index if not exists display_names_display_name_unique
+on public.display_names (lower(trim(display_name)))
+where trim(display_name) <> '';
 
 -- ---------------------------------------------------------------------------
 -- user_saves

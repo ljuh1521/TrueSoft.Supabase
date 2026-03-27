@@ -31,7 +31,7 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 - **User Saves** (`TrySaveUserDataAsync` / `TryLoadUserDataAsync`): 필드 `userSavesTable` (비우면 기본값 `user_saves`)
 - **Remote Config**: `remoteConfigTable` (기본 `remote_config`)
 - **채팅**: `chatMessagesTable` (기본 `chat_messages`)
-- **공개 프로필**: `publicProfilesTable` (기본 `profiles`) — `TryGetPublicNicknameAsync`, `TrySetMyNicknameAsync`
+- **공개 프로필**: `publicProfilesTable` (기본 `profiles`) — `TryGetPublicDisplayNameAsync`, `TrySetMyDisplayNameAsync`
 
 코드에서 `SupabaseOptions`의 `UserSavesTable`, `RemoteConfigTable`, `ChatMessagesTable`, `PublicProfilesTable`도 같은 역할을 합니다. Unity 에셋 경로로 쓸 때는 `SupabaseSettings.ToOptions()`가 비어 있는 테이블 필드를 기본 이름으로 채웁니다. `SupabaseOptions`만 직접 만들 때는 빈 문자열을 넣지 말고, 필드 기본값을 두거나 유효한 이름을 지정하세요. 스키마가 `public`이 아니면 `schema.table` 형식으로 지정할 수 있습니다. 잘못된 문자(`..`, `/`, `\` 등)는 초기화 시 검증되어 예외가 납니다.
 
@@ -69,7 +69,7 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 
 - **SELECT:** anon 공개(닉네임 등). 탈퇴 후 `account_id` NULL 행을 숨길지는 정책 선택.
 - **INSERT/UPDATE:** `account_id = auth.uid()`(게임은 **계정 기준**만).
-- **닉네임 유니크:** SQL 파일 내 부분 인덱스(`lower(trim(nickname))`, 빈 닉 제외) 참고.
+- **displayName 유니크:** SQL 파일 내 `display_names` 유니크 인덱스(`lower(trim(display_name))`, 빈 값 제외) 참고.
 
 **`user_id` / 재가입 / RLS**에 대한 공통 설명은 위 **「플레이어 데이터 테이블 구조 (요약)」** 와 아래 **5번 절**(`user_id`·`account_id` — 동작·재가입·SDK)을 봅니다.
 
@@ -77,11 +77,11 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 
 **Unity API 요약**
 
-- 중복 확인: `TryIsNicknameAvailableAsync("후보닉")` — 본인 닉 유지 시 `ignoreUserIdForSelf`에는 **프로필에서 닉네임 중복 검사에 쓰는 키와 동일**하게 넘깁니다. (권장 스키마에서는 **`account_id`** = 현재 세션의 `Session.User.Id`, 즉 `auth.uid()`와 같다고 보면 됩니다.)
-- 최초/수정 저장: `TrySetMyNicknameAsync` 또는 별칭 `TryUpdateMyNicknameAsync`(동일 upsert).
+- 중복 확인: `TryIsDisplayNameAvailableAsync("후보닉")`
+- 최초/수정 저장: `TrySetMyDisplayNameAsync` 또는 별칭 `TryUpdateMyDisplayNameAsync`(동일).
 - 프로필 한 번에 조회: `TryGetPublicProfileAsync(userId)` — SDK는 URL 필터에 넘긴 값으로 조회하므로, **공개 조회를 `user_id`로 할지 `account_id`로 할지**에 맞춰 호출 인자를 통일합니다.
 - 탈퇴 표시: `TryMarkMyWithdrawnAsync()`(UTC 시각 기록) / 해제: `TryClearMyWithdrawalAsync()` / 임의 시각: `TrySetMyWithdrawnAtAsync(iso8601)`.
-- 닉네임만: `TryGetPublicNicknameAsync`는 그대로 사용 가능합니다.
+- displayName만: `TryGetPublicDisplayNameAsync`를 사용합니다.
 
 닉네임 길이는 클라이언트에서 최대 64자로 잘립니다. DB 유니크 인덱스는 `lower(trim(...))` 기준이므로, **저장되는 문자열과 중복 검사**가 가능한 한 같은 규칙(공백·대소문자)을 맞추는 것이 좋습니다.
 
@@ -164,7 +164,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
-- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsNicknameAvailableAsync`, `TrySetMyNicknameAsync` / `TryUpdateMyNicknameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql`의 `profiles` 스키마와 맞출 것)
+- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql` 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
 - **원격 설정(하이브리드 추천)**: `SupabaseRuntime`의 **주기 폴링은 유지**하되, RemoteConfig의 성공 로그는 **실제 변경이 적용된 경우에만** 출력됩니다. 또한 중요한 화면/행동 전에는 `Supabase.RefreshRemoteConfigOnDemandAsync()`로 **온디맨드 즉시 동기화**를 수행한 뒤, 다음 주기 폴링 타이밍을 미뤄 의도치 않은 잦은 호출을 방지합니다.
 - **Edge Functions**: `TryInvokeFunctionAsync`

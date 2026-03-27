@@ -6,7 +6,7 @@
 - 로그아웃 예시 (`ClearSession` — refresh·`user_sessions` 정리)
 - 중복 로그인 감지 예시 (`OnDuplicateLoginDetected` 구독 + 콘솔 안내)
 - 저장/불러오기 예시
-- 공개 닉네임(`profiles` + RLS) 예시 — 루트 README의 SQL 적용 후 **Run Public Nickname Example** 또는 전체 실행 시 포함
+- 공개 displayName(`display_names` + Edge Functions) 예시 — SQL 적용 + Edge Functions 배포 후 **Run Public DisplayName Example** 또는 전체 실행 시 포함
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
 

@@ -1,11 +1,13 @@
 # Withdrawal Edge Functions
 
-현재 구성은 아래 4개 Function입니다.
+현재 구성은 아래 6개 Function입니다.
 
 - `withdrawal-guard`: 로그인 직후 만료 계정 즉시 삭제(하드 삭제)
 - `withdrawal-cleanup`: 일일 배치 삭제
 - `withdrawal-cancel-issue`: 탈퇴 예약 중 계정에 대해 철회 전용 토큰 발급
 - `withdrawal-cancel-redeem`: 철회 토큰 검증 후 `profiles.withdrawn_at` 해제
+- `displayname-get`: 공개 displayName 조회 (JWT 불필요)
+- `displayname-set`: 본인 displayName 설정 (JWT 필요, `display_names` 유니크 + `auth.user_metadata` 동기화)
 
 권장 스케줄(한국 트래픽 저점): **KST 05:00 = UTC 20:00**
 
@@ -14,6 +16,8 @@
 - `Sql/edge-functions/withdrawal-cleanup/index.ts`
 - `Sql/edge-functions/withdrawal-cancel-issue/index.ts`
 - `Sql/edge-functions/withdrawal-cancel-redeem/index.ts`
+- `Sql/edge-functions/displayname-get/index.ts`
+- `Sql/edge-functions/displayname-set/index.ts`
 
 ---
 
@@ -108,10 +112,32 @@
 ## B 방식 UX 권장 순서
 
 1. 로그인 성공
-2. `ts_my_withdrawal_status` 조회(닉네임/예약/남은 초)
+2. `ts_my_withdrawal_status` 조회(displayName/예약/남은 초)
 3. 예약 중이면 본편 진입 차단
 4. `withdrawal-cancel-issue` 호출 후 `cancel_token` 로컬 저장
 5. `ClearSession`으로 로그아웃
 6. UI에서 철회 선택 시 `withdrawal-cancel-redeem` 호출
 7. 성공 후 일반 로그인 재진입
+
+---
+
+## 5) `displayname-get` (공개 displayName 조회)
+
+- 입력(JSON): `{ "user_id": "<profiles.user_id>" }`
+- JWT 불필요 (anon key만으로 호출)
+- **대시보드**: JWT 강제 옵션 OFF 권장
+- 동작: `display_names` 테이블에서 `user_id`로 조회
+- 출력: `{ "ok": true, "display_name": "..." }`
+
+---
+
+## 6) `displayname-set` (본인 displayName 설정)
+
+- 입력(JSON): `{ "display_name": "...", "user_id": "<optional stable id>" }`
+- 입력(Header): `Authorization: Bearer <access_token>`
+- **대시보드**: JWT 강제 옵션 OFF 권장 (함수 내부에서 `auth.getUser()`로 검증)
+- 동작:
+  - `display_names` 테이블에 `account_id` 기준 upsert (유니크 인덱스 `lower(trim(display_name))`)
+  - `auth.user_metadata.displayName`도 동기화
+- 출력: `{ "ok": true }` 또는 `{ "ok": false, "reason": "display_name_taken" }`
 

@@ -27,7 +27,7 @@ namespace Truesoft.Supabase.Unity
         private const string AutoLoginBlockedKey = "Truesoft.Supabase.AutoLoginBlocked";
         private const string WithdrawalCancelTokenKey = "Truesoft.Supabase.WithdrawalCancelToken";
         private const string WithdrawalCancelTokenExpiresAtKey = "Truesoft.Supabase.WithdrawalCancelTokenExpiresAt";
-        private const string WithdrawalGateNicknameKey = "Truesoft.Supabase.WithdrawalGateNickname";
+        private const string WithdrawalGateDisplayNameKey = "Truesoft.Supabase.WithdrawalGateDisplayName";
         private const string WithdrawalGateWithdrawnAtKey = "Truesoft.Supabase.WithdrawalGateWithdrawnAt";
         private const string WithdrawalGateServerNowKey = "Truesoft.Supabase.WithdrawalGateServerNow";
         private const string WithdrawalGateSecondsRemainingKey = "Truesoft.Supabase.WithdrawalGateSecondsRemaining";
@@ -132,9 +132,9 @@ namespace Truesoft.Supabase.Unity
             public const string ChatSend = "Supabase.Chat.Send";
             public const string ChatJoin = "Supabase.Chat.Join";
             public const string AuthRestoreSession = "Supabase.Auth.RestoreSession";
-            public const string ProfilePublicNicknameGet = "Supabase.Profile.Nickname.Get";
-            public const string ProfileMyNicknameSet = "Supabase.Profile.Nickname.Set";
-            public const string ProfileNicknameAvailable = "Supabase.Profile.Nickname.Available";
+            public const string ProfilePublicDisplayNameGet = "Supabase.Profile.DisplayName.Get";
+            public const string ProfileMyDisplayNameSet = "Supabase.Profile.DisplayName.Set";
+            public const string ProfileDisplayNameAvailable = "Supabase.Profile.DisplayName.Available";
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
             public const string ProfileWithdrawnRequest = "Supabase.Profile.Withdrawn.Request";
@@ -306,6 +306,8 @@ namespace Truesoft.Supabase.Unity
                     if (reserved != null)
                         return reserved;
                 }
+
+                await TryEnsureProfileRowAfterSignInAsync();
             }
 
             return result;
@@ -368,6 +370,8 @@ namespace Truesoft.Supabase.Unity
                 var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
                 if (reserved != null)
                     return reserved;
+
+                await TryEnsureProfileRowAfterSignInAsync();
             }
 
             return googleResult;
@@ -654,6 +658,8 @@ namespace Truesoft.Supabase.Unity
                 if (reserved != null)
                     return reserved;
 
+                await TryEnsureProfileRowAfterSignInAsync();
+
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
                 return SupabaseResult<SupabaseSession>.Success(_currentSession);
@@ -685,6 +691,8 @@ namespace Truesoft.Supabase.Unity
                     if (reserved != null)
                         return reserved;
                 }
+
+                await TryEnsureProfileRowAfterSignInAsync();
             }
 
             return result;
@@ -789,9 +797,9 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 로그인 없이 다른 사용자의 공개 닉네임을 조회합니다. <paramref name="userId"/>는 DB <c>profiles.user_id</c>(OAuth <c>sub</c> 등 안정 id)입니다. 테이블 RLS에서 anon <c>SELECT</c>가 허용되어야 합니다.
+        /// 로그인 없이 다른 사용자의 공개 displayName을 조회합니다. <paramref name="userId"/>는 DB <c>profiles.user_id</c>(OAuth <c>sub</c> 등 안정 id)입니다.
         /// </summary>
-        public static async Task<SupabaseResult<string>> GetPublicNicknameAsync(string userId)
+        public static async Task<SupabaseResult<string>> GetPublicDisplayNameAsync(string userId)
         {
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<string>.Fail("sdk_not_initialized");
@@ -799,46 +807,56 @@ namespace Truesoft.Supabase.Unity
             if (_bootstrap?.PublicProfileService == null)
                 return SupabaseResult<string>.Fail("sdk_not_initialized");
 
-            return await _bootstrap.PublicProfileService.GetNicknameAsync(userId);
+            return await _bootstrap.PublicProfileService.GetDisplayNameAsync(userId);
         }
 
-        /// <summary>현재 로그인 사용자의 공개 닉네임을 upsert합니다.</summary>
-        public static async Task<SupabaseResult<bool>> UpsertMyNicknameAsync(string nickname)
+        /// <summary>현재 로그인 사용자의 displayName을 설정합니다(유니크 강제 + auth metadata 동기화).</summary>
+        public static async Task<SupabaseResult<bool>> SetMyDisplayNameAsync(string displayName)
         {
             var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            if (_bootstrap?.PublicProfileService == null)
+            if (_bootstrap?.EdgeFunctionsService == null)
                 return SupabaseResult<bool>.Fail("sdk_not_initialized");
 
-            return await _bootstrap.PublicProfileService.UpsertMyNicknameAsync(
+            var userId = _currentSession?.User?.PlayerUserId;
+            var request = new DisplayNameSetRequest
+            {
+                display_name = displayName,
+                user_id = string.IsNullOrWhiteSpace(userId) ? null : userId.Trim()
+            };
+
+            var result = await _bootstrap.EdgeFunctionsService.InvokeAsync<DisplayNameSetResponse>(
+                "displayname-set",
                 _currentSession.AccessToken,
-                _currentSession.User.Id,
-                _currentSession.User.PlayerUserId,
-                nickname);
+                request);
+
+            if (result == null || !result.IsSuccess || result.Data == null)
+                return SupabaseResult<bool>.Fail(result?.ErrorMessage ?? "display_name_set_failed");
+
+            if (!result.Data.ok)
+                return SupabaseResult<bool>.Fail(string.IsNullOrWhiteSpace(result.Data.reason) ? "display_name_set_failed" : result.Data.reason);
+
+            return SupabaseResult<bool>.Success(true);
         }
 
-        /// <inheritdoc cref="GetPublicNicknameAsync"/>
-        public static async Task<string> TryGetPublicNicknameAsync(string userId, string defaultValue = "")
+        /// <inheritdoc cref="GetPublicDisplayNameAsync"/>
+        public static async Task<string> TryGetPublicDisplayNameAsync(string userId, string defaultValue = "")
         {
-            var r = await GetPublicNicknameAsync(userId);
-            return LogAndReturnData(ApiLogTags.ProfilePublicNicknameGet, r, defaultValue);
+            var r = await GetPublicDisplayNameAsync(userId);
+            return LogAndReturnData(ApiLogTags.ProfilePublicDisplayNameGet, r, defaultValue);
         }
 
-        /// <inheritdoc cref="UpsertMyNicknameAsync"/>
-        public static async Task<bool> TrySetMyNicknameAsync(string nickname)
+        /// <inheritdoc cref="SetMyDisplayNameAsync"/>
+        public static async Task<bool> TrySetMyDisplayNameAsync(string displayName)
         {
-            var r = await UpsertMyNicknameAsync(nickname);
-            return LogAndReturn(ApiLogTags.ProfileMyNicknameSet, r);
+            var r = await SetMyDisplayNameAsync(displayName);
+            return LogAndReturn(ApiLogTags.ProfileMyDisplayNameSet, r);
         }
 
-        /// <summary>
-        /// 닉네임이 사용 가능한지 조회합니다. 로그인 후 본인 닉을 유지한 채 검사할 때는 <paramref name="ignoreUserIdForSelf"/>에 현재 Auth 사용자 id(<c>auth.uid()</c>, <c>profiles.account_id</c>)를 넘깁니다.
-        /// </summary>
-        public static async Task<SupabaseResult<bool>> IsNicknameAvailableAsync(
-            string nickname,
-            string ignoreUserIdForSelf = null)
+        /// <summary>displayName이 사용 가능한지 조회합니다(유니크 체크).</summary>
+        public static async Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(string displayName)
         {
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<bool>.Fail("sdk_not_initialized");
@@ -846,23 +864,23 @@ namespace Truesoft.Supabase.Unity
             if (_bootstrap?.PublicProfileService == null)
                 return SupabaseResult<bool>.Fail("sdk_not_initialized");
 
-            return await _bootstrap.PublicProfileService.IsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+            return await _bootstrap.PublicProfileService.IsDisplayNameAvailableAsync(displayName);
         }
 
-        /// <inheritdoc cref="IsNicknameAvailableAsync"/>
-        public static async Task<bool> TryIsNicknameAvailableAsync(string nickname, string ignoreUserIdForSelf = null)
+        /// <inheritdoc cref="IsDisplayNameAvailableAsync"/>
+        public static async Task<bool> TryIsDisplayNameAvailableAsync(string displayName)
         {
-            var r = await IsNicknameAvailableAsync(nickname, ignoreUserIdForSelf);
+            var r = await IsDisplayNameAvailableAsync(displayName);
             if (r == null || !r.IsSuccess)
             {
-                LogApiResult(ApiLogTags.ProfileNicknameAvailable, false, r?.ErrorMessage ?? "unknown");
+                LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, false, r?.ErrorMessage ?? "unknown");
                 return false;
             }
 
             if (!r.Data)
-                LogApiResult(ApiLogTags.ProfileNicknameAvailable, false, "nickname_taken");
+                LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, false, "display_name_taken");
             else
-                LogApiResult(ApiLogTags.ProfileNicknameAvailable, true, null);
+                LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, true, null);
 
             return r.Data;
         }
@@ -1095,7 +1113,7 @@ namespace Truesoft.Supabase.Unity
         /// </summary>
         public static MyWithdrawalStatus GetStoredWithdrawalGateStatus()
         {
-            var nickname = PlayerPrefs.GetString(WithdrawalGateNicknameKey, string.Empty);
+            var displayName = PlayerPrefs.GetString(WithdrawalGateDisplayNameKey, string.Empty);
             var withdrawnAt = PlayerPrefs.GetString(WithdrawalGateWithdrawnAtKey, null);
             var serverNow = PlayerPrefs.GetString(WithdrawalGateServerNowKey, null);
             var seconds = PlayerPrefs.GetString(WithdrawalGateSecondsRemainingKey, "0");
@@ -1103,7 +1121,7 @@ namespace Truesoft.Supabase.Unity
                 remaining = 0;
 
             var scheduled = string.IsNullOrWhiteSpace(withdrawnAt) == false && remaining > 0;
-            return new MyWithdrawalStatus(nickname, withdrawnAt, serverNow, scheduled, remaining);
+            return new MyWithdrawalStatus(displayName, withdrawnAt, serverNow, scheduled, remaining);
         }
 
         /// <summary>Remote Config 캐시·구독·서버 동기화 퍼사드.</summary>
@@ -1694,7 +1712,7 @@ namespace Truesoft.Supabase.Unity
             if (status == null)
                 return;
 
-            PlayerPrefs.SetString(WithdrawalGateNicknameKey, status.Nickname ?? string.Empty);
+            PlayerPrefs.SetString(WithdrawalGateDisplayNameKey, status.DisplayName ?? string.Empty);
             if (string.IsNullOrWhiteSpace(status.WithdrawnAtIso))
                 PlayerPrefs.DeleteKey(WithdrawalGateWithdrawnAtKey);
             else
@@ -1711,7 +1729,7 @@ namespace Truesoft.Supabase.Unity
 
         private static void ClearStoredWithdrawalGateStatus()
         {
-            PlayerPrefs.DeleteKey(WithdrawalGateNicknameKey);
+            PlayerPrefs.DeleteKey(WithdrawalGateDisplayNameKey);
             PlayerPrefs.DeleteKey(WithdrawalGateWithdrawnAtKey);
             PlayerPrefs.DeleteKey(WithdrawalGateServerNowKey);
             PlayerPrefs.DeleteKey(WithdrawalGateSecondsRemainingKey);
@@ -1886,6 +1904,31 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
+        private static async Task TryEnsureProfileRowAfterSignInAsync()
+        {
+            var svc = _bootstrap?.PublicProfileService;
+            if (svc == null)
+                return;
+
+            var s = _currentSession;
+            if (s == null || s.User == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(s.AccessToken) || string.IsNullOrWhiteSpace(s.User.Id))
+                return;
+
+            try
+            {
+                var r = await svc.EnsureMyProfileRowAsync(s.AccessToken, s.User.Id, s.User.PlayerUserId);
+                if (r == null || !r.IsSuccess)
+                    Debug.LogWarning("[Supabase] ensure profile row failed: " + (r?.ErrorMessage ?? "unknown"));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Supabase] ensure profile row exception: " + e.Message);
+            }
+        }
+
         [Serializable]
         private sealed class WithdrawalGuardRequest
         {
@@ -1924,6 +1967,20 @@ namespace Truesoft.Supabase.Unity
 
         [Serializable]
         private sealed class WithdrawalCancelRedeemResponse
+        {
+            public bool ok;
+            public string reason;
+        }
+
+        [Serializable]
+        private sealed class DisplayNameSetRequest
+        {
+            public string display_name;
+            public string user_id;
+        }
+
+        [Serializable]
+        private sealed class DisplayNameSetResponse
         {
             public bool ok;
             public string reason;

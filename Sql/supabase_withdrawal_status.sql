@@ -1,6 +1,6 @@
 -- =============================================================================
 -- 내 탈퇴 예약 상태 조회 RPC (게이트 UI용)
--- 로그인 직후 본인(account_id=auth.uid())의 닉네임/예약 시각/남은 시간을 한 번에 반환합니다.
+-- 로그인 직후 본인(account_id=auth.uid())의 displayName/예약 시각/남은 시간을 한 번에 반환합니다.
 -- 마지막 SELECT(Result 탭)로 함수 반영·GRANT 여부를 확인한다.
 --
 -- 재실행: CREATE OR REPLACE 로 정의가 항상 이 파일의 최종본으로 맞춰진다. GRANT·COMMENT 도 재실행해도 동일.
@@ -9,7 +9,7 @@
 
 create or replace function public.ts_my_withdrawal_status()
 returns table(
-  nickname text,
+  display_name text,
   withdrawn_at timestamptz,
   server_now timestamptz,
   is_scheduled boolean,
@@ -24,14 +24,15 @@ as $$
   ),
   me as (
     select
-      p.nickname,
+      dn.display_name,
       p.withdrawn_at
     from public.profiles p
+    left join public.display_names dn on dn.account_id = p.account_id
     where p.account_id = auth.uid()
     limit 1
   )
   select
-    coalesce(me.nickname, '') as nickname,
+    coalesce(me.display_name, '') as display_name,
     me.withdrawn_at as withdrawn_at,
     now_cte.n as server_now,
     (me.withdrawn_at is not null and me.withdrawn_at > now_cte.n) as is_scheduled,
@@ -45,7 +46,7 @@ as $$
 $$;
 
 comment on function public.ts_my_withdrawal_status() is
-  '본인 탈퇴 예약 상태(닉네임/예약 시각/서버 시각/예약 여부/남은 초)를 반환한다.';
+  '본인 탈퇴 예약 상태(displayName/예약 시각/서버 시각/예약 여부/남은 초)를 반환한다.';
 
 grant execute on function public.ts_my_withdrawal_status() to authenticated;
 
