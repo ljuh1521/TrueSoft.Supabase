@@ -935,7 +935,9 @@ namespace Truesoft.Supabase.Unity
         /// <summary>
         /// 설정(<see cref="WithdrawalRequestDelayDays"/>)에 정의된 유예 기간(일)으로 <c>withdrawn_at</c>을 서버에서 예약합니다.
         /// 요청이 성공하면 앱에서도 즉시 로그아웃 상태로 전환합니다(자동 로그인 방지).
-        /// 성공 직후 세션이 유효한 동안 철회용 <c>cancel_token</c>을 Edge Function으로 발급·로컬 저장합니다(로그아웃 후에도 <see cref="RedeemWithdrawalCancelAsync"/> 가능).
+        /// 철회용 <c>cancel_token</c>은 여기서 발급하지 않습니다. <b>탈퇴 예약(유예) 중인 계정으로 로그인</b>하면 SDK가 Edge Function으로 토큰을 발급·로컬에 저장한 뒤 세션을 정리합니다(게이트).
+        /// 그 다음 <see cref="RedeemWithdrawalCancelAsync"/>로 철회할 수 있습니다. 다른 기기에서 로그인해도 그 기기에 토큰이 저장됩니다.
+        /// 즉시 탈퇴처럼 예약이 아닌 경우(<c>IsScheduled == false</c>)에는 철회 토큰이 발급되지 않습니다.
         /// </summary>
         public static async Task<SupabaseResult<bool>> RequestMyWithdrawalAsync()
         {
@@ -954,15 +956,6 @@ namespace Truesoft.Supabase.Unity
 
             if (request == null || !request.IsSuccess)
                 return SupabaseResult<bool>.Fail(request?.ErrorMessage ?? "withdrawal_request_failed");
-
-            // 로그아웃 전에 철회 토큰을 남겨, 이후 게이트에서 issue가 실패해도 RedeemWithdrawalCancelAsync 가 동작하게 합니다.
-            var issue = await RequestWithdrawalCancelTokenCoreAsync(_currentSession.AccessToken, "withdrawal_request");
-            if (issue == null || !issue.IsSuccess)
-            {
-                Debug.LogWarning(
-                    "[Supabase] withdrawal cancel token issue failed after withdrawal request (철회는 재로그인 시 게이트에서 재발급될 수 있음): "
-                    + (issue?.ErrorMessage ?? "null"));
-            }
 
             // 로컬 refresh_token을 지우기 전에 서버에 복구용 refresh를 남겨, 다음 익명 로그인 시 동일 auth 계정으로 복구되게 합니다.
             await TryUpsertAnonymousRecoveryTokenAsync(_currentSession);
