@@ -358,19 +358,20 @@ namespace Truesoft.SupabaseUnity.Samples
 
         /// <summary>
         /// Supabase 세션 로그아웃: 저장된 refresh_token 삭제, <c>user_sessions</c> 행 삭제(루트 SQL 적용 시).
+        /// 익명 계정은 <c>TrySignOutAsync</c>로 로그아웃해 동일 기기에서 다음 익명 로그인 시 같은 auth 계정으로 이어지게 할 수 있습니다.
         /// Android 네이티브 Google 계정까지 끊으려면 <c>TrySignOutFromGoogleAsync</c> 후 <c>ClearSession</c>을 호출하세요.
         /// </summary>
-        private Task<bool> RunLogoutExampleAsync()
+        private async Task<bool> RunLogoutExampleAsync()
         {
             if (!SupabaseClient.IsLoggedIn)
             {
                 Debug.LogWarning("[Sample] logout example skipped: not signed in.");
-                return Task.FromResult(false);
+                return false;
             }
 
-            SupabaseClient.ClearSession();
-            Debug.Log("[Sample] logout example: ClearSession 완료 (refresh 삭제·로컬 세션 토큰 삭제, user_sessions는 deleteUserSessionRow 기본값으로 서버 행 삭제).");
-            return Task.FromResult(true);
+            await SupabaseClient.TrySignOutAsync();
+            Debug.Log("[Sample] logout example: TrySignOutAsync 완료 (익명이면 복구용 refresh upsert 후 refresh 삭제·user_sessions 정리).");
+            return true;
         }
 
         private static void LogDuplicateLoginHowToTest()

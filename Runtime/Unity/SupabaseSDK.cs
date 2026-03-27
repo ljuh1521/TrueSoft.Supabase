@@ -64,6 +64,27 @@ namespace Truesoft.Supabase.Unity
             Google = 2
         }
 
+        /// <summary>익명 복구 RPC 경로 결과. GateBlocked/GuardFailed 시 새 익명 가입을 하면 안 된다.</summary>
+        private enum AnonymousRecoveryKind
+        {
+            None,
+            Restored,
+            GateBlocked,
+            GuardFailed
+        }
+
+        private readonly struct AnonymousRecoveryResult
+        {
+            public AnonymousRecoveryResult(AnonymousRecoveryKind kind, string errorMessage = null)
+            {
+                Kind = kind;
+                ErrorMessage = errorMessage;
+            }
+
+            public AnonymousRecoveryKind Kind { get; }
+            public string ErrorMessage { get; }
+        }
+
         /// <summary>
         /// 다른 기기에서 같은 계정으로 로그인해 서버 세션 토큰이 바뀐 경우 호출됩니다(이미 <see cref="ClearSession"/> 후).
         /// UI에서 팝업을 띄우세요.
@@ -98,6 +119,7 @@ namespace Truesoft.Supabase.Unity
             public const string AuthGoogleSettings = "Supabase.Auth.Google.Settings";
             public const string AuthGoogleIdToken = "Supabase.Auth.Google.IdToken";
             public const string AuthAnonymous = "Supabase.Auth.Anonymous";
+            public const string AuthSignOut = "Supabase.Auth.SignOut";
             public const string AuthGoogleSignOut = "Supabase.Auth.Google.SignOut";
             public const string BootStart = "Supabase.Boot.Start";
             public const string AuthRefreshSession = "Supabase.Auth.RefreshSession";
@@ -604,9 +626,23 @@ namespace Truesoft.Supabase.Unity
             if (!_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
                 await RestoreSessionAsyncCore(allowRecreateOnDeletion: true);
 
-            // 로컬 토큰이 사라진(재설치/로그아웃) 경우를 위해 서버의 best-effort 복구 토큰을 1회 시도합니다.
+            // 로컬 토큰이 사라진(재설치/로그아웃/탈퇴 예약 후 ClearSession) 경우를 위해 서버의 best-effort 복구 토큰을 1회 시도합니다.
             if (!_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
-                _ = await TryRestoreSessionFromAnonymousRecoveryAsync();
+            {
+                var recovery = await TryRestoreSessionFromAnonymousRecoveryAsync();
+                if (recovery.Kind == AnonymousRecoveryKind.GateBlocked)
+                    return SupabaseResult<SupabaseSession>.Fail("withdrawal_scheduled_gate_blocked");
+                if (recovery.Kind == AnonymousRecoveryKind.GuardFailed)
+                    return SupabaseResult<SupabaseSession>.Fail(
+                        string.IsNullOrWhiteSpace(recovery.ErrorMessage) ? "withdrawal_guard_failed" : recovery.ErrorMessage);
+                if (recovery.Kind == AnonymousRecoveryKind.Restored && IsLoggedIn)
+                {
+                    RememberLastSignInMethod(SignInMethodKind.Anonymous);
+                    if (saveSessionToStorage)
+                        SaveSessionToStorage();
+                    return SupabaseResult<SupabaseSession>.Success(_currentSession);
+                }
+            }
 
             if (IsLoggedIn)
             {
@@ -917,6 +953,9 @@ namespace Truesoft.Supabase.Unity
 
             if (request == null || !request.IsSuccess)
                 return SupabaseResult<bool>.Fail(request?.ErrorMessage ?? "withdrawal_request_failed");
+
+            // 로컬 refresh_token을 지우기 전에 서버에 복구용 refresh를 남겨, 다음 익명 로그인 시 동일 auth 계정으로 복구되게 합니다.
+            await TryUpsertAnonymousRecoveryTokenAsync(_currentSession);
 
             // 유예 여부와 무관하게, "탈퇴 예약을 건 계정"은 항상 수동 로그인 UX를 타도록 즉시 로그아웃 처리합니다.
             ClearSession(clearStorage: true, deleteUserSessionRow: true);
@@ -1334,7 +1373,30 @@ namespace Truesoft.Supabase.Unity
             SupabaseDuplicateSessionCoordinator.ScheduleSyncAfterSessionChange(kind);
         }
 
+        /// <summary>
+        /// 로그아웃. 익명 세션이고 <paramref name="clearStorage"/>가 true이면, 로컬 refresh를 지우기 전에 지문 기반 복구용 refresh를 서버에 남깁니다.
+        /// 동일 기기에서 다시 익명 로그인할 때 같은 <c>auth.users</c> 계정으로 이어지게 하려면 이 메서드(또는 탈퇴 예약 등 SDK가 호출하는 경로)를 쓰세요.
+        /// </summary>
+        public static async Task SignOutAsync(bool clearStorage = true, bool deleteUserSessionRow = true)
+        {
+            if (clearStorage && IsAnonymousSession(_currentSession))
+                await TryUpsertAnonymousRecoveryTokenAsync(_currentSession);
+
+            ClearSession(clearStorage, deleteUserSessionRow);
+        }
+
+        /// <summary><see cref="SignOutAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignOutAsync(bool clearStorage = true, bool deleteUserSessionRow = true)
+        {
+            await SignOutAsync(clearStorage, deleteUserSessionRow);
+            LogApiResult(ApiLogTags.AuthSignOut, true, null);
+            return true;
+        }
+
         /// <summary>로그아웃 시 호출. clearStorage가 true면 PlayerPrefs에 저장된 refresh_token도 삭제합니다.</summary>
+        /// <remarks>
+        /// 익명 계정을 같은 기기에서 다시 이어가려면 <see cref="SignOutAsync"/>를 사용하세요(로컬 삭제 전 서버 복구 토큰 upsert).
+        /// </remarks>
         /// <param name="clearStorage">저장된 refresh_token 삭제 여부.</param>
         /// <param name="deleteUserSessionRow">true면 <c>user_sessions</c>에서 본인 행을 삭제합니다. 다른 기기에 의해 세션이 무효화된 경우 false로 두세요.</param>
         public static void ClearSession(bool clearStorage = true, bool deleteUserSessionRow = true)
@@ -1603,6 +1665,9 @@ namespace Truesoft.Supabase.Unity
             SaveStoredWithdrawalGateStatus(status);
             var issue = await RequestWithdrawalCancelTokenCoreAsync(_currentSession.AccessToken);
 
+            // 로컬 refresh 삭제 전에 지문 복구용으로 서버에 남겨, 다음 익명 로그인 시 동일 auth 계정으로 복구되게 합니다.
+            await TryUpsertAnonymousRecoveryTokenAsync(_currentSession);
+
             // 예약 중 계정은 본편 진입을 막기 위해 세션을 즉시 정리합니다.
             ClearSession(clearStorage: true, deleteUserSessionRow: true);
 
@@ -1744,23 +1809,23 @@ namespace Truesoft.Supabase.Unity
                    || string.Equals(data.action, "deleted", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static async Task<bool> TryRestoreSessionFromAnonymousRecoveryAsync()
+        private static async Task<AnonymousRecoveryResult> TryRestoreSessionFromAnonymousRecoveryAsync()
         {
             var svc = AnonymousRecoveryService;
             if (svc == null)
-                return false;
+                return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
 
             var fingerprintHash = DeviceFingerprintProvider.TryCreateHashedFingerprint(_initializedProjectUrl);
             if (string.IsNullOrWhiteSpace(fingerprintHash))
-                return false;
+                return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
 
             var tokenResult = await svc.TryGetRefreshTokenByFingerprintAsync(fingerprintHash);
             if (tokenResult == null || tokenResult.IsSuccess == false || string.IsNullOrWhiteSpace(tokenResult.Data))
-                return false;
+                return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
 
             var refreshResult = await RefreshSessionAsync(tokenResult.Data, saveSessionToStorage: true);
             if (refreshResult == null || refreshResult.IsSuccess == false || refreshResult.Data == null)
-                return false;
+                return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
 
             // 사용자가 "익명 로그인 버튼"을 눌렀다고 가정하고, 만료(삭제 필요) 계정이면
             // allowRecreate=true 로 처리합니다(자동 복원 경로와 분리 목적).
@@ -1769,15 +1834,18 @@ namespace Truesoft.Supabase.Unity
                 saveSessionToStorage: true,
                 allowRecreateOnDeletion: true);
 
-            // guard가 삭제 필요가 아니면 null이거나 성공이어야 하므로, non-null이면 결과를 그대로 반영합니다.
             if (guarded != null)
-                return guarded.IsSuccess && guarded.Data != null;
+            {
+                if (!guarded.IsSuccess)
+                    return new AnonymousRecoveryResult(AnonymousRecoveryKind.GuardFailed, guarded.ErrorMessage);
+                // 재생성 등으로 세션이 바뀐 경우에도 복구 경로는 완료된 것으로 본다.
+            }
 
             var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
             if (reserved != null)
-                return reserved.IsSuccess && reserved.Data != null;
+                return new AnonymousRecoveryResult(AnonymousRecoveryKind.GateBlocked);
 
-            return true;
+            return new AnonymousRecoveryResult(AnonymousRecoveryKind.Restored);
         }
 
         private static async Task TryUpsertAnonymousRecoveryTokenAsync(SupabaseSession session)
