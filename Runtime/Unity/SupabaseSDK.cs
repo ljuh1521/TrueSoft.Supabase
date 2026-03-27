@@ -1729,6 +1729,8 @@ namespace Truesoft.Supabase.Unity
             var guardRunId = Guid.NewGuid().ToString("N");
             var beforeMeta = ReadJwtMeta(_currentSession.AccessToken);
             var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var token = _currentSession.AccessToken ?? string.Empty;
+            var tokenParts = token.Split('.');
             #region agent log
             WriteDebugLog(
                 runId: guardRunId,
@@ -1739,6 +1741,9 @@ namespace Truesoft.Supabase.Unity
                           "\"hasSession\":" + (_currentSession != null ? "true" : "false") + "," +
                           "\"hasAccessToken\":" + (!string.IsNullOrWhiteSpace(_currentSession?.AccessToken) ? "true" : "false") + "," +
                           "\"tokenLength\":" + (_currentSession?.AccessToken?.Length ?? 0) + "," +
+                          "\"tokenStartsWithEyJ\":" + (token.StartsWith("eyJ", StringComparison.Ordinal) ? "true" : "false") + "," +
+                          "\"tokenParts\":" + tokenParts.Length + "," +
+                          "\"tokenHasWhitespace\":" + (ContainsWhitespace(token) ? "true" : "false") + "," +
                           "\"sessionExpiresAt\":" + _currentSession.ExpiresAt + "," +
                           "\"nowUnix\":" + nowUnix + "," +
                           "\"tokenType\":\"" + JsonEscape(_currentSession.TokenType) + "\"," +
@@ -1748,6 +1753,22 @@ namespace Truesoft.Supabase.Unity
                           "\"jwtExp\":" + beforeMeta.Exp +
                           "}");
             #endregion
+
+            if (_bootstrap?.PublicProfileService != null)
+            {
+                var rpcStatus = await _bootstrap.PublicProfileService.GetMyWithdrawalStatusAsync(_currentSession.AccessToken);
+                #region agent log
+                WriteDebugLog(
+                    runId: guardRunId,
+                    hypothesisId: "H2_H4_H6",
+                    location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:precheck_rpc",
+                    message: "precheck with same token via rest rpc",
+                    dataJson: "{" +
+                              "\"isSuccess\":" + (rpcStatus != null && rpcStatus.IsSuccess ? "true" : "false") + "," +
+                              "\"error\":\"" + JsonEscape(rpcStatus?.ErrorMessage) + "\"" +
+                              "}");
+                #endregion
+            }
 
             var result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalGuardResponse>(
                 _withdrawalGuardFunctionName,
@@ -1986,6 +2007,20 @@ namespace Truesoft.Supabase.Unity
                 return "len:" + trimmed.Length;
 
             return trimmed.Substring(0, 4) + "..." + trimmed.Substring(trimmed.Length - 4, 4);
+        }
+
+        private static bool ContainsWhitespace(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return false;
+
+            for (var i = 0; i < value.Length; i++)
+            {
+                if (char.IsWhiteSpace(value[i]))
+                    return true;
+            }
+
+            return false;
         }
 
         [Serializable]
