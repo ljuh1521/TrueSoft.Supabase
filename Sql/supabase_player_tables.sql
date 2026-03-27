@@ -201,6 +201,14 @@ create table if not exists public.account_closures (
 comment on table public.account_closures is '탈퇴 기록. PostgREST는 service role 등으로만 쓰는 것을 권장.';
 
 create index if not exists account_closures_user_id_idx on public.account_closures (user_id);
+create unique index if not exists account_closures_user_id_uq on public.account_closures (user_id);
+create index if not exists account_closures_account_id_idx on public.account_closures (account_id);
+create index if not exists account_closures_closed_at_idx on public.account_closures (closed_at desc);
+
+-- 탈퇴 예약 만료 조회(정리 배치/로그인 가드) 성능용 인덱스
+create index if not exists profiles_withdrawn_at_idx
+  on public.profiles (withdrawn_at)
+  where withdrawn_at is not null;
 
 alter table public.account_closures enable row level security;
 

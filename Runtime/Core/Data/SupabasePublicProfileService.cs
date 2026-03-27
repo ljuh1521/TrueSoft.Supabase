@@ -312,6 +312,51 @@ namespace Truesoft.Supabase.Core.Data
             }
         }
 
+        /// <summary>
+        /// 로그인한 본인의 탈퇴 예약 게이트 상태를 조회합니다.
+        /// RPC: <c>ts_my_withdrawal_status</c>.
+        /// </summary>
+        public async Task<SupabaseResult<MyWithdrawalStatus>> GetMyWithdrawalStatusAsync(string accessToken)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<MyWithdrawalStatus>.Fail("access_token_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_my_withdrawal_status";
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: "{}",
+                headers: CreateUserHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<MyWithdrawalStatus>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<MyWithdrawalStatus>.Fail(response.ErrorMessage ?? response.Body ?? "withdrawal_status_failed");
+
+            try
+            {
+                var rows = _jsonSerializer.FromJsonArray<WithdrawalStatusRow>(response.Body);
+                if (rows == null || rows.Length == 0 || rows[0] == null)
+                    return SupabaseResult<MyWithdrawalStatus>.Success(new MyWithdrawalStatus(string.Empty, null, null, false, 0));
+
+                var row = rows[0];
+                var status = new MyWithdrawalStatus(
+                    row.nickname ?? string.Empty,
+                    string.IsNullOrWhiteSpace(row.withdrawn_at) ? null : row.withdrawn_at.Trim(),
+                    string.IsNullOrWhiteSpace(row.server_now) ? null : row.server_now.Trim(),
+                    row.is_scheduled,
+                    row.seconds_remaining);
+
+                return SupabaseResult<MyWithdrawalStatus>.Success(status);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<MyWithdrawalStatus>.Fail("withdrawal_status_parse_exception:" + e.Message);
+            }
+        }
+
         private static string NormalizeNickname(string nickname)
         {
             return nickname == null ? string.Empty : nickname.Trim();
@@ -386,6 +431,16 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class WithdrawalRequestRow
         {
             public string scheduled_at;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalStatusRow
+        {
+            public string nickname;
+            public string withdrawn_at;
+            public string server_now;
+            public bool is_scheduled;
+            public long seconds_remaining;
         }
     }
 }

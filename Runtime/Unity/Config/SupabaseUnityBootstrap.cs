@@ -34,6 +34,12 @@ namespace Truesoft.Supabase.Unity.Config
         /// <summary><see cref="SupabaseSettings.withdrawalRequestDelayDays"/>.</summary>
         public float WithdrawalRequestDelayDays { get; private set; }
 
+        /// <summary><see cref="SupabaseSettings.enableWithdrawalGuardOnLogin"/>.</summary>
+        public bool EnableWithdrawalGuardOnLogin { get; private set; }
+
+        /// <summary><see cref="SupabaseSettings.withdrawalGuardFunctionName"/>.</summary>
+        public string WithdrawalGuardFunctionName { get; private set; } = "withdrawal-guard";
+
         public void Initialize(SupabaseSettings settings)
         {
             if (settings == null)
@@ -109,6 +115,10 @@ namespace Truesoft.Supabase.Unity.Config
             DuplicateSessionPollSeconds = settings.duplicateSessionPollSeconds;
             DuplicateSessionActionCheckCooldownSeconds = options.DuplicateSessionActionCheckCooldownSeconds;
             WithdrawalRequestDelayDays = options.WithdrawalRequestDelayDays;
+            EnableWithdrawalGuardOnLogin = options.EnableWithdrawalGuardOnLogin;
+            WithdrawalGuardFunctionName = string.IsNullOrWhiteSpace(options.WithdrawalGuardFunctionName)
+                ? "withdrawal-guard"
+                : options.WithdrawalGuardFunctionName.Trim();
 
             SupabaseSDK.Initialize(this);
         }

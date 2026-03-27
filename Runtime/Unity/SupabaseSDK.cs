@@ -23,6 +23,16 @@ namespace Truesoft.Supabase.Unity
     public static class SupabaseSDK
     {
         private const string RefreshTokenKey = "Truesoft.Supabase.RefreshToken";
+        private const string LastSignInMethodKey = "Truesoft.Supabase.LastSignInMethod";
+        private const string AutoLoginBlockedKey = "Truesoft.Supabase.AutoLoginBlocked";
+        private const string WithdrawalCancelTokenKey = "Truesoft.Supabase.WithdrawalCancelToken";
+        private const string WithdrawalCancelTokenExpiresAtKey = "Truesoft.Supabase.WithdrawalCancelTokenExpiresAt";
+        private const string WithdrawalGateNicknameKey = "Truesoft.Supabase.WithdrawalGateNickname";
+        private const string WithdrawalGateWithdrawnAtKey = "Truesoft.Supabase.WithdrawalGateWithdrawnAt";
+        private const string WithdrawalGateServerNowKey = "Truesoft.Supabase.WithdrawalGateServerNow";
+        private const string WithdrawalGateSecondsRemainingKey = "Truesoft.Supabase.WithdrawalGateSecondsRemaining";
+        private const string WithdrawalCancelIssueFunctionName = "withdrawal-cancel-issue";
+        private const string WithdrawalCancelRedeemFunctionName = "withdrawal-cancel-redeem";
 
         /// <summary>계정별 로컬 세션 토큰 저장 키 접두어. <c>PlayerPrefs</c> 키는 <c>{접두어}{account_id}</c> 입니다.</summary>
         public const string SessionTokenPlayerPrefsKeyPrefix = "Truesoft.Supabase.SessionToken.";
@@ -43,6 +53,16 @@ namespace Truesoft.Supabase.Unity
         private static float _duplicateSessionPollSeconds = 15f;
         private static float _duplicateSessionActionCheckCooldownSeconds = 5f;
         private static float _withdrawalRequestDelayDays = 7f;
+        private static bool _enableWithdrawalGuardOnLogin = true;
+        private static string _withdrawalGuardFunctionName = "withdrawal-guard";
+        private static bool _isRecreatingAfterWithdrawalDelete;
+
+        private enum SignInMethodKind
+        {
+            Unknown = 0,
+            Anonymous = 1,
+            Google = 2
+        }
 
         /// <summary>
         /// 다른 기기에서 같은 계정으로 로그인해 서버 세션 토큰이 바뀐 경우 호출됩니다(이미 <see cref="ClearSession"/> 후).
@@ -61,6 +81,9 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary><see cref="Config.SupabaseSettings.withdrawalRequestDelayDays"/>.</summary>
         public static float WithdrawalRequestDelayDays => _withdrawalRequestDelayDays;
+
+        /// <summary><see cref="Config.SupabaseSettings.enableWithdrawalGuardOnLogin"/>.</summary>
+        public static bool EnableWithdrawalGuardOnLogin => _enableWithdrawalGuardOnLogin;
 
         /// <summary>중복 로그인 감지용 <c>user_sessions</c> REST 서비스. 미초기화 시 null.</summary>
         public static SupabaseUserSessionService UserSessionService => _bootstrap?.UserSessionService;
@@ -93,6 +116,9 @@ namespace Truesoft.Supabase.Unity
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
             public const string ProfileWithdrawnRequest = "Supabase.Profile.Withdrawn.Request";
+            public const string ProfileWithdrawalStatus = "Supabase.Profile.Withdrawal.Status";
+            public const string ProfileWithdrawalCancelIssue = "Supabase.Profile.Withdrawal.Cancel.Issue";
+            public const string ProfileWithdrawalCancelRedeem = "Supabase.Profile.Withdrawal.Cancel.Redeem";
             public const string ServerTime = "Supabase.Server.Time";
         }
 
@@ -243,6 +269,21 @@ namespace Truesoft.Supabase.Unity
                 SetSession(result.Data, SupabaseSessionChangeKind.NewSignIn);
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
+
+                RememberLastSignInMethod(SignInMethodKind.Google);
+                if (!_isRecreatingAfterWithdrawalDelete)
+                {
+                    var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                        SignInMethodKind.Google,
+                        saveSessionToStorage,
+                        allowRecreateOnDeletion: true);
+                    if (guarded != null)
+                        return guarded;
+
+                    var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                    if (reserved != null)
+                        return reserved;
+                }
             }
 
             return result;
@@ -285,12 +326,29 @@ namespace Truesoft.Supabase.Unity
                     if (saveSessionToStorage)
                         SaveSessionToStorage();
 
+                    RememberLastSignInMethod(SignInMethodKind.Google);
+
                     tcs.TrySetResult(SupabaseResult<SupabaseSession>.Success(session));
                 },
                 err => tcs.TrySetResult(
                     SupabaseResult<SupabaseSession>.Fail(string.IsNullOrWhiteSpace(err) ? "google_signin_failed" : err)));
 
-            return await tcs.Task;
+            var googleResult = await tcs.Task;
+            if (googleResult.IsSuccess && googleResult.Data != null && !_isRecreatingAfterWithdrawalDelete)
+            {
+                var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                    SignInMethodKind.Google,
+                    saveSessionToStorage,
+                    allowRecreateOnDeletion: true);
+                if (guarded != null)
+                    return guarded;
+
+                var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                if (reserved != null)
+                    return reserved;
+            }
+
+            return googleResult;
         }
 
         /// <summary><see cref="SignInWithGoogleAsync(bool)"/>를 bool 기반으로 호출합니다.</summary>
@@ -451,6 +509,20 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
+        /// 앱 시작 자동 로그인 정책을 적용해 세션 복원을 시도합니다.
+        /// 로그아웃으로 자동 로그인이 차단되었거나, 저장된 이전 계정 정보(refresh token)가 없으면 아무 동작도 하지 않습니다.
+        /// </summary>
+        public static async Task<bool> TryAutoLoginOnStartAsync()
+        {
+            if (IsAutoLoginBlocked() || HasStoredRefreshToken() == false)
+                return false;
+
+            var ok = await RestoreSessionAsync();
+            LogApiResult(ApiLogTags.AuthRestoreSession, ok, ok ? null : "auto_login_on_start_failed");
+            return ok;
+        }
+
+        /// <summary>
         /// Postgres RPC <c>ts_server_now</c>로 서버 시각(UTC)을 가져옵니다. 로그인 세션 없이 anon 키로 호출합니다.
         /// </summary>
         public static async Task<SupabaseResult<DateTime>> GetServerUtcNowAsync()
@@ -522,22 +594,30 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>게스트(익명)로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
-        /// <remarks>저장된 refresh_token이 있으면 먼저 <see cref="RestoreSessionAsync"/>를 시도해 동일 계정을 이어갑니다(<see cref="Config.SupabaseRuntime"/>의 Restore Session On Start가 꺼져 있어도 동일).</remarks>
+        /// <remarks>저장된 refresh_token이 있으면 먼저 <see cref="RestoreSessionAsync"/>를 시도해 동일 계정을 이어갑니다(수동 로그인 버튼 흐름).</remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(bool saveSessionToStorage = true)
         {
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
             // RestoreSessionOnStart가 꺼져 있어도, 저장된 refresh_token이 있으면 동일 계정을 이어갑니다.
-            if (!IsLoggedIn)
-                await RestoreSessionAsync();
+            if (!_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
+                await RestoreSessionAsyncCore(allowRecreateOnDeletion: true);
 
             // 로컬 토큰이 사라진(재설치/로그아웃) 경우를 위해 서버의 best-effort 복구 토큰을 1회 시도합니다.
-            if (!IsLoggedIn)
+            if (!_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
                 _ = await TryRestoreSessionFromAnonymousRecoveryAsync();
 
             if (IsLoggedIn)
             {
+                // 사용자가 "익명 로그인 버튼"을 눌렀으므로, restore/recovery로 로그인 상태가 만들어졌어도
+                // 마지막 로그인 방식은 익명으로 기록합니다.
+                RememberLastSignInMethod(SignInMethodKind.Anonymous);
+
+                var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                if (reserved != null)
+                    return reserved;
+
                 if (saveSessionToStorage)
                     SaveSessionToStorage();
                 return SupabaseResult<SupabaseSession>.Success(_currentSession);
@@ -555,6 +635,20 @@ namespace Truesoft.Supabase.Unity
                     SaveSessionToStorage();
 
                 await TryUpsertAnonymousRecoveryTokenAsync(result.Data);
+                RememberLastSignInMethod(SignInMethodKind.Anonymous);
+                if (!_isRecreatingAfterWithdrawalDelete)
+                {
+                    var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                        SignInMethodKind.Anonymous,
+                        saveSessionToStorage,
+                        allowRecreateOnDeletion: true);
+                    if (guarded != null)
+                        return guarded;
+
+                    var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                    if (reserved != null)
+                        return reserved;
+                }
             }
 
             return result;
@@ -594,7 +688,7 @@ namespace Truesoft.Supabase.Unity
                 return false;
 
             if (restoreSessionFirst && !IsLoggedIn)
-                _ = await RestoreSessionAsync();
+                _ = await TryAutoLoginOnStartAsync();
 
             if (refreshRemoteConfigOnStart)
                 _ = await RefreshRemoteConfigAsync();
@@ -804,7 +898,7 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>
         /// 설정(<see cref="WithdrawalRequestDelayDays"/>)에 정의된 유예 기간(일)으로 <c>withdrawn_at</c>을 서버에서 예약합니다.
-        /// 값이 0이면 서버 기준 즉시 탈퇴 처리(현재 시각)로 기록한 뒤 이 기기 세션을 정리합니다.
+        /// 요청이 성공하면 앱에서도 즉시 로그아웃 상태로 전환합니다(자동 로그인 방지).
         /// </summary>
         public static async Task<SupabaseResult<bool>> RequestMyWithdrawalAsync()
         {
@@ -824,11 +918,8 @@ namespace Truesoft.Supabase.Unity
             if (request == null || !request.IsSuccess)
                 return SupabaseResult<bool>.Fail(request?.ErrorMessage ?? "withdrawal_request_failed");
 
-            if (delayInt <= 0)
-            {
-                // 즉시 탈퇴 요청(0일)은 앱에서도 즉시 로그아웃 상태로 전환합니다.
-                ClearSession(clearStorage: true, deleteUserSessionRow: true);
-            }
+            // 유예 여부와 무관하게, "탈퇴 예약을 건 계정"은 항상 수동 로그인 UX를 타도록 즉시 로그아웃 처리합니다.
+            ClearSession(clearStorage: true, deleteUserSessionRow: true);
 
             return SupabaseResult<bool>.Success(true);
         }
@@ -859,6 +950,112 @@ namespace Truesoft.Supabase.Unity
         {
             var r = await SetMyWithdrawnAtAsync(withdrawnAtIsoUtc);
             return LogAndReturn(ApiLogTags.ProfileWithdrawnAt, r);
+        }
+
+        /// <summary>
+        /// 로그인한 본인의 탈퇴 예약 게이트 상태(닉네임/예약 시각/남은 시간)를 조회합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<MyWithdrawalStatus>> GetMyWithdrawalStatusAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<MyWithdrawalStatus>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            if (_bootstrap?.PublicProfileService == null)
+                return SupabaseResult<MyWithdrawalStatus>.Fail("sdk_not_initialized");
+
+            return await _bootstrap.PublicProfileService.GetMyWithdrawalStatusAsync(_currentSession.AccessToken);
+        }
+
+        /// <inheritdoc cref="GetMyWithdrawalStatusAsync"/>
+        public static async Task<MyWithdrawalStatus> TryGetMyWithdrawalStatusAsync()
+        {
+            var r = await GetMyWithdrawalStatusAsync();
+            return LogAndReturnData(ApiLogTags.ProfileWithdrawalStatus, r, default(MyWithdrawalStatus));
+        }
+
+        /// <summary>
+        /// 철회 전용 토큰 발급을 요청합니다. 로그인 세션(access token)이 필요합니다.
+        /// 발급 성공 시 토큰과 만료 시각을 로컬에 저장합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<string>> RequestWithdrawalCancelTokenAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<string>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            if (_bootstrap?.EdgeFunctionsService == null)
+                return SupabaseResult<string>.Fail("sdk_not_initialized");
+
+            var issue = await RequestWithdrawalCancelTokenCoreAsync(_currentSession.AccessToken);
+            if (issue == null || !issue.IsSuccess || issue.Data == null)
+                return SupabaseResult<string>.Fail(issue?.ErrorMessage ?? "withdrawal_cancel_issue_failed");
+
+            return SupabaseResult<string>.Success(issue.Data.CancelToken);
+        }
+
+        /// <inheritdoc cref="RequestWithdrawalCancelTokenAsync"/>
+        public static async Task<string> TryRequestWithdrawalCancelTokenAsync(string defaultValue = null)
+        {
+            var r = await RequestWithdrawalCancelTokenAsync();
+            return LogAndReturnData(ApiLogTags.ProfileWithdrawalCancelIssue, r, defaultValue);
+        }
+
+        /// <summary>
+        /// 철회 전용 토큰으로 탈퇴 예약을 해제합니다.
+        /// 토큰을 넘기지 않으면 로컬에 저장된 토큰을 사용합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<bool>> RedeemWithdrawalCancelAsync(string cancelToken = null)
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            if (_bootstrap?.EdgeFunctionsService == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            var token = string.IsNullOrWhiteSpace(cancelToken)
+                ? ReadStoredWithdrawalCancelToken()
+                : cancelToken.Trim();
+            if (string.IsNullOrWhiteSpace(token))
+                return SupabaseResult<bool>.Fail("withdrawal_cancel_token_empty");
+
+            var result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalCancelRedeemResponse>(
+                WithdrawalCancelRedeemFunctionName,
+                accessToken: null,
+                requestBody: new WithdrawalCancelRedeemRequest { cancel_token = token });
+
+            if (result == null || !result.IsSuccess || result.Data == null)
+                return SupabaseResult<bool>.Fail(result?.ErrorMessage ?? "withdrawal_cancel_redeem_failed");
+
+            if (!result.Data.ok)
+                return SupabaseResult<bool>.Fail(string.IsNullOrWhiteSpace(result.Data.reason) ? "withdrawal_cancel_redeem_failed" : result.Data.reason);
+
+            ClearStoredWithdrawalCancelToken();
+            ClearStoredWithdrawalGateStatus();
+            return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <inheritdoc cref="RedeemWithdrawalCancelAsync"/>
+        public static async Task<bool> TryRedeemWithdrawalCancelAsync(string cancelToken = null)
+        {
+            var r = await RedeemWithdrawalCancelAsync(cancelToken);
+            return LogAndReturn(ApiLogTags.ProfileWithdrawalCancelRedeem, r);
+        }
+
+        /// <summary>
+        /// 로컬에 저장된 탈퇴 게이트 상태를 반환합니다(로그아웃 이후 안내 UI용).
+        /// </summary>
+        public static MyWithdrawalStatus GetStoredWithdrawalGateStatus()
+        {
+            var nickname = PlayerPrefs.GetString(WithdrawalGateNicknameKey, string.Empty);
+            var withdrawnAt = PlayerPrefs.GetString(WithdrawalGateWithdrawnAtKey, null);
+            var serverNow = PlayerPrefs.GetString(WithdrawalGateServerNowKey, null);
+            var seconds = PlayerPrefs.GetString(WithdrawalGateSecondsRemainingKey, "0");
+            if (!long.TryParse(seconds, out var remaining))
+                remaining = 0;
+
+            var scheduled = string.IsNullOrWhiteSpace(withdrawnAt) == false && remaining > 0;
+            return new MyWithdrawalStatus(nickname, withdrawnAt, serverNow, scheduled, remaining);
         }
 
         /// <summary>Remote Config 캐시·구독·서버 동기화 퍼사드.</summary>
@@ -1155,6 +1352,7 @@ namespace Truesoft.Supabase.Unity
             _chatChannels.Clear();
 
             _currentSession = null;
+            SetAutoLoginBlocked(true);
             if (clearStorage)
                 PlayerPrefs.DeleteKey(RefreshTokenKey);
 
@@ -1186,14 +1384,19 @@ namespace Truesoft.Supabase.Unity
             if (_currentSession == null || string.IsNullOrWhiteSpace(_currentSession.RefreshToken))
                 return;
             PlayerPrefs.SetString(RefreshTokenKey, _currentSession.RefreshToken);
+            SetAutoLoginBlocked(false);
             PlayerPrefs.Save();
         }
 
         /// <summary>PlayerPrefs에 저장된 refresh_token으로 세션을 복원합니다.</summary>
         /// <remarks>
-        /// <see cref="SupabaseRuntime"/>의 «Restore Session On Start» 또는 로그인 화면에서 호출합니다. <see cref="StartAsync"/>의 첫 단계와 동일한 복원입니다.
+        /// 자동 로그인 정책(로그아웃 상태 여부)과 무관하게 "명시적으로" 복원을 시도할 때 사용합니다.
+        /// 앱 시작 자동 복원은 <see cref="TryAutoLoginOnStartAsync"/>를 사용하세요.
         /// </remarks>
-        public static async Task<bool> RestoreSessionAsync()
+        public static Task<bool> RestoreSessionAsync() =>
+            RestoreSessionAsyncCore(allowRecreateOnDeletion: false);
+
+        private static async Task<bool> RestoreSessionAsyncCore(bool allowRecreateOnDeletion)
         {
             if (!await EnsureInitializedAsync())
                 return false;
@@ -1210,6 +1413,23 @@ namespace Truesoft.Supabase.Unity
             if (result.IsSuccess && result.Data != null)
             {
                 SetSession(result.Data, SupabaseSessionChangeKind.RestoredOrRefreshed);
+                SetAutoLoginBlocked(false);
+
+                if (!_isRecreatingAfterWithdrawalDelete)
+                {
+                    var method = ReadLastSignInMethod();
+                    var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                        method == SignInMethodKind.Unknown ? SignInMethodKind.Anonymous : method,
+                        saveSessionToStorage: true,
+                        allowRecreateOnDeletion: allowRecreateOnDeletion);
+                    if (guarded != null)
+                        return guarded.IsSuccess;
+
+                    var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                    if (reserved != null)
+                        return reserved.IsSuccess;
+                }
+
                 return true;
             }
 
@@ -1241,6 +1461,10 @@ namespace Truesoft.Supabase.Unity
             _duplicateSessionPollSeconds = bootstrap.DuplicateSessionPollSeconds;
             _duplicateSessionActionCheckCooldownSeconds = bootstrap.DuplicateSessionActionCheckCooldownSeconds;
             _withdrawalRequestDelayDays = bootstrap.WithdrawalRequestDelayDays;
+            _enableWithdrawalGuardOnLogin = bootstrap.EnableWithdrawalGuardOnLogin;
+            _withdrawalGuardFunctionName = string.IsNullOrWhiteSpace(bootstrap.WithdrawalGuardFunctionName)
+                ? "withdrawal-guard"
+                : bootstrap.WithdrawalGuardFunctionName.Trim();
 
             if (!preserveSession)
                 _currentSession = null;
@@ -1289,6 +1513,237 @@ namespace Truesoft.Supabase.Unity
             return session.User.IsAnonymous;
         }
 
+        private static void RememberLastSignInMethod(SignInMethodKind kind)
+        {
+            if (kind == SignInMethodKind.Unknown)
+                return;
+
+            PlayerPrefs.SetInt(LastSignInMethodKey, (int)kind);
+            PlayerPrefs.Save();
+        }
+
+        private static SignInMethodKind ReadLastSignInMethod()
+        {
+            var raw = PlayerPrefs.GetInt(LastSignInMethodKey, (int)SignInMethodKind.Unknown);
+            if (raw == (int)SignInMethodKind.Google)
+                return SignInMethodKind.Google;
+            if (raw == (int)SignInMethodKind.Anonymous)
+                return SignInMethodKind.Anonymous;
+            return SignInMethodKind.Unknown;
+        }
+
+        private static bool HasStoredRefreshToken()
+        {
+            var token = PlayerPrefs.GetString(RefreshTokenKey, null);
+            return string.IsNullOrWhiteSpace(token) == false;
+        }
+
+        private static bool IsAutoLoginBlocked()
+        {
+            return PlayerPrefs.GetInt(AutoLoginBlockedKey, 0) == 1;
+        }
+
+        private static void SetAutoLoginBlocked(bool blocked)
+        {
+            PlayerPrefs.SetInt(AutoLoginBlockedKey, blocked ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        private static async Task<SupabaseResult<WithdrawalCancelIssueInfo>> RequestWithdrawalCancelTokenCoreAsync(string accessToken)
+        {
+            if (_bootstrap?.EdgeFunctionsService == null)
+                return SupabaseResult<WithdrawalCancelIssueInfo>.Fail("sdk_not_initialized");
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<WithdrawalCancelIssueInfo>.Fail("access_token_empty");
+
+            var result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalCancelIssueResponse>(
+                WithdrawalCancelIssueFunctionName,
+                accessToken,
+                new WithdrawalCancelIssueRequest { trigger = "withdrawal_gate" });
+
+            if (result == null || !result.IsSuccess || result.Data == null)
+                return SupabaseResult<WithdrawalCancelIssueInfo>.Fail(result?.ErrorMessage ?? "withdrawal_cancel_issue_failed");
+
+            if (!result.Data.ok)
+                return SupabaseResult<WithdrawalCancelIssueInfo>.Fail(
+                    string.IsNullOrWhiteSpace(result.Data.reason) ? "withdrawal_cancel_issue_failed" : result.Data.reason);
+
+            if (string.IsNullOrWhiteSpace(result.Data.cancel_token))
+                return SupabaseResult<WithdrawalCancelIssueInfo>.Fail("withdrawal_cancel_token_empty");
+
+            var info = new WithdrawalCancelIssueInfo(
+                result.Data.cancel_token.Trim(),
+                string.IsNullOrWhiteSpace(result.Data.expires_at) ? null : result.Data.expires_at.Trim());
+
+            SaveStoredWithdrawalCancelToken(info.CancelToken, info.ExpiresAtIso);
+            return SupabaseResult<WithdrawalCancelIssueInfo>.Success(info);
+        }
+
+        private static async Task<SupabaseResult<SupabaseSession>> HandleWithdrawalReservationGateAfterSignInAsync()
+        {
+            if (_bootstrap?.PublicProfileService == null)
+                return null;
+
+            if (_currentSession == null || string.IsNullOrWhiteSpace(_currentSession.AccessToken))
+                return null;
+
+            var statusResult = await _bootstrap.PublicProfileService.GetMyWithdrawalStatusAsync(_currentSession.AccessToken);
+            if (statusResult == null || !statusResult.IsSuccess || statusResult.Data == null)
+                return null;
+
+            var status = statusResult.Data;
+            if (!status.IsScheduled)
+            {
+                ClearStoredWithdrawalGateStatus();
+                ClearStoredWithdrawalCancelToken();
+                return null;
+            }
+
+            SaveStoredWithdrawalGateStatus(status);
+            var issue = await RequestWithdrawalCancelTokenCoreAsync(_currentSession.AccessToken);
+
+            // 예약 중 계정은 본편 진입을 막기 위해 세션을 즉시 정리합니다.
+            ClearSession(clearStorage: true, deleteUserSessionRow: true);
+
+            if (issue == null || !issue.IsSuccess || issue.Data == null)
+                return SupabaseResult<SupabaseSession>.Fail("withdrawal_scheduled_cancel_token_issue_failed");
+
+            return SupabaseResult<SupabaseSession>.Fail("withdrawal_scheduled_gate_blocked");
+        }
+
+        private static void SaveStoredWithdrawalGateStatus(MyWithdrawalStatus status)
+        {
+            if (status == null)
+                return;
+
+            PlayerPrefs.SetString(WithdrawalGateNicknameKey, status.Nickname ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(status.WithdrawnAtIso))
+                PlayerPrefs.DeleteKey(WithdrawalGateWithdrawnAtKey);
+            else
+                PlayerPrefs.SetString(WithdrawalGateWithdrawnAtKey, status.WithdrawnAtIso);
+
+            if (string.IsNullOrWhiteSpace(status.ServerNowIso))
+                PlayerPrefs.DeleteKey(WithdrawalGateServerNowKey);
+            else
+                PlayerPrefs.SetString(WithdrawalGateServerNowKey, status.ServerNowIso);
+
+            PlayerPrefs.SetString(WithdrawalGateSecondsRemainingKey, status.SecondsRemaining.ToString());
+            PlayerPrefs.Save();
+        }
+
+        private static void ClearStoredWithdrawalGateStatus()
+        {
+            PlayerPrefs.DeleteKey(WithdrawalGateNicknameKey);
+            PlayerPrefs.DeleteKey(WithdrawalGateWithdrawnAtKey);
+            PlayerPrefs.DeleteKey(WithdrawalGateServerNowKey);
+            PlayerPrefs.DeleteKey(WithdrawalGateSecondsRemainingKey);
+            PlayerPrefs.Save();
+        }
+
+        private static void SaveStoredWithdrawalCancelToken(string token, string expiresAtIso)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return;
+
+            PlayerPrefs.SetString(WithdrawalCancelTokenKey, token.Trim());
+            if (string.IsNullOrWhiteSpace(expiresAtIso))
+                PlayerPrefs.DeleteKey(WithdrawalCancelTokenExpiresAtKey);
+            else
+                PlayerPrefs.SetString(WithdrawalCancelTokenExpiresAtKey, expiresAtIso.Trim());
+            PlayerPrefs.Save();
+        }
+
+        private static string ReadStoredWithdrawalCancelToken()
+        {
+            var token = PlayerPrefs.GetString(WithdrawalCancelTokenKey, null);
+            return string.IsNullOrWhiteSpace(token) ? null : token.Trim();
+        }
+
+        private static void ClearStoredWithdrawalCancelToken()
+        {
+            PlayerPrefs.DeleteKey(WithdrawalCancelTokenKey);
+            PlayerPrefs.DeleteKey(WithdrawalCancelTokenExpiresAtKey);
+            PlayerPrefs.Save();
+        }
+
+        private static async Task<SupabaseResult<SupabaseSession>> HandleWithdrawalGuardAfterSignInAsync(
+            SignInMethodKind method,
+            bool saveSessionToStorage,
+            bool allowRecreateOnDeletion)
+        {
+            if (!_enableWithdrawalGuardOnLogin || _isRecreatingAfterWithdrawalDelete)
+                return null;
+
+            var shouldDelete = await ShouldDeleteCurrentAccountByWithdrawalGuardAsync();
+            if (!shouldDelete)
+                return null;
+
+            ClearSession(clearStorage: true, deleteUserSessionRow: true);
+
+            if (!allowRecreateOnDeletion)
+            {
+                // 앱 시작(버튼 없이) 자동 복원 흐름에서는 자동 재로그인을 막습니다.
+                return SupabaseResult<SupabaseSession>.Fail("withdrawal_deleted_manual_login_required");
+            }
+
+            // 수동 로그인 흐름에서는 삭제 감지 시 자동으로 새 계정을 만들어 로그인시킵니다.
+            _isRecreatingAfterWithdrawalDelete = true;
+            try
+            {
+                var recreated = await RecreateSessionByMethodAsync(method, saveSessionToStorage);
+                if (recreated == null || !recreated.IsSuccess || recreated.Data == null)
+                    return SupabaseResult<SupabaseSession>.Fail("withdrawal_deleted_recreate_failed");
+
+                return recreated;
+            }
+            finally
+            {
+                _isRecreatingAfterWithdrawalDelete = false;
+            }
+        }
+
+        private static async Task<SupabaseResult<SupabaseSession>> RecreateSessionByMethodAsync(
+            SignInMethodKind method,
+            bool saveSessionToStorage)
+        {
+            if (method == SignInMethodKind.Google)
+                return await SignInWithGoogleAsync(saveSessionToStorage);
+
+            return await SignInAnonymouslyAsync(saveSessionToStorage);
+        }
+
+        private static async Task<bool> ShouldDeleteCurrentAccountByWithdrawalGuardAsync()
+        {
+            if (_bootstrap?.EdgeFunctionsService == null)
+                return false;
+
+            if (_currentSession == null || string.IsNullOrWhiteSpace(_currentSession.AccessToken))
+                return false;
+
+            if (string.IsNullOrWhiteSpace(_withdrawalGuardFunctionName))
+                return false;
+
+            var result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalGuardResponse>(
+                _withdrawalGuardFunctionName,
+                _currentSession.AccessToken,
+                new WithdrawalGuardRequest { trigger = "post_login" });
+
+            if (result == null || !result.IsSuccess)
+            {
+                Debug.LogWarning("[Supabase] withdrawal guard invoke failed: " + (result?.ErrorMessage ?? "unknown"));
+                return false;
+            }
+
+            var data = result.Data;
+            if (data == null)
+                return false;
+
+            return data.deleted
+                   || data.should_delete
+                   || string.Equals(data.action, "deleted", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static async Task<bool> TryRestoreSessionFromAnonymousRecoveryAsync()
         {
             var svc = AnonymousRecoveryService;
@@ -1304,7 +1759,25 @@ namespace Truesoft.Supabase.Unity
                 return false;
 
             var refreshResult = await RefreshSessionAsync(tokenResult.Data, saveSessionToStorage: true);
-            return refreshResult != null && refreshResult.IsSuccess && refreshResult.Data != null;
+            if (refreshResult == null || refreshResult.IsSuccess == false || refreshResult.Data == null)
+                return false;
+
+            // 사용자가 "익명 로그인 버튼"을 눌렀다고 가정하고, 만료(삭제 필요) 계정이면
+            // allowRecreate=true 로 처리합니다(자동 복원 경로와 분리 목적).
+            var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                SignInMethodKind.Anonymous,
+                saveSessionToStorage: true,
+                allowRecreateOnDeletion: true);
+
+            // guard가 삭제 필요가 아니면 null이거나 성공이어야 하므로, non-null이면 결과를 그대로 반영합니다.
+            if (guarded != null)
+                return guarded.IsSuccess && guarded.Data != null;
+
+            var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+            if (reserved != null)
+                return reserved.IsSuccess && reserved.Data != null;
+
+            return true;
         }
 
         private static async Task TryUpsertAnonymousRecoveryTokenAsync(SupabaseSession session)
@@ -1331,6 +1804,61 @@ namespace Truesoft.Supabase.Unity
             {
                 // best-effort 복구 경로이므로 본 로그인 결과를 깨지 않습니다.
             }
+        }
+
+        [Serializable]
+        private sealed class WithdrawalGuardRequest
+        {
+            public string trigger;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalGuardResponse
+        {
+            public bool deleted;
+            public bool should_delete;
+            public string action;
+            public string reason;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalCancelIssueRequest
+        {
+            public string trigger;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalCancelIssueResponse
+        {
+            public bool ok;
+            public string cancel_token;
+            public string expires_at;
+            public string reason;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalCancelRedeemRequest
+        {
+            public string cancel_token;
+        }
+
+        [Serializable]
+        private sealed class WithdrawalCancelRedeemResponse
+        {
+            public bool ok;
+            public string reason;
+        }
+
+        private sealed class WithdrawalCancelIssueInfo
+        {
+            public WithdrawalCancelIssueInfo(string cancelToken, string expiresAtIso)
+            {
+                CancelToken = cancelToken;
+                ExpiresAtIso = expiresAtIso;
+            }
+
+            public string CancelToken { get; }
+            public string ExpiresAtIso { get; }
         }
     }
 }

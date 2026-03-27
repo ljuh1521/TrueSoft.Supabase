@@ -9,7 +9,7 @@ namespace Truesoft.Supabase.Unity.Config
     /// <summary>
     /// Supabase SDK의 "씬 실행 정책"을 제어하는 런타임 컴포넌트입니다.
     /// - 초기화 시점
-    /// - 세션 자동 복원 여부
+    /// - 앱 시작 자동 로그인 시도
     /// - RemoteConfig 첫 로드/폴링 주기
     /// </summary>
     [DefaultExecutionOrder(-100)]
@@ -25,9 +25,6 @@ namespace Truesoft.Supabase.Unity.Config
         [Header("Scene Lifecycle Policy (씬 실행 정책)")]
         [Tooltip("체크 시 이 런타임 오브젝트를 DontDestroyOnLoad로 유지합니다.")]
         [SerializeField] private bool dontDestroyOnLoad = true;
-
-        [Tooltip("체크 시 시작 시점에 저장된 refresh_token으로 세션 복원을 시도합니다.")]
-        [SerializeField] private bool restoreSessionOnStart = true;
 
         [Header("RemoteConfig Runtime Policy (런타임 정책)")]
         [Tooltip("RemoteConfig 런타임 동기화 루틴 사용 여부입니다.")]
@@ -100,11 +97,12 @@ namespace Truesoft.Supabase.Unity.Config
             while (!Supabase.IsInitialized)
                 yield return null;
 
-            if (restoreSessionOnStart)
-            {
-                var restoreTask = Supabase.TryRestoreSessionAsync();
-                yield return new WaitUntil(() => restoreTask.IsCompleted);
-            }
+            // 자동 로그인 정책:
+            // - 이전 계정이 로그아웃 상태거나(refresh_token 제거 + 자동로그인 차단 플래그)
+            // - 이전 계정 정보(refresh token)가 없으면
+            // => 아무 동작도 하지 않습니다.
+            var autoLoginTask = Supabase.TryAutoLoginOnStartAsync();
+            yield return new WaitUntil(() => autoLoginTask.IsCompleted);
 
             if (!enableRemoteConfig)
                 yield break;

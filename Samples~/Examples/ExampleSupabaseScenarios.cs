@@ -72,6 +72,12 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("J: 탈퇴 요청(설정 유예일, 서버 계산)")]
         [SerializeField] private KeyCode keyRequestWithdrawal = KeyCode.J;
 
+        [Tooltip("K: 내 탈퇴 게이트 상태 조회(닉네임/예약/남은 시간)")]
+        [SerializeField] private KeyCode keyWithdrawalStatus = KeyCode.K;
+
+        [Tooltip("C: 저장된(또는 로그인 시 발급한) 철회 토큰으로 탈퇴 예약 해제")]
+        [SerializeField] private KeyCode keyWithdrawalCancel = KeyCode.C;
+
         private bool _keyboardBusy;
 
         private void OnEnable()
@@ -130,6 +136,10 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunServerTimeExampleAsync);
             else if (Input.GetKeyDown(keyRequestWithdrawal))
                 _ = RunAsyncGuarded(RunWithdrawalRequestExampleAsync);
+            else if (Input.GetKeyDown(keyWithdrawalStatus))
+                _ = RunAsyncGuarded(RunWithdrawalStatusExampleAsync);
+            else if (Input.GetKeyDown(keyWithdrawalCancel))
+                _ = RunAsyncGuarded(RunWithdrawalCancelRedeemExampleAsync);
         }
 
         private async Task RunAsyncGuarded(Func<Task<bool>> body)
@@ -244,6 +254,18 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunWithdrawalRequestExample()
         {
             _ = RunWithdrawalRequestExampleAsync();
+        }
+
+        [ContextMenu("Run Withdrawal Status Example")]
+        public void RunWithdrawalStatusExample()
+        {
+            _ = RunWithdrawalStatusExampleAsync();
+        }
+
+        [ContextMenu("Run Withdrawal Cancel Redeem Example")]
+        public void RunWithdrawalCancelRedeemExample()
+        {
+            _ = RunWithdrawalCancelRedeemExampleAsync();
         }
 
         private async Task<bool> RunLoginExampleAsync()
@@ -397,8 +419,60 @@ namespace Truesoft.SupabaseUnity.Samples
 
             var ok = await SupabaseClient.TryRequestMyWithdrawalAsync();
             Debug.Log(ok
-                ? "[Sample] withdrawal request success. 서버가 유예 기간 기준으로 withdrawn_at을 예약했습니다(0일이면 즉시 탈퇴 처리)."
+                ? "[Sample] withdrawal request success. 서버가 유예 기간 기준으로 withdrawn_at을 예약했고, 앱은 즉시 로그아웃 처리했습니다(이후 수동 로그인 UX)."
                 : "[Sample] withdrawal request failed. Sql/supabase_withdrawal_request.sql 적용 및 profiles/RLS를 확인하세요.");
+            return ok;
+        }
+
+        private async Task<bool> RunWithdrawalStatusExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn)
+            {
+                var cached = SupabaseClient.GetStoredWithdrawalGateStatus();
+                if (cached == null || string.IsNullOrWhiteSpace(cached.WithdrawnAtIso))
+                {
+                    Debug.LogWarning("[Sample] withdrawal status skipped: sign in first (or no cached gate status).");
+                    return false;
+                }
+
+                Debug.Log($"[Sample] cached gate status. nickname={cached.Nickname}, withdrawn_at={cached.WithdrawnAtIso}, remain_sec={cached.SecondsRemaining}");
+                return true;
+            }
+
+            var status = await SupabaseClient.TryGetMyWithdrawalStatusAsync();
+            if (status == null)
+            {
+                Debug.LogWarning("[Sample] withdrawal status failed.");
+                return false;
+            }
+
+            Debug.Log(
+                $"[Sample] withdrawal status. nickname={status.Nickname}, is_scheduled={status.IsScheduled}, withdrawn_at={status.WithdrawnAtIso}, remain_sec={status.SecondsRemaining}, server_now={status.ServerNowIso}");
+            return true;
+        }
+
+        private async Task<bool> RunWithdrawalCancelRedeemExampleAsync()
+        {
+            // B 방식 샘플:
+            // 1) 로그인 상태면 issue로 토큰 발급 후 세션 정리
+            // 2) 저장된 토큰으로 redeem
+            if (SupabaseClient.IsLoggedIn)
+            {
+                var token = await SupabaseClient.TryRequestWithdrawalCancelTokenAsync(defaultValue: null);
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    Debug.LogWarning("[Sample] withdrawal cancel issue failed (예약 중 계정인지 확인).");
+                    return false;
+                }
+
+                SupabaseClient.ClearSession();
+                Debug.Log("[Sample] withdrawal cancel token issued, session cleared. proceeding redeem...");
+            }
+
+            var ok = await SupabaseClient.TryRedeemWithdrawalCancelAsync();
+            Debug.Log(ok
+                ? "[Sample] withdrawal cancel redeem success. now sign in again."
+                : "[Sample] withdrawal cancel redeem failed. token missing/expired or server not deployed.");
             return ok;
         }
 
@@ -455,6 +529,7 @@ namespace Truesoft.SupabaseUnity.Samples
             await RunSaveLoadExampleAsync();
             await RunPublicNicknameExampleAsync();
             await RunWithdrawalRequestExampleAsync();
+            await RunWithdrawalStatusExampleAsync();
             await RunRemoteConfigExampleAsync();
             await RunFunctionExampleAsync();
 

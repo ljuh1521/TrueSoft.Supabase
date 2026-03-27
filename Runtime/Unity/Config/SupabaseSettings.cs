@@ -61,6 +61,12 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("탈퇴 요청 시 실제 탈퇴 시각(withdrawn_at)으로 예약할 유예 기간(일). 예: 7이면 요청 시점 + 7일.")]
         public float withdrawalRequestDelayDays = 7f;
 
+        [Tooltip("로그인 직후 탈퇴 만료 계정 즉시 삭제 가드 함수를 호출할지 여부입니다.")]
+        public bool enableWithdrawalGuardOnLogin = true;
+
+        [Tooltip("로그인 직후 호출할 Edge Function 이름(기본 withdrawal-guard).")]
+        public string withdrawalGuardFunctionName = "withdrawal-guard";
+
         public SupabaseOptions ToOptions()
         {
             return new SupabaseOptions
@@ -78,7 +84,11 @@ namespace Truesoft.Supabase.Unity
                     : duplicateSessionActionCheckCooldownSeconds,
                 WithdrawalRequestDelayDays = withdrawalRequestDelayDays < 0f
                     ? 0f
-                    : withdrawalRequestDelayDays
+                    : withdrawalRequestDelayDays,
+                EnableWithdrawalGuardOnLogin = enableWithdrawalGuardOnLogin,
+                WithdrawalGuardFunctionName = string.IsNullOrWhiteSpace(withdrawalGuardFunctionName)
+                    ? "withdrawal-guard"
+                    : withdrawalGuardFunctionName.Trim()
             };
         }
     }

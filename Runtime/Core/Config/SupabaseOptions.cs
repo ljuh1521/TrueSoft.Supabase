@@ -30,5 +30,15 @@ namespace Truesoft.Supabase
         /// 탈퇴 요청 시 실제 탈퇴 시각(<c>profiles.withdrawn_at</c>)으로 예약할 유예 기간(일).
         /// </summary>
         public float WithdrawalRequestDelayDays = 7f;
+
+        /// <summary>
+        /// 로그인 직후 탈퇴 만료 계정 즉시 삭제 가드 함수 호출 여부.
+        /// </summary>
+        public bool EnableWithdrawalGuardOnLogin = true;
+
+        /// <summary>
+        /// 로그인 직후 호출할 Edge Function 이름 (기본 <c>withdrawal-guard</c>).
+        /// </summary>
+        public string WithdrawalGuardFunctionName = "withdrawal-guard";
     }
 }

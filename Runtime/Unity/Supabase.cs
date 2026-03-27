@@ -171,6 +171,34 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TryClearMyWithdrawalAsync() =>
             SupabaseSDK.TryClearMyWithdrawalAsync();
 
+        /// <summary>로그인한 본인의 탈퇴 예약 게이트 상태(닉네임/예약 시각/남은 시간)를 조회합니다.</summary>
+        public static Task<SupabaseResult<MyWithdrawalStatus>> GetMyWithdrawalStatusAsync() =>
+            SupabaseSDK.GetMyWithdrawalStatusAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetMyWithdrawalStatusAsync"/>
+        public static Task<MyWithdrawalStatus> TryGetMyWithdrawalStatusAsync() =>
+            SupabaseSDK.TryGetMyWithdrawalStatusAsync();
+
+        /// <summary>탈퇴 예약 철회 전용 토큰 발급을 요청합니다(로그인 세션 필요).</summary>
+        public static Task<SupabaseResult<string>> RequestWithdrawalCancelTokenAsync() =>
+            SupabaseSDK.RequestWithdrawalCancelTokenAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryRequestWithdrawalCancelTokenAsync(string)"/>
+        public static Task<string> TryRequestWithdrawalCancelTokenAsync(string defaultValue = null) =>
+            SupabaseSDK.TryRequestWithdrawalCancelTokenAsync(defaultValue);
+
+        /// <summary>저장된(또는 전달한) 철회 토큰으로 탈퇴 예약을 해제합니다.</summary>
+        public static Task<SupabaseResult<bool>> RedeemWithdrawalCancelAsync(string cancelToken = null) =>
+            SupabaseSDK.RedeemWithdrawalCancelAsync(cancelToken);
+
+        /// <inheritdoc cref="SupabaseSDK.TryRedeemWithdrawalCancelAsync(string)"/>
+        public static Task<bool> TryRedeemWithdrawalCancelAsync(string cancelToken = null) =>
+            SupabaseSDK.TryRedeemWithdrawalCancelAsync(cancelToken);
+
+        /// <summary>로컬에 저장된 탈퇴 게이트 상태를 반환합니다(로그아웃 안내 UI용).</summary>
+        public static MyWithdrawalStatus GetStoredWithdrawalGateStatus() =>
+            SupabaseSDK.GetStoredWithdrawalGateStatus();
+
         /// <inheritdoc cref="SupabaseSDK.TrySetMyWithdrawnAtAsync"/>
         public static Task<bool> TrySetMyWithdrawnAtAsync(string withdrawnAtIsoUtc) =>
             SupabaseSDK.TrySetMyWithdrawnAtAsync(withdrawnAtIsoUtc);
@@ -328,6 +356,9 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>저장된 refresh_token으로 세션 복원 (내부 API).</summary>
         internal static Task<bool> RestoreSessionAsync() => SupabaseSDK.RestoreSessionAsync();
+
+        /// <summary>앱 시작 자동 로그인 정책(로그아웃/이전 계정 정보 여부)을 적용해 세션 복원을 시도합니다(내부 API).</summary>
+        internal static Task<bool> TryAutoLoginOnStartAsync() => SupabaseSDK.TryAutoLoginOnStartAsync();
 
         /// <inheritdoc cref="SupabaseSDK.TryRestoreSessionAsync"/>
         public static Task<bool> TryRestoreSessionAsync() => SupabaseSDK.TryRestoreSessionAsync();
