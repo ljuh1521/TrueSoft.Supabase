@@ -1788,75 +1788,6 @@ namespace Truesoft.Supabase.Unity
                           "}");
             #endregion
 
-            // 간헐적으로 오래된/무효 access token으로 401 Invalid JWT가 나오는 경우가 있어
-            // refresh_token으로 1회 갱신 후 재시도합니다.
-            if ((result == null || !result.IsSuccess) && IsInvalidJwtGuardError(result?.ErrorMessage))
-            {
-                var refreshToken = _currentSession?.RefreshToken;
-                #region agent log
-                WriteDebugLog(
-                    runId: guardRunId,
-                    hypothesisId: "H1_H5",
-                    location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:refresh_branch",
-                    message: "invalid jwt detected, try refresh",
-                    dataJson: "{" +
-                              "\"hasRefreshToken\":" + (!string.IsNullOrWhiteSpace(refreshToken) ? "true" : "false") + "," +
-                              "\"refreshTokenLength\":" + (refreshToken?.Length ?? 0) +
-                              "}");
-                #endregion
-
-                if (string.IsNullOrWhiteSpace(refreshToken) == false)
-                {
-                    var refreshed = await RefreshSessionAsync(refreshToken, saveSessionToStorage: true);
-                    #region agent log
-                    WriteDebugLog(
-                        runId: guardRunId,
-                        hypothesisId: "H1_H5",
-                        location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:refresh_result",
-                        message: "refresh result",
-                        dataJson: "{" +
-                                  "\"isSuccess\":" + (refreshed != null && refreshed.IsSuccess ? "true" : "false") + "," +
-                                  "\"error\":\"" + JsonEscape(refreshed?.ErrorMessage) + "\"" +
-                                  "}");
-                    #endregion
-                    if (refreshed != null && refreshed.IsSuccess && refreshed.Data != null)
-                    {
-                        var afterMeta = ReadJwtMeta(_currentSession?.AccessToken);
-                        #region agent log
-                        WriteDebugLog(
-                            runId: guardRunId,
-                            hypothesisId: "H1_H3",
-                            location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:after_refresh_meta",
-                            message: "after refresh token meta",
-                            dataJson: "{" +
-                                      "\"sessionExpiresAt\":" + _currentSession.ExpiresAt + "," +
-                                      "\"jwtIss\":\"" + JsonEscape(afterMeta.Iss) + "\"," +
-                                      "\"jwtAud\":\"" + JsonEscape(afterMeta.Aud) + "\"," +
-                                      "\"jwtSubMasked\":\"" + JsonEscape(afterMeta.SubMasked) + "\"," +
-                                      "\"jwtExp\":" + afterMeta.Exp +
-                                      "}");
-                        #endregion
-
-                        result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalGuardResponse>(
-                            _withdrawalGuardFunctionName,
-                            _currentSession?.AccessToken,
-                            new WithdrawalGuardRequest { trigger = "post_login_refresh_retry" });
-
-                        #region agent log
-                        WriteDebugLog(
-                            runId: guardRunId,
-                            hypothesisId: "H1_H2_H3_H5",
-                            location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:retry_result",
-                            message: "withdrawal guard retry result",
-                            dataJson: "{" +
-                                      "\"isSuccess\":" + (result != null && result.IsSuccess ? "true" : "false") + "," +
-                                      "\"error\":\"" + JsonEscape(result?.ErrorMessage) + "\"" +
-                                      "}");
-                        #endregion
-                    }
-                }
-            }
-
             if (result == null || !result.IsSuccess)
             {
                 Debug.LogWarning("[Supabase] withdrawal guard invoke failed: " + (result?.ErrorMessage ?? "unknown"));
@@ -1870,15 +1801,6 @@ namespace Truesoft.Supabase.Unity
             return data.deleted
                    || data.should_delete
                    || string.Equals(data.action, "deleted", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool IsInvalidJwtGuardError(string errorMessage)
-        {
-            if (string.IsNullOrWhiteSpace(errorMessage))
-                return false;
-
-            return errorMessage.IndexOf("http_401", StringComparison.OrdinalIgnoreCase) >= 0
-                   && errorMessage.IndexOf("invalid jwt", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static void WriteDebugLog(string runId, string hypothesisId, string location, string message, string dataJson)
