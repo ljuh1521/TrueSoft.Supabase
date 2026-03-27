@@ -455,6 +455,7 @@ namespace Truesoft.SupabaseUnity.Samples
         private async Task<bool> RunWithdrawalCancelRedeemExampleAsync()
         {
             // B 방식 샘플:
+            // • TryRequestMyWithdrawalAsync 직후에는 SDK가 로그아웃 전에 cancel_token을 저장하므로, 미로그인 상태에서도 Redeem 가능.
             // 1) 로그인 상태면 issue로 토큰 발급 후 세션 정리
             // 2) 저장된 토큰으로 redeem
             if (SupabaseClient.IsLoggedIn)
