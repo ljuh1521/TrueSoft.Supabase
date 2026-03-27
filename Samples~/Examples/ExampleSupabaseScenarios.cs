@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Unity;
@@ -454,6 +455,14 @@ namespace Truesoft.SupabaseUnity.Samples
 
         private async Task<bool> RunWithdrawalCancelRedeemExampleAsync()
         {
+            #region agent log
+            WriteDebugLog(
+                "run-2",
+                "H5",
+                "ExampleSupabaseScenarios.cs:457",
+                "redeem scenario enter",
+                "isLoggedIn=" + (SupabaseClient.IsLoggedIn ? "true" : "false"));
+            #endregion
             // B 방식 샘플:
             // • cancel_token은 탈퇴 예약 계정으로 로그인할 때 게이트에서 발급·저장됨(신청한 기기에만 묶이지 않음).
             // 1) 로그인 상태면 issue로 토큰 발급 후 세션 정리
@@ -461,6 +470,14 @@ namespace Truesoft.SupabaseUnity.Samples
             if (SupabaseClient.IsLoggedIn)
             {
                 var token = await SupabaseClient.TryRequestWithdrawalCancelTokenAsync(defaultValue: null);
+                #region agent log
+                WriteDebugLog(
+                    "run-2",
+                    "H5",
+                    "ExampleSupabaseScenarios.cs:470",
+                    "manual issue from sample",
+                    "tokenIssued=" + (string.IsNullOrWhiteSpace(token) ? "false" : "true"));
+                #endregion
                 if (string.IsNullOrWhiteSpace(token))
                 {
                     Debug.LogWarning("[Sample] withdrawal cancel issue failed (예약 중 계정인지 확인).");
@@ -471,11 +488,65 @@ namespace Truesoft.SupabaseUnity.Samples
                 Debug.Log("[Sample] withdrawal cancel token issued, session cleared. proceeding redeem...");
             }
 
+            var cached = SupabaseClient.GetStoredWithdrawalGateStatus();
+            #region agent log
+            WriteDebugLog(
+                "run-2",
+                "H5",
+                "ExampleSupabaseScenarios.cs:487",
+                "before redeem stored gate snapshot",
+                "hasWithdrawnAt=" + (string.IsNullOrWhiteSpace(cached?.WithdrawnAtIso) ? "false" : "true")
+                + ";isScheduled=" + ((cached != null && cached.IsScheduled) ? "true" : "false")
+                + ";remainSec=" + (cached == null ? "-1" : cached.SecondsRemaining.ToString()));
+            #endregion
             var ok = await SupabaseClient.TryRedeemWithdrawalCancelAsync();
+            #region agent log
+            WriteDebugLog(
+                "run-2",
+                "H5",
+                "ExampleSupabaseScenarios.cs:498",
+                "redeem result",
+                "ok=" + (ok ? "true" : "false"));
+            #endregion
             Debug.Log(ok
                 ? "[Sample] withdrawal cancel redeem success. now sign in again."
                 : "[Sample] withdrawal cancel redeem failed. token missing/expired or server not deployed.");
             return ok;
+        }
+
+        private static void WriteDebugLog(
+            string runId,
+            string hypothesisId,
+            string location,
+            string message,
+            string data)
+        {
+            try
+            {
+                var payload = "{\"sessionId\":\"a19a0d\",\"runId\":\"" + EscapeJson(runId)
+                    + "\",\"hypothesisId\":\"" + EscapeJson(hypothesisId)
+                    + "\",\"location\":\"" + EscapeJson(location)
+                    + "\",\"message\":\"" + EscapeJson(message)
+                    + "\",\"data\":\"" + EscapeJson(data)
+                    + "\",\"timestamp\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString() + "}";
+                File.AppendAllText("debug-a19a0d.log", payload + Environment.NewLine);
+            }
+            catch
+            {
+                // debug log best-effort
+            }
+        }
+
+        private static string EscapeJson(string value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
         }
 
         private async Task<bool> RunRemoteConfigExampleAsync()
