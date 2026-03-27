@@ -1075,6 +1075,19 @@ namespace Truesoft.Supabase.Unity
                 WithdrawalCancelRedeemFunctionName,
                 accessToken: null,
                 requestBody: new WithdrawalCancelRedeemRequest { cancel_token = token });
+            #region agent log
+            WriteDebugLog(
+                "run-2",
+                "H6",
+                "SupabaseSDK.cs:1070",
+                "redeem invoke result",
+                "isNull=" + (result == null ? "true" : "false")
+                + ";isSuccess=" + (result != null && result.IsSuccess ? "true" : "false")
+                + ";hasData=" + (result?.Data == null ? "false" : "true")
+                + ";error=" + (string.IsNullOrWhiteSpace(result?.ErrorMessage) ? "(none)" : result.ErrorMessage)
+                + ";ok=" + (result?.Data != null && result.Data.ok ? "true" : "false")
+                + ";reason=" + (string.IsNullOrWhiteSpace(result?.Data?.reason) ? "(none)" : result.Data.reason));
+            #endregion
 
             if (result == null || !result.IsSuccess || result.Data == null)
                 return SupabaseResult<bool>.Fail(result?.ErrorMessage ?? "withdrawal_cancel_redeem_failed");

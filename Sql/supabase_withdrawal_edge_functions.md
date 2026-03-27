@@ -79,6 +79,7 @@
 ## 3) `withdrawal-cancel-issue` (철회 토큰 발급)
 
 - 입력: `Authorization: Bearer <access_token>`
+- **대시보드(호스팅)**: `withdrawal-guard`와 동일하게 Edge Function의 게이트웨이 JWT 강제 옵션(`Verify JWT`/`Enforce JWT`)은 **꺼 두는 것을 권장**합니다. 켜져 있으면 함수 코드 실행 전에 `401 Invalid JWT`로 차단되어, SDK 게이트 로그인에서는 토큰 저장이 실패하고 이후 `withdrawal_cancel_token_empty`로 이어질 수 있습니다.
 - 발급 조건:
   - `profiles.withdrawn_at > now` (탈퇴 예약 진행 중)일 때만 발급
 - 출력:
