@@ -1729,6 +1729,24 @@ namespace Truesoft.Supabase.Unity
                 _currentSession.AccessToken,
                 new WithdrawalGuardRequest { trigger = "post_login" });
 
+            // 간헐적으로 오래된/무효 access token으로 401 Invalid JWT가 나오는 경우가 있어
+            // refresh_token으로 1회 갱신 후 재시도합니다.
+            if ((result == null || !result.IsSuccess) && IsInvalidJwtGuardError(result?.ErrorMessage))
+            {
+                var refreshToken = _currentSession?.RefreshToken;
+                if (string.IsNullOrWhiteSpace(refreshToken) == false)
+                {
+                    var refreshed = await RefreshSessionAsync(refreshToken, saveSessionToStorage: true);
+                    if (refreshed != null && refreshed.IsSuccess && refreshed.Data != null)
+                    {
+                        result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalGuardResponse>(
+                            _withdrawalGuardFunctionName,
+                            _currentSession?.AccessToken,
+                            new WithdrawalGuardRequest { trigger = "post_login_refresh_retry" });
+                    }
+                }
+            }
+
             if (result == null || !result.IsSuccess)
             {
                 Debug.LogWarning("[Supabase] withdrawal guard invoke failed: " + (result?.ErrorMessage ?? "unknown"));
@@ -1742,6 +1760,15 @@ namespace Truesoft.Supabase.Unity
             return data.deleted
                    || data.should_delete
                    || string.Equals(data.action, "deleted", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsInvalidJwtGuardError(string errorMessage)
+        {
+            if (string.IsNullOrWhiteSpace(errorMessage))
+                return false;
+
+            return errorMessage.IndexOf("http_401", StringComparison.OrdinalIgnoreCase) >= 0
+                   && errorMessage.IndexOf("invalid jwt", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static async Task<bool> TryRestoreSessionFromAnonymousRecoveryAsync()
