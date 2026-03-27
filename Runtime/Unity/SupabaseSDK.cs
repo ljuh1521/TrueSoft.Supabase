@@ -1862,26 +1862,46 @@ namespace Truesoft.Supabase.Unity
 
         private static void WriteDebugLog(string runId, string hypothesisId, string location, string message, string dataJson)
         {
+            var line = "{" +
+                       "\"sessionId\":\"a19a0d\"," +
+                       "\"runId\":\"" + JsonEscape(runId) + "\"," +
+                       "\"hypothesisId\":\"" + JsonEscape(hypothesisId) + "\"," +
+                       "\"location\":\"" + JsonEscape(location) + "\"," +
+                       "\"message\":\"" + JsonEscape(message) + "\"," +
+                       "\"data\":" + (string.IsNullOrWhiteSpace(dataJson) ? "{}" : dataJson) + "," +
+                       "\"timestamp\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() +
+                       "}";
+
+            // 1) Unity 콘솔: 패키지가 캐시 복사본이어도 복사본에 반영된 경우 항상 확인 가능
             try
             {
-                // Debug mode에서 지정된 고정 로그 경로로만 기록한다.
-                // (Unity의 Application.dataPath는 빌드/플레이 환경에 따라 달라질 수 있어 경로를 직접 못 박는다.)
-                var logPath = @"d:\Project\TrueSoft.Supabase\debug-a19a0d.log";
-                var line = "{" +
-                           "\"sessionId\":\"a19a0d\"," +
-                           "\"runId\":\"" + JsonEscape(runId) + "\"," +
-                           "\"hypothesisId\":\"" + JsonEscape(hypothesisId) + "\"," +
-                           "\"location\":\"" + JsonEscape(location) + "\"," +
-                           "\"message\":\"" + JsonEscape(message) + "\"," +
-                           "\"data\":" + (string.IsNullOrWhiteSpace(dataJson) ? "{}" : dataJson) + "," +
-                           "\"timestamp\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() +
-                           "}";
-                File.AppendAllText(logPath, line + Environment.NewLine, Encoding.UTF8);
+                Debug.Log("[SupabaseDebug][a19a0d] " + line);
             }
             catch
             {
-                // 디버그 로깅 실패도 본 흐름에 영향 주지 않지만, 원인을 Unity 콘솔에 표시합니다.
-                Debug.LogWarning("[Supabase] debug log write failed");
+                // ignore
+            }
+
+            // 2) 파일: persistentDataPath (권한/경로 문제가 가장 적음). 워크스페이스 루트는 플레이 환경에서 쓰기 불가할 수 있음.
+            try
+            {
+                var logPath = Path.Combine(Application.persistentDataPath, "debug-a19a0d.log");
+                File.AppendAllText(logPath, line + Environment.NewLine, Encoding.UTF8);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[Supabase] debug log file write failed: " + e.Message);
+            }
+
+            // 3) 개발 시 워크스페이스에도 남기면 Cursor에서 NDJSON 분석이 쉬움(가능할 때만).
+            try
+            {
+                var devLog = @"d:\Project\TrueSoft.Supabase\debug-a19a0d.log";
+                File.AppendAllText(devLog, line + Environment.NewLine, Encoding.UTF8);
+            }
+            catch
+            {
+                // ignore
             }
         }
 
