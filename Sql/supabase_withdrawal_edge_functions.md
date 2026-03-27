@@ -60,6 +60,7 @@
 ## 1) `withdrawal-guard` (로그인 직후 1회 호출)
 
 - 입력: `Authorization: Bearer <access_token>`
+- **대시보드(호스팅)**: Edge Function 설정에 **JWT 검증을 게이트웨이에서 강제**하는 옵션이 있다면(표기는 `Verify JWT` / `Enforce JWT` 등) **꺼 두는 것을 권장**합니다. 켜 두면 요청이 함수 코드에 도달하기 전에 JWT가 거절되어 `401 Invalid JWT`가 날 수 있고, 같은 토큰으로 REST RPC는 성공하는 불일치가 생길 수 있습니다. 이 템플릿은 함수 안에서 `createClient` + `auth.getUser()`로 사용자를 검증합니다.
 - 동작:
   - 본인 `profiles.withdrawn_at` 조회
   - `withdrawn_at <= now`이면 `account_closures` 기록 후 `auth.admin.deleteUser`
