@@ -93,6 +93,7 @@
 ## 4) `withdrawal-cancel-redeem` (철회 토큰 사용)
 
 - 입력(JSON): `{ "cancel_token": "..." }`
+- **대시보드(호스팅)**: 이 함수도 게이트웨이 JWT 강제 옵션(`Verify JWT`/`Enforce JWT`)을 **꺼 두는 것을 권장**합니다. B 방식은 로그아웃 상태에서 `cancel_token`만으로 호출하므로, 옵션이 켜져 있으면 `401 Missing authorization header`가 발생합니다.
 - 동작:
   - 토큰 검증(서명/만료/타입)
   - `profiles`에서 `account_id = token.sub`의 `withdrawn_at`를 `NULL`로 업데이트

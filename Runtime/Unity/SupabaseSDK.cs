@@ -1090,7 +1090,13 @@ namespace Truesoft.Supabase.Unity
             #endregion
 
             if (result == null || !result.IsSuccess || result.Data == null)
+            {
+                var err = result?.ErrorMessage ?? "withdrawal_cancel_redeem_failed";
+                if (err.IndexOf("Missing authorization header", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return SupabaseResult<bool>.Fail("withdrawal_cancel_redeem_verify_jwt_must_be_off");
+
                 return SupabaseResult<bool>.Fail(result?.ErrorMessage ?? "withdrawal_cancel_redeem_failed");
+            }
 
             if (!result.Data.ok)
                 return SupabaseResult<bool>.Fail(string.IsNullOrWhiteSpace(result.Data.reason) ? "withdrawal_cancel_redeem_failed" : result.Data.reason);
