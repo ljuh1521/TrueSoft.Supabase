@@ -1833,7 +1833,7 @@ namespace Truesoft.Supabase.Unity
                     + "\",\"message\":\"" + EscapeJson(message)
                     + "\",\"data\":\"" + EscapeJson(data)
                     + "\",\"timestamp\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString() + "}";
-                File.AppendAllText("debug-a19a0d.log", payload + Environment.NewLine);
+                File.AppendAllText("d:\\Project\\TrueSoft.Supabase\\debug-a19a0d.log", payload + Environment.NewLine);
             }
             catch
             {
