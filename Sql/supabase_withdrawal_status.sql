@@ -4,8 +4,11 @@
 -- 마지막 SELECT(Result 탭)로 함수 반영·GRANT 여부를 확인한다.
 --
 -- 재실행: CREATE OR REPLACE 로 정의가 항상 이 파일의 최종본으로 맞춰진다. GRANT·COMMENT 도 재실행해도 동일.
--- 반환 컬럼/인자 시그니처를 바꿀 때는 기존 함수와 충돌하면 드롭 후 재생성이 필요할 수 있다.
+-- 반환 컬럼 이름·순서·타입이 바뀌면 CREATE OR REPLACE 만으로는 갱신되지 않는다(42P13).
+-- 그 경우 아래 DROP 후 새 정의가 적용된다.
 -- =============================================================================
+
+drop function if exists public.ts_my_withdrawal_status();
 
 create or replace function public.ts_my_withdrawal_status()
 returns table(
