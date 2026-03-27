@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
@@ -1724,25 +1726,112 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(_withdrawalGuardFunctionName))
                 return false;
 
+            var guardRunId = Guid.NewGuid().ToString("N");
+            var beforeMeta = ReadJwtMeta(_currentSession.AccessToken);
+            var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            #region agent log
+            WriteDebugLog(
+                runId: guardRunId,
+                hypothesisId: "H1_H3_H4",
+                location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:before_invoke",
+                message: "withdrawal guard before invoke",
+                dataJson: "{" +
+                          "\"hasSession\":" + (_currentSession != null ? "true" : "false") + "," +
+                          "\"hasAccessToken\":" + (!string.IsNullOrWhiteSpace(_currentSession?.AccessToken) ? "true" : "false") + "," +
+                          "\"tokenLength\":" + (_currentSession?.AccessToken?.Length ?? 0) + "," +
+                          "\"sessionExpiresAt\":" + _currentSession.ExpiresAt + "," +
+                          "\"nowUnix\":" + nowUnix + "," +
+                          "\"tokenType\":\"" + JsonEscape(_currentSession.TokenType) + "\"," +
+                          "\"jwtIss\":\"" + JsonEscape(beforeMeta.Iss) + "\"," +
+                          "\"jwtAud\":\"" + JsonEscape(beforeMeta.Aud) + "\"," +
+                          "\"jwtSubMasked\":\"" + JsonEscape(beforeMeta.SubMasked) + "\"," +
+                          "\"jwtExp\":" + beforeMeta.Exp +
+                          "}");
+            #endregion
+
             var result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalGuardResponse>(
                 _withdrawalGuardFunctionName,
                 _currentSession.AccessToken,
                 new WithdrawalGuardRequest { trigger = "post_login" });
+
+            #region agent log
+            WriteDebugLog(
+                runId: guardRunId,
+                hypothesisId: "H1_H2_H3_H5",
+                location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:first_result",
+                message: "withdrawal guard first invoke result",
+                dataJson: "{" +
+                          "\"isSuccess\":" + (result != null && result.IsSuccess ? "true" : "false") + "," +
+                          "\"error\":\"" + JsonEscape(result?.ErrorMessage) + "\"," +
+                          "\"configuredProjectHost\":\"" + JsonEscape(TryGetHost(_initializedProjectUrl)) + "\"" +
+                          "}");
+            #endregion
 
             // 간헐적으로 오래된/무효 access token으로 401 Invalid JWT가 나오는 경우가 있어
             // refresh_token으로 1회 갱신 후 재시도합니다.
             if ((result == null || !result.IsSuccess) && IsInvalidJwtGuardError(result?.ErrorMessage))
             {
                 var refreshToken = _currentSession?.RefreshToken;
+                #region agent log
+                WriteDebugLog(
+                    runId: guardRunId,
+                    hypothesisId: "H1_H5",
+                    location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:refresh_branch",
+                    message: "invalid jwt detected, try refresh",
+                    dataJson: "{" +
+                              "\"hasRefreshToken\":" + (!string.IsNullOrWhiteSpace(refreshToken) ? "true" : "false") + "," +
+                              "\"refreshTokenLength\":" + (refreshToken?.Length ?? 0) +
+                              "}");
+                #endregion
+
                 if (string.IsNullOrWhiteSpace(refreshToken) == false)
                 {
                     var refreshed = await RefreshSessionAsync(refreshToken, saveSessionToStorage: true);
+                    #region agent log
+                    WriteDebugLog(
+                        runId: guardRunId,
+                        hypothesisId: "H1_H5",
+                        location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:refresh_result",
+                        message: "refresh result",
+                        dataJson: "{" +
+                                  "\"isSuccess\":" + (refreshed != null && refreshed.IsSuccess ? "true" : "false") + "," +
+                                  "\"error\":\"" + JsonEscape(refreshed?.ErrorMessage) + "\"" +
+                                  "}");
+                    #endregion
                     if (refreshed != null && refreshed.IsSuccess && refreshed.Data != null)
                     {
+                        var afterMeta = ReadJwtMeta(_currentSession?.AccessToken);
+                        #region agent log
+                        WriteDebugLog(
+                            runId: guardRunId,
+                            hypothesisId: "H1_H3",
+                            location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:after_refresh_meta",
+                            message: "after refresh token meta",
+                            dataJson: "{" +
+                                      "\"sessionExpiresAt\":" + _currentSession.ExpiresAt + "," +
+                                      "\"jwtIss\":\"" + JsonEscape(afterMeta.Iss) + "\"," +
+                                      "\"jwtAud\":\"" + JsonEscape(afterMeta.Aud) + "\"," +
+                                      "\"jwtSubMasked\":\"" + JsonEscape(afterMeta.SubMasked) + "\"," +
+                                      "\"jwtExp\":" + afterMeta.Exp +
+                                      "}");
+                        #endregion
+
                         result = await _bootstrap.EdgeFunctionsService.InvokeAsync<WithdrawalGuardResponse>(
                             _withdrawalGuardFunctionName,
                             _currentSession?.AccessToken,
                             new WithdrawalGuardRequest { trigger = "post_login_refresh_retry" });
+
+                        #region agent log
+                        WriteDebugLog(
+                            runId: guardRunId,
+                            hypothesisId: "H1_H2_H3_H5",
+                            location: "SupabaseSDK.ShouldDeleteCurrentAccountByWithdrawalGuardAsync:retry_result",
+                            message: "withdrawal guard retry result",
+                            dataJson: "{" +
+                                      "\"isSuccess\":" + (result != null && result.IsSuccess ? "true" : "false") + "," +
+                                      "\"error\":\"" + JsonEscape(result?.ErrorMessage) + "\"" +
+                                      "}");
+                        #endregion
                     }
                 }
             }
@@ -1769,6 +1858,142 @@ namespace Truesoft.Supabase.Unity
 
             return errorMessage.IndexOf("http_401", StringComparison.OrdinalIgnoreCase) >= 0
                    && errorMessage.IndexOf("invalid jwt", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static void WriteDebugLog(string runId, string hypothesisId, string location, string message, string dataJson)
+        {
+            try
+            {
+                var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+                if (string.IsNullOrWhiteSpace(projectRoot))
+                    return;
+
+                var logPath = Path.Combine(projectRoot, "debug-a19a0d.log");
+                var line = "{" +
+                           "\"sessionId\":\"a19a0d\"," +
+                           "\"runId\":\"" + JsonEscape(runId) + "\"," +
+                           "\"hypothesisId\":\"" + JsonEscape(hypothesisId) + "\"," +
+                           "\"location\":\"" + JsonEscape(location) + "\"," +
+                           "\"message\":\"" + JsonEscape(message) + "\"," +
+                           "\"data\":" + (string.IsNullOrWhiteSpace(dataJson) ? "{}" : dataJson) + "," +
+                           "\"timestamp\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() +
+                           "}";
+                File.AppendAllText(logPath, line + Environment.NewLine, Encoding.UTF8);
+            }
+            catch
+            {
+                // 디버그 로깅 실패는 본 흐름에 영향을 주지 않습니다.
+            }
+        }
+
+        private static string JsonEscape(string value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
+        }
+
+        private static string TryGetHost(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return string.Empty;
+
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? (uri.Host ?? string.Empty) : string.Empty;
+        }
+
+        private static JwtMeta ReadJwtMeta(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return JwtMeta.Empty;
+
+            try
+            {
+                var parts = token.Split('.');
+                if (parts.Length < 2)
+                    return JwtMeta.Empty;
+
+                var payloadJson = DecodeJwtBase64Url(parts[1]);
+                if (string.IsNullOrWhiteSpace(payloadJson))
+                    return JwtMeta.Empty;
+
+                var payload = JsonUtility.FromJson<JwtPayload>(payloadJson);
+                if (payload == null)
+                    return JwtMeta.Empty;
+
+                return new JwtMeta(
+                    payload.iss,
+                    payload.aud,
+                    Mask(payload.sub),
+                    payload.exp);
+            }
+            catch
+            {
+                return JwtMeta.Empty;
+            }
+        }
+
+        private static string DecodeJwtBase64Url(string base64Url)
+        {
+            if (string.IsNullOrWhiteSpace(base64Url))
+                return null;
+
+            var b64 = base64Url.Replace('-', '+').Replace('_', '/');
+            switch (b64.Length % 4)
+            {
+                case 2:
+                    b64 += "==";
+                    break;
+                case 3:
+                    b64 += "=";
+                    break;
+            }
+
+            var bytes = Convert.FromBase64String(b64);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        private static string Mask(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var trimmed = value.Trim();
+            if (trimmed.Length <= 8)
+                return "len:" + trimmed.Length;
+
+            return trimmed.Substring(0, 4) + "..." + trimmed.Substring(trimmed.Length - 4, 4);
+        }
+
+        [Serializable]
+        private sealed class JwtPayload
+        {
+            public string iss;
+            public string aud;
+            public string sub;
+            public long exp;
+        }
+
+        private readonly struct JwtMeta
+        {
+            public static readonly JwtMeta Empty = new(string.Empty, string.Empty, string.Empty, 0);
+
+            public JwtMeta(string iss, string aud, string subMasked, long exp)
+            {
+                Iss = iss ?? string.Empty;
+                Aud = aud ?? string.Empty;
+                SubMasked = subMasked ?? string.Empty;
+                Exp = exp;
+            }
+
+            public string Iss { get; }
+            public string Aud { get; }
+            public string SubMasked { get; }
+            public long Exp { get; }
         }
 
         private static async Task<bool> TryRestoreSessionFromAnonymousRecoveryAsync()
