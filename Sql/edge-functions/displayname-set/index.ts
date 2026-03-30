@@ -57,7 +57,8 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
-  const userRes = await userClient.auth.getUser();
+  // JWT를 인자로 넘겨야 하며, 전역 헤더만으로는 auth.updateUser()에 세션이 생기지 않아 "Auth session missing!"이 난다.
+  const userRes = await userClient.auth.getUser(jwt);
   const user = userRes.data.user;
   if (!user) {
     return new Response(
@@ -88,8 +89,20 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 2) sync auth user metadata
-  const upd = await userClient.auth.updateUser({ data: { displayName } });
+  // 2) sync auth user_metadata.displayName (세션 없이 userClient.auth.updateUser는 실패하므로 service role로 병합 갱신)
+  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const existing = await adminClient.auth.admin.getUserById(user.id);
+  if (existing.error || !existing.data?.user) {
+    return new Response(
+      JSON.stringify({ ok: false, reason: existing.error?.message ?? "auth_admin_get_user_failed" } satisfies SetResponse),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const prevMeta = (existing.data.user.user_metadata ?? {}) as Record<string, unknown>;
+  const merged = { ...prevMeta, displayName };
+  const upd = await adminClient.auth.admin.updateUserById(user.id, { user_metadata: merged });
   if (upd.error) {
     return new Response(
       JSON.stringify({ ok: false, reason: upd.error.message } satisfies SetResponse),
