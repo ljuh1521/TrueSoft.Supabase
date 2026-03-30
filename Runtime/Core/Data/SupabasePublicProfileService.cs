@@ -11,7 +11,7 @@ namespace Truesoft.Supabase.Core.Data
     /// 공개 프로필(soft 탈퇴 시각) 및 표시 이름(displayName) 관련 API.
     /// - DB: <c>profiles</c> (user_id / account_id / withdrawn_at)
     /// - 표시 이름: Edge Function <c>displayname-get</c> (내부적으로 <c>display_names</c> 테이블 사용)
-    /// - 유니크 강제: <c>display_names</c>의 unique index (lower(trim(display_name)))
+    /// - 유니크 강제: <c>display_names</c>의 unique index (<c>server_id</c>, lower(trim(display_name)))
     /// </summary>
     public sealed class SupabasePublicProfileService
     {
@@ -24,6 +24,7 @@ namespace Truesoft.Supabase.Core.Data
         private readonly string _publishableKey;
         private readonly string _profilesTable;
         private readonly string _displayNamesTable;
+        private readonly string _defaultServerCode;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
 
@@ -33,7 +34,8 @@ namespace Truesoft.Supabase.Core.Data
             ISupabaseHttpClient httpClient,
             ISupabaseJsonSerializer jsonSerializer,
             string profilesTable = "profiles",
-            string displayNamesTable = "display_names")
+            string displayNamesTable = "display_names",
+            string defaultServerCode = "GLOBAL")
         {
             _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
             _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
@@ -41,14 +43,18 @@ namespace Truesoft.Supabase.Core.Data
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
             _profilesTable = SupabaseRestTableRef.Normalize(profilesTable, nameof(profilesTable));
             _displayNamesTable = SupabaseRestTableRef.Normalize(displayNamesTable, nameof(displayNamesTable));
+            _defaultServerCode = string.IsNullOrWhiteSpace(defaultServerCode) ? "GLOBAL" : defaultServerCode.Trim();
         }
 
         /// <summary>
-        /// 로그인 없이 publishable key만으로 표시 이름을 조회합니다.
+        /// 로그인 세션 기준(동일 서버)으로 표시 이름을 조회합니다.
         /// Edge Function <c>displayname-get</c>를 호출하며, <paramref name="playerUserId"/>는 <c>profiles.user_id</c>(안정 플레이어 id)입니다.
         /// </summary>
-        public async Task<SupabaseResult<string>> GetDisplayNameAsync(string playerUserId)
+        public async Task<SupabaseResult<string>> GetDisplayNameAsync(string accessToken, string playerUserId)
         {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<string>.Fail("access_token_empty");
+
             if (string.IsNullOrWhiteSpace(playerUserId))
                 return SupabaseResult<string>.Fail("player_user_id_empty");
 
@@ -60,7 +66,7 @@ namespace Truesoft.Supabase.Core.Data
                 method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateAnonHeaders());
+                headers: CreateUserHeaders(accessToken, prefer: null));
 
             if (response == null)
                 return SupabaseResult<string>.Fail("http_response_null");
@@ -83,13 +89,17 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// displayName이 사용 가능한지 조회합니다(공개).
+        /// displayName이 사용 가능한지 조회합니다(현재 로그인 서버 기준).
         /// 로그인 후 본인이 이미 같은 이름을 쓰는 경우(수정 화면 등)에는 <paramref name="ignoreAccountIdForSelf"/>에 현재 <c>auth.uid()</c>(세션의 사용자 id)를 넘기면 사용 가능으로 처리합니다.
         /// </summary>
         public async Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(
+            string accessToken,
             string displayName,
             string ignoreAccountIdForSelf = null)
         {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+
             var norm = NormalizeDisplayName(displayName);
             if (norm.Length == 0)
                 return SupabaseResult<bool>.Fail("display_name_empty");
@@ -106,7 +116,7 @@ namespace Truesoft.Supabase.Core.Data
                 method: "GET",
                 url: url,
                 jsonBody: null,
-                headers: CreateAnonHeaders());
+                headers: CreateUserHeaders(accessToken, prefer: null));
 
             if (response == null)
                 return SupabaseResult<bool>.Fail("http_response_null");
@@ -188,8 +198,11 @@ namespace Truesoft.Supabase.Core.Data
         /// 공개 프로필 한 행을 조회합니다. <paramref name="playerUserId"/>는 <c>profiles.user_id</c>입니다.
         /// 행이 없으면 displayName·탈퇴 시각은 비어 있는 스냅샷을 반환합니다.
         /// </summary>
-        public async Task<SupabaseResult<PublicProfileSnapshot>> GetProfileAsync(string playerUserId)
+        public async Task<SupabaseResult<PublicProfileSnapshot>> GetProfileAsync(string accessToken, string playerUserId)
         {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<PublicProfileSnapshot>.Fail("access_token_empty");
+
             if (string.IsNullOrWhiteSpace(playerUserId))
                 return SupabaseResult<PublicProfileSnapshot>.Fail("player_user_id_empty");
 
@@ -205,7 +218,7 @@ namespace Truesoft.Supabase.Core.Data
                 method: "GET",
                 url: url,
                 jsonBody: null,
-                headers: CreateAnonHeaders());
+                headers: CreateUserHeaders(accessToken, prefer: null));
 
             if (response == null)
                 return SupabaseResult<PublicProfileSnapshot>.Fail("http_response_null");
@@ -218,7 +231,7 @@ namespace Truesoft.Supabase.Core.Data
                 var rows = _jsonSerializer.FromJsonArray<ProfileRowFull>(response.Body);
                 if (rows == null || rows.Length == 0 || rows[0] == null)
                 {
-                    var displayNameWhenNoProfile = await GetDisplayNameAsync(id);
+                    var displayNameWhenNoProfile = await GetDisplayNameAsync(accessToken, id);
                     var resolvedName = (displayNameWhenNoProfile != null && displayNameWhenNoProfile.IsSuccess)
                         ? (displayNameWhenNoProfile.Data ?? string.Empty)
                         : string.Empty;
@@ -232,7 +245,7 @@ namespace Truesoft.Supabase.Core.Data
 
                 var rowId = string.IsNullOrWhiteSpace(row.id) ? string.Empty : row.id.Trim();
                 var stable = string.IsNullOrWhiteSpace(row.user_id) ? id : row.user_id.Trim();
-                var displayNameWhenProfile = await GetDisplayNameAsync(stable);
+                var displayNameWhenProfile = await GetDisplayNameAsync(accessToken, stable);
                 var displayName = (displayNameWhenProfile != null && displayNameWhenProfile.IsSuccess)
                     ? (displayNameWhenProfile.Data ?? string.Empty)
                     : string.Empty;
@@ -288,6 +301,82 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "profile_upsert_failed");
 
             return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <summary>현재 로그인 계정의 서버 식별자를 조회합니다.</summary>
+        public async Task<SupabaseResult<MyServerInfo>> GetMyServerIdAsync(string accessToken)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<MyServerInfo>.Fail("access_token_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_my_server_id";
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: "{}",
+                headers: CreateUserHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<MyServerInfo>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<MyServerInfo>.Fail(response.ErrorMessage ?? response.Body ?? "my_server_fetch_failed");
+
+            try
+            {
+                var rows = _jsonSerializer.FromJsonArray<MyServerInfoRow>(response.Body);
+                if (rows == null || rows.Length == 0 || rows[0] == null || string.IsNullOrWhiteSpace(rows[0].server_id))
+                    return SupabaseResult<MyServerInfo>.Fail("my_server_not_found");
+
+                return SupabaseResult<MyServerInfo>.Success(new MyServerInfo(
+                    rows[0].server_id.Trim(),
+                    string.IsNullOrWhiteSpace(rows[0].server_code) ? _defaultServerCode : rows[0].server_code.Trim()));
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<MyServerInfo>.Fail("my_server_parse_exception:" + e.Message);
+            }
+        }
+
+        /// <summary>현재 로그인 계정을 지정 서버 코드로 이주시킵니다.</summary>
+        public async Task<SupabaseResult<bool>> TransferMyServerAsync(string accessToken, string targetServerCode, string reason = null)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+            if (string.IsNullOrWhiteSpace(targetServerCode))
+                return SupabaseResult<bool>.Fail("target_server_code_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_transfer_my_server";
+            var body = _jsonSerializer.ToJson(new TransferServerRequest
+            {
+                p_target_server_code = targetServerCode.Trim(),
+                p_reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
+            });
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: body,
+                headers: CreateUserHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+            if (response.IsSuccess == false)
+                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "server_transfer_failed");
+
+            try
+            {
+                var rows = _jsonSerializer.FromJsonArray<TransferServerRow>(response.Body);
+                if (rows == null || rows.Length == 0 || rows[0] == null)
+                    return SupabaseResult<bool>.Fail("server_transfer_result_empty");
+                if (!rows[0].ok)
+                    return SupabaseResult<bool>.Fail(string.IsNullOrWhiteSpace(rows[0].reason) ? "server_transfer_failed" : rows[0].reason.Trim());
+                return SupabaseResult<bool>.Success(true);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<bool>.Fail("server_transfer_parse_exception:" + e.Message);
+            }
         }
 
         /// <summary>
@@ -476,6 +565,28 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class DisplayNameGetRequest
         {
             public string user_id;
+        }
+
+        [Serializable]
+        private sealed class MyServerInfoRow
+        {
+            public string server_id;
+            public string server_code;
+        }
+
+        [Serializable]
+        private sealed class TransferServerRequest
+        {
+            public string p_target_server_code;
+            public string p_reason;
+        }
+
+        [Serializable]
+        private sealed class TransferServerRow
+        {
+            public bool ok;
+            public string reason;
+            public string target_server_id;
         }
 
         [Serializable]

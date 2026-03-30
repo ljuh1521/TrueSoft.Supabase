@@ -166,6 +166,22 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(string displayName) =>
             SupabaseSDK.IsDisplayNameAvailableAsync(displayName);
 
+        /// <summary>현재 로그인 계정을 지정 서버 코드로 이주시킵니다.</summary>
+        public static Task<SupabaseResult<bool>> TransferMyServerAsync(string targetServerCode, string reason = null) =>
+            SupabaseSDK.TransferMyServerAsync(targetServerCode, reason);
+
+        /// <inheritdoc cref="SupabaseSDK.TryTransferMyServerAsync"/>
+        public static Task<bool> TryTransferMyServerAsync(string targetServerCode, string reason = null) =>
+            SupabaseSDK.TryTransferMyServerAsync(targetServerCode, reason);
+
+        /// <summary>로컬에 선택한 서버 코드를 저장합니다.</summary>
+        public static void SetCurrentServerCode(string serverCode) =>
+            SupabaseSDK.SetCurrentServerCode(serverCode);
+
+        /// <summary>로컬에 저장된 현재 서버 코드를 반환합니다.</summary>
+        public static string GetCurrentServerCode() =>
+            SupabaseSDK.GetCurrentServerCode();
+
         /// <inheritdoc cref="SupabaseSDK.TryGetPublicProfileAsync"/>
         public static Task<PublicProfileSnapshot> TryGetPublicProfileAsync(string userId) =>
             SupabaseSDK.TryGetPublicProfileAsync(userId);

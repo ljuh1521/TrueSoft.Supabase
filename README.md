@@ -165,6 +165,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
+- **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync` (단일 프로젝트 내 `server_id` 격리)
 - **로그아웃**: `TrySignOutFullyAsync` — Android에서는 네이티브 Google 로그아웃을 시도한 뒤 Supabase `SignOutAsync`와 동일 처리(익명이면 복구용 upsert 후 로컬 정리). `TrySignOutAsync`만 쓰면 Google 계정 선택기 상태는 그대로일 수 있습니다.
 - **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 `anonymous_recovery_tokens`에서 현재 기기 지문 행을 best-effort 삭제합니다(`Sql/supabase_player_tables.sql`의 `ts_anon_recovery_delete_by_fingerprint` 필요).
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
@@ -232,6 +233,7 @@ var balance = Supabase.GetRemoteConfig<int>(\"game_balance\", 0);
 - 연동은 자동으로 수행하지 않고, **별도 버튼 UX**에서만 호출하는 것을 권장합니다.
 - 익명 세션에서 일반 `TrySignInWithGoogleAsync` / `TrySignInWithGoogleIdTokenAsync`를 호출하면 실패(`anonymous_session_requires_explicit_link`)합니다.
 - Google 등 비익명으로 이미 로그인된 상태에서 `TrySignInAnonymouslyAsync`를 호출하면 실패(`signed_in_non_anonymous_sign_out_first`)합니다. 먼저 `TrySignOutFullyAsync` 등으로 로그아웃하세요.
+- 공개 프로필/닉네임 조회(`TryGetPublicProfileAsync`, `TryGetPublicDisplayNameAsync`, `TryIsDisplayNameAvailableAsync`)는 `server_id` 격리 정책상 로그인 세션이 필요합니다.
 - 익명 세션 연동은 `TryLinkGoogleToCurrentAnonymousAsync`(또는 ID 토큰 버전)를 사용하세요.
 - 연동 성공 시에는 같은 `auth.users.id`를 유지하면서 `is_anonymous`가 false가 되어야 합니다.
 - 연동하려는 Google 계정이 이미 다른 사용자에 연결되어 있으면 연동은 실패하며, 현재 익명 세션은 유지됩니다.

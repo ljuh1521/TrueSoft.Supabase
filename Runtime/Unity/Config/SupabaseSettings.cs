@@ -44,6 +44,10 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("공개 프로필 테이블 (권장: id UUID PK, user_id text, account_id uuid, withdrawn_at timestamptz). RLS로 누구나 SELECT, 본인만 INSERT/UPDATE.")]
         public string publicProfilesTable = "profiles";
 
+        [Header("Server Shard (서버 샤드)")]
+        [Tooltip("로그인 후 기본으로 묶을 서버 코드(예: GLOBAL, KR1). Sql/supabase_player_tables.sql의 game_servers.server_code와 동일해야 합니다.")]
+        public string defaultServerCode = "GLOBAL";
+
         [Header("Duplicate login (중복 로그인)")]
         [Tooltip("켜면 user_sessions 테이블을 폴링해 다른 기기에서 같은 계정으로 로그인했을 때 이 기기에서 세션을 끊고 OnDuplicateLoginDetected를 호출합니다. Sql/supabase_player_tables.sql에 user_sessions가 있어야 합니다.")]
         public bool enableDuplicateSessionMonitor = true;
@@ -82,6 +86,7 @@ namespace Truesoft.Supabase.Unity
                 ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
                 PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim(),
                 UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim(),
+                DefaultServerCode = string.IsNullOrWhiteSpace(defaultServerCode) ? "GLOBAL" : defaultServerCode.Trim(),
                 DuplicateSessionActionCheckCooldownSeconds = duplicateSessionActionCheckCooldownSeconds < 0f
                     ? 0f
                     : duplicateSessionActionCheckCooldownSeconds,

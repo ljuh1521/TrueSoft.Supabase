@@ -25,6 +25,7 @@ namespace Truesoft.Supabase.Unity
         private const string RefreshTokenKey = "Truesoft.Supabase.RefreshToken";
         private const string LastSignInMethodKey = "Truesoft.Supabase.LastSignInMethod";
         private const string AutoLoginBlockedKey = "Truesoft.Supabase.AutoLoginBlocked";
+        private const string CurrentServerCodeKey = "Truesoft.Supabase.CurrentServerCode";
         private const string WithdrawalCancelTokenKey = "Truesoft.Supabase.WithdrawalCancelToken";
         private const string WithdrawalCancelTokenExpiresAtKey = "Truesoft.Supabase.WithdrawalCancelTokenExpiresAt";
         private const string WithdrawalGateDisplayNameKey = "Truesoft.Supabase.WithdrawalGateDisplayName";
@@ -135,6 +136,7 @@ namespace Truesoft.Supabase.Unity
             public const string ProfilePublicDisplayNameGet = "Supabase.Profile.DisplayName.Get";
             public const string ProfileMyDisplayNameSet = "Supabase.Profile.DisplayName.Set";
             public const string ProfileDisplayNameAvailable = "Supabase.Profile.DisplayName.Available";
+            public const string ProfileServerTransfer = "Supabase.Profile.Server.Transfer";
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
             public const string ProfileWithdrawnRequest = "Supabase.Profile.Withdrawn.Request";
@@ -941,17 +943,16 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 로그인 없이 다른 사용자의 공개 displayName을 조회합니다. <paramref name="userId"/>는 DB <c>profiles.user_id</c>(OAuth <c>sub</c> 등 안정 id)입니다.
+        /// 다른 사용자의 공개 displayName을 조회합니다. <paramref name="userId"/>는 DB <c>profiles.user_id</c>(OAuth <c>sub</c> 등 안정 id)입니다.
+        /// 서버 단절 정책상 로그인 세션이 필요합니다.
         /// </summary>
         public static async Task<SupabaseResult<string>> GetPublicDisplayNameAsync(string userId)
         {
-            if (!await EnsureInitializedAsync())
-                return SupabaseResult<string>.Fail("sdk_not_initialized");
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<string>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            if (_bootstrap?.PublicProfileService == null)
-                return SupabaseResult<string>.Fail("sdk_not_initialized");
-
-            return await _bootstrap.PublicProfileService.GetDisplayNameAsync(userId);
+            return await _bootstrap.PublicProfileService.GetDisplayNameAsync(_currentSession.AccessToken, userId);
         }
 
         /// <summary>현재 로그인 사용자의 displayName을 설정합니다(유니크 강제 + auth metadata 동기화).</summary>
@@ -1002,14 +1003,12 @@ namespace Truesoft.Supabase.Unity
         /// <summary>displayName이 사용 가능한지 조회합니다(유니크 체크). 로그인 중이면 현재 계정이 이미 쓰는 이름은 사용 가능으로 처리합니다.</summary>
         public static async Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(string displayName)
         {
-            if (!await EnsureInitializedAsync())
-                return SupabaseResult<bool>.Fail("sdk_not_initialized");
-
-            if (_bootstrap?.PublicProfileService == null)
-                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
             var selfAccountId = _currentSession?.User?.Id;
-            return await _bootstrap.PublicProfileService.IsDisplayNameAvailableAsync(displayName, selfAccountId);
+            return await _bootstrap.PublicProfileService.IsDisplayNameAvailableAsync(_currentSession.AccessToken, displayName, selfAccountId);
         }
 
         /// <inheritdoc cref="IsDisplayNameAvailableAsync"/>
@@ -1030,16 +1029,59 @@ namespace Truesoft.Supabase.Unity
             return r.Data;
         }
 
+        /// <summary>로컬에 선택된 서버 코드를 저장합니다(예: GLOBAL, KR1). 다음 로그인/복구 흐름에서 사용됩니다.</summary>
+        public static void SetCurrentServerCode(string serverCode)
+        {
+            if (string.IsNullOrWhiteSpace(serverCode))
+                return;
+
+            PlayerPrefs.SetString(CurrentServerCodeKey, serverCode.Trim());
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>현재 로컬에 선택된 서버 코드. 없으면 설정 기본값(<c>SupabaseSettings.defaultServerCode</c>)을 반환합니다.</summary>
+        public static string GetCurrentServerCode()
+        {
+            var local = PlayerPrefs.GetString(CurrentServerCodeKey, null);
+            if (string.IsNullOrWhiteSpace(local) == false)
+                return local.Trim();
+
+            var fromSettings = _bootstrap?.DefaultServerCode;
+            return string.IsNullOrWhiteSpace(fromSettings) ? "GLOBAL" : fromSettings.Trim();
+        }
+
+        /// <summary>현재 로그인 계정을 지정 서버 코드로 이주시킵니다.</summary>
+        public static async Task<SupabaseResult<bool>> TransferMyServerAsync(string targetServerCode, string reason = null)
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            var svc = _bootstrap?.PublicProfileService;
+            if (svc == null)
+                return SupabaseResult<bool>.Fail("sdk_not_initialized");
+
+            var r = await svc.TransferMyServerAsync(_currentSession.AccessToken, targetServerCode, reason);
+            if (r != null && r.IsSuccess && string.IsNullOrWhiteSpace(targetServerCode) == false)
+                SetCurrentServerCode(targetServerCode);
+            return r;
+        }
+
+        /// <inheritdoc cref="TransferMyServerAsync"/>
+        public static async Task<bool> TryTransferMyServerAsync(string targetServerCode, string reason = null)
+        {
+            var r = await TransferMyServerAsync(targetServerCode, reason);
+            return LogAndReturn(ApiLogTags.ProfileServerTransfer, r);
+        }
+
         /// <summary>공개 프로필(닉네임·탈퇴 시각)을 한 번에 조회합니다. <paramref name="userId"/>는 <c>profiles.user_id</c>(안정 플레이어 id)입니다.</summary>
         public static async Task<SupabaseResult<PublicProfileSnapshot>> GetPublicProfileAsync(string userId)
         {
-            if (!await EnsureInitializedAsync())
-                return SupabaseResult<PublicProfileSnapshot>.Fail("sdk_not_initialized");
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<PublicProfileSnapshot>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            if (_bootstrap?.PublicProfileService == null)
-                return SupabaseResult<PublicProfileSnapshot>.Fail("sdk_not_initialized");
-
-            return await _bootstrap.PublicProfileService.GetProfileAsync(userId);
+            return await _bootstrap.PublicProfileService.GetProfileAsync(_currentSession.AccessToken, userId);
         }
 
         /// <inheritdoc cref="GetPublicProfileAsync"/>
@@ -2014,7 +2056,7 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(fingerprintHash))
                 return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
 
-            var tokenResult = await svc.TryGetRefreshTokenByFingerprintAsync(fingerprintHash);
+            var tokenResult = await svc.TryGetRefreshTokenByFingerprintAsync(fingerprintHash, GetCurrentServerCode());
             if (tokenResult == null || tokenResult.IsSuccess == false || string.IsNullOrWhiteSpace(tokenResult.Data))
                 return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
 
@@ -2061,7 +2103,8 @@ namespace Truesoft.Supabase.Unity
                 _ = await svc.UpsertRefreshTokenByFingerprintAsync(
                     fingerprintHash,
                     session.RefreshToken,
-                    session.User.Id);
+                    session.User.Id,
+                    GetCurrentServerCode());
             }
             catch
             {
@@ -2081,7 +2124,7 @@ namespace Truesoft.Supabase.Unity
 
             try
             {
-                _ = await svc.DeleteByFingerprintAsync(fingerprintHash);
+                _ = await svc.DeleteByFingerprintAsync(fingerprintHash, GetCurrentServerCode());
             }
             catch
             {
@@ -2106,7 +2149,25 @@ namespace Truesoft.Supabase.Unity
             {
                 var r = await svc.EnsureMyProfileRowAsync(s.AccessToken, s.User.Id, s.User.PlayerUserId);
                 if (r == null || !r.IsSuccess)
+                {
                     Debug.LogWarning("[Supabase] ensure profile row failed: " + (r?.ErrorMessage ?? "unknown"));
+                    return;
+                }
+
+                var selectedCode = GetCurrentServerCode();
+                if (string.IsNullOrWhiteSpace(selectedCode))
+                    return;
+
+                var mine = await svc.GetMyServerIdAsync(s.AccessToken);
+                if (mine == null || !mine.IsSuccess || mine.Data.ServerCode.Length == 0)
+                    return;
+
+                if (string.Equals(mine.Data.ServerCode, selectedCode, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                var moved = await svc.TransferMyServerAsync(s.AccessToken, selectedCode, "sdk_signin_server_sync");
+                if (moved == null || !moved.IsSuccess)
+                    Debug.LogWarning("[Supabase] server transfer after sign-in failed: " + (moved?.ErrorMessage ?? "unknown"));
             }
             catch (Exception e)
             {

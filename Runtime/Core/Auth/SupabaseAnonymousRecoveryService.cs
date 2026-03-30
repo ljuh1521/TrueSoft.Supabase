@@ -31,7 +31,7 @@ namespace Truesoft.Supabase.Core.Auth
         /// <summary>
         /// RPC <c>ts_anon_recovery_get_refresh_token</c>을 호출해 복구용 refresh_token을 조회합니다.
         /// </summary>
-        public async Task<SupabaseResult<string>> TryGetRefreshTokenByFingerprintAsync(string fingerprintHash)
+        public async Task<SupabaseResult<string>> TryGetRefreshTokenByFingerprintAsync(string fingerprintHash, string serverCode = null)
         {
             if (string.IsNullOrWhiteSpace(fingerprintHash))
                 return SupabaseResult<string>.Fail("fingerprint_hash_empty");
@@ -39,7 +39,8 @@ namespace Truesoft.Supabase.Core.Auth
             var url = $"{_supabaseUrl}/rest/v1/rpc/ts_anon_recovery_get_refresh_token";
             var body = _jsonSerializer.ToJson(new GetRequest
             {
-                p_fingerprint_hash = fingerprintHash.Trim()
+                p_fingerprint_hash = fingerprintHash.Trim(),
+                p_server_code = string.IsNullOrWhiteSpace(serverCode) ? null : serverCode.Trim()
             });
 
             var response = await _httpClient.SendAsync(
@@ -72,7 +73,8 @@ namespace Truesoft.Supabase.Core.Auth
         public async Task<SupabaseResult<bool>> UpsertRefreshTokenByFingerprintAsync(
             string fingerprintHash,
             string refreshToken,
-            string accountId)
+            string accountId,
+            string serverCode = null)
         {
             if (string.IsNullOrWhiteSpace(fingerprintHash))
                 return SupabaseResult<bool>.Fail("fingerprint_hash_empty");
@@ -85,7 +87,8 @@ namespace Truesoft.Supabase.Core.Auth
             {
                 p_fingerprint_hash = fingerprintHash.Trim(),
                 p_refresh_token = refreshToken.Trim(),
-                p_account_id = string.IsNullOrWhiteSpace(accountId) ? null : accountId.Trim()
+                p_account_id = string.IsNullOrWhiteSpace(accountId) ? null : accountId.Trim(),
+                p_server_code = string.IsNullOrWhiteSpace(serverCode) ? null : serverCode.Trim()
             });
 
             var response = await _httpClient.SendAsync(
@@ -106,7 +109,7 @@ namespace Truesoft.Supabase.Core.Auth
         /// <summary>
         /// RPC <c>ts_anon_recovery_delete_by_fingerprint</c>으로 해당 지문 행을 삭제합니다(익명→OAuth 연동 후 정리용).
         /// </summary>
-        public async Task<SupabaseResult<bool>> DeleteByFingerprintAsync(string fingerprintHash)
+        public async Task<SupabaseResult<bool>> DeleteByFingerprintAsync(string fingerprintHash, string serverCode = null)
         {
             if (string.IsNullOrWhiteSpace(fingerprintHash))
                 return SupabaseResult<bool>.Fail("fingerprint_hash_empty");
@@ -114,7 +117,8 @@ namespace Truesoft.Supabase.Core.Auth
             var url = $"{_supabaseUrl}/rest/v1/rpc/ts_anon_recovery_delete_by_fingerprint";
             var body = _jsonSerializer.ToJson(new DeleteRequest
             {
-                p_fingerprint_hash = fingerprintHash.Trim()
+                p_fingerprint_hash = fingerprintHash.Trim(),
+                p_server_code = string.IsNullOrWhiteSpace(serverCode) ? null : serverCode.Trim()
             });
 
             var response = await _httpClient.SendAsync(
@@ -150,12 +154,14 @@ namespace Truesoft.Supabase.Core.Auth
         private sealed class GetRequest
         {
             public string p_fingerprint_hash;
+            public string p_server_code;
         }
 
         [Serializable]
         private sealed class DeleteRequest
         {
             public string p_fingerprint_hash;
+            public string p_server_code;
         }
 
         [Serializable]
@@ -164,6 +170,7 @@ namespace Truesoft.Supabase.Core.Auth
             public string p_fingerprint_hash;
             public string p_refresh_token;
             public string p_account_id;
+            public string p_server_code;
         }
 
         [Serializable]

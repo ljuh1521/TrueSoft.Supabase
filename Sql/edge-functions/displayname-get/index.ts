@@ -14,6 +14,17 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 Deno.serve(async (req) => {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const jwt = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : "";
+  if (!jwt) {
+    return new Response(
+      JSON.stringify({ ok: false, reason: "missing_jwt" } satisfies GetResponse),
+      { status: 401, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   let body: GetRequest | null = null;
   try {
     body = await req.json();
@@ -29,12 +40,38 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 공개 함수: anon key로 display_names에서 조회 (RLS: select public)
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+  });
+
+  const me = await client.auth.getUser(jwt);
+  const accountId = me.data.user?.id;
+  if (!accountId) {
+    return new Response(
+      JSON.stringify({ ok: false, reason: "user_not_found" } satisfies GetResponse),
+      { status: 401, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  const myProfile = await client
+    .from("profiles")
+    .select("server_id")
+    .eq("account_id", accountId)
+    .limit(1)
+    .maybeSingle();
+
+  if (myProfile.error || !myProfile.data?.server_id) {
+    return new Response(
+      JSON.stringify({ ok: false, reason: myProfile.error?.message ?? "server_id_not_found" } satisfies GetResponse),
+      { status: 409, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const res = await client
     .from("display_names")
     .select("display_name")
     .eq("user_id", userId)
+    .eq("server_id", myProfile.data.server_id)
     .limit(1)
     .maybeSingle();
 

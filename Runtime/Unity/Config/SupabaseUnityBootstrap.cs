@@ -42,6 +42,7 @@ namespace Truesoft.Supabase.Unity.Config
 
         /// <summary><see cref="SupabaseSettings.applyAnonymousDisplayNameOnNewGoogleSignUp"/>.</summary>
         public bool ApplyAnonymousDisplayNameOnNewGoogleSignUp { get; private set; } = true;
+        public string DefaultServerCode { get; private set; } = "GLOBAL";
 
         public void Initialize(SupabaseSettings settings)
         {
@@ -87,7 +88,9 @@ namespace Truesoft.Supabase.Unity.Config
                 options.PublishableKey,
                 http,
                 json,
-                options.PublicProfilesTable);
+                options.PublicProfilesTable,
+                displayNamesTable: "display_names",
+                defaultServerCode: options.DefaultServerCode);
 
             EdgeFunctionsService = new SupabaseEdgeFunctionsService(
                 options.ProjectURL,
@@ -123,6 +126,7 @@ namespace Truesoft.Supabase.Unity.Config
                 ? "withdrawal-guard"
                 : options.WithdrawalGuardFunctionName.Trim();
             ApplyAnonymousDisplayNameOnNewGoogleSignUp = options.ApplyAnonymousDisplayNameOnNewGoogleSignUp;
+            DefaultServerCode = string.IsNullOrWhiteSpace(options.DefaultServerCode) ? "GLOBAL" : options.DefaultServerCode.Trim();
 
             SupabaseSDK.Initialize(this);
         }

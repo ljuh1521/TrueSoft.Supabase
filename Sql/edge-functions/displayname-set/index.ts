@@ -69,12 +69,32 @@ Deno.serve(async (req) => {
 
   const playerUserId = (body?.user_id ?? "").trim() || user.id;
 
+  const myProfile = await userClient
+    .from("profiles")
+    .select("server_id")
+    .eq("account_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (myProfile.error || !myProfile.data?.server_id) {
+    return new Response(
+      JSON.stringify({ ok: false, reason: myProfile.error?.message ?? "server_id_not_found" } satisfies SetResponse),
+      { status: 409, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   // 1) upsert claim row for this account
-  // Uniqueness is enforced by DB unique index on lower(trim(display_name)).
+  // Uniqueness is enforced by DB unique index on (server_id, lower(trim(display_name))).
   const upsert = await userClient
     .from("display_names")
     .upsert(
-      { account_id: user.id, user_id: playerUserId, display_name: displayName, updated_at: new Date().toISOString() },
+      {
+        account_id: user.id,
+        user_id: playerUserId,
+        server_id: myProfile.data.server_id,
+        display_name: displayName,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "account_id" },
     );
 
