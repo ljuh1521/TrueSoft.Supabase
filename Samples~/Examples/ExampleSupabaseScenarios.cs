@@ -42,6 +42,9 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("I: 구글 로그인(중복 로그인 테스트용)")]
         [SerializeField] private KeyCode keyLoginGoogle = KeyCode.I;
 
+        [Tooltip("P: 익명 세션에 Google 연동(별도 버튼 흐름)")]
+        [SerializeField] private KeyCode keyLinkGoogle = KeyCode.P;
+
         [Tooltip("W: 로그아웃(ClearSession)")]
         [SerializeField] private KeyCode keyLogout = KeyCode.W;
 
@@ -116,6 +119,8 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunLoginExampleAsync);
             else if (Input.GetKeyDown(keyLoginGoogle))
                 _ = RunAsyncGuarded(RunGoogleLoginExampleAsync);
+            else if (Input.GetKeyDown(keyLinkGoogle))
+                _ = RunAsyncGuarded(RunGoogleLinkExampleAsync);
             else if (Input.GetKeyDown(keyLogout))
                 _ = RunAsyncGuarded(RunLogoutExampleAsync);
             else if (Input.GetKeyDown(keyLogoutGoogle))
@@ -194,6 +199,12 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunGoogleLoginExample()
         {
             _ = RunGoogleLoginExampleAsync();
+        }
+
+        [ContextMenu("Run Google Link Example")]
+        public void RunGoogleLinkExample()
+        {
+            _ = RunGoogleLinkExampleAsync();
         }
 
         [ContextMenu("Run Save/Load Example")]
@@ -284,6 +295,31 @@ namespace Truesoft.SupabaseUnity.Samples
                 ? "[Sample] google login example success."
                 : "[Sample] google login example failed.");
             return ok;
+        }
+
+        private async Task<bool> RunGoogleLinkExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn || SupabaseClient.Session?.User == null || !SupabaseClient.Session.User.IsAnonymous)
+            {
+                Debug.LogWarning("[Sample] google link example skipped: anonymous session required.");
+                return false;
+            }
+
+            var beforeId = SupabaseClient.Session.User.Id;
+            var ok = await SupabaseClient.TryLinkGoogleToCurrentAnonymousAsync();
+            if (!ok || !SupabaseClient.IsLoggedIn || SupabaseClient.Session?.User == null)
+            {
+                Debug.LogWarning("[Sample] google link example failed (이미 사용 중인 Google이면 연동 불가).");
+                return false;
+            }
+
+            var after = SupabaseClient.Session.User;
+            var sameId = string.Equals(beforeId, after.Id, StringComparison.OrdinalIgnoreCase);
+            var converted = !after.IsAnonymous;
+            Debug.Log(
+                "[Sample] google link example result. "
+                + $"same_auth_user_id={sameId}, is_anonymous_after={after.IsAnonymous}");
+            return sameId && converted;
         }
 
         private async Task<bool> RunSaveLoadExampleAsync()

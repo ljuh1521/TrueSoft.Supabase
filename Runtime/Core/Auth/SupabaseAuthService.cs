@@ -73,7 +73,8 @@ namespace Truesoft.Supabase.Core.Auth
             string accessToken,
             string provider,
             string idToken,
-            string nonce = null)
+            string nonce = null,
+            string oauthAccessToken = null)
         {
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<bool>.Fail("access_token_empty");
@@ -90,7 +91,8 @@ namespace Truesoft.Supabase.Core.Auth
             {
                 provider = provider,
                 id_token = idToken,
-                nonce = nonce
+                nonce = nonce,
+                access_token = string.IsNullOrWhiteSpace(oauthAccessToken) ? null : oauthAccessToken.Trim()
             };
 
             var bodyJson = _jsonSerializer.ToJson(body);
@@ -426,6 +428,7 @@ namespace Truesoft.Supabase.Core.Auth
             public string provider;
             public string id_token;
             public string nonce;
+            public string access_token;
         }
 
         [Serializable]

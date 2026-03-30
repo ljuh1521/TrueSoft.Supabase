@@ -19,6 +19,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
 2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)<br/>
    Google **신규** 가입으로 판단될 때만 `user_metadata.displayName`을 `Player_xxxxxxxx`로 덮어쓰려면 `applyAnonymousDisplayNameOnNewGoogleSignUp`(기본 on)을 유지합니다. 끄면 구글 프로필 이름이 메타데이터에 그대로 남을 수 있습니다.
+   익명 계정에 Google을 붙이는 흐름을 쓸 계획이라면 Supabase 대시보드의 Authentication 설정에서 **Manual linking (beta)** 를 켜세요.
 3. API 결과 로그를 제어하려면 `enableApiResultLogs`를 설정합니다. (`true`면 Try API별 고정 태그(예: `[Supabase.UserData.Save]`)로 성공/실패 로그 출력. 호출자가 태그를 넘기지 않습니다.)
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
 5. `SupabaseRuntime`은 선택 사항입니다.  
@@ -164,6 +165,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
+- **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달)
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
 - **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql` 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
@@ -223,3 +225,12 @@ var balance = Supabase.GetRemoteConfig<int>(\"game_balance\", 0);
    - `Assets/Samples/Truesoft Supabase SDK/0.1.0/` (버전은 다를 수 있음) 폴더를 삭제하거나, Import한 샘플 폴더만 삭제합니다.
 
 각 샘플 폴더 안의 `README.md`에도 동일한 내용을 요약해 두었습니다.
+
+## 익명 계정과 Google 연동
+
+- 연동은 자동으로 수행하지 않고, **별도 버튼 UX**에서만 호출하는 것을 권장합니다.
+- 익명 세션에서 일반 `TrySignInWithGoogleAsync` / `TrySignInWithGoogleIdTokenAsync`를 호출하면 실패(`anonymous_session_requires_explicit_link`)합니다.
+- 익명 세션 연동은 `TryLinkGoogleToCurrentAnonymousAsync`(또는 ID 토큰 버전)를 사용하세요.
+- 연동 성공 시에는 같은 `auth.users.id`를 유지하면서 `is_anonymous`가 false가 되어야 합니다.
+- 연동하려는 Google 계정이 이미 다른 사용자에 연결되어 있으면 연동은 실패하며, 현재 익명 세션은 유지됩니다.
+- 연동이 끝난 뒤 사용자가 다시 익명 로그인 버튼을 누르면, 기존 연동 계정을 복원하지 않고 **새 익명 계정**을 만듭니다.

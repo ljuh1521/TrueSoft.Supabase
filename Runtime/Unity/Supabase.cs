@@ -50,6 +50,17 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<bool>> SignOutFromGoogleAsync() =>
             SupabaseSDK.SignOutFromGoogleAsync();
 
+        /// <summary>현재 익명 세션에 Google identity를 연동합니다(Android 네이티브 Google 로그인 사용).</summary>
+        internal static Task<SupabaseResult<SupabaseSession>> LinkGoogleToCurrentAnonymousAsync(bool saveSessionToStorage = true) =>
+            SupabaseSDK.LinkGoogleToCurrentAnonymousAsync(saveSessionToStorage);
+
+        /// <summary>현재 익명 세션에 Google identity를 연동합니다(ID 토큰 직접 전달).</summary>
+        internal static Task<SupabaseResult<SupabaseSession>> LinkGoogleToCurrentAnonymousWithIdTokenAsync(
+            string idToken,
+            string googleAccessToken = null,
+            bool saveSessionToStorage = true) =>
+            SupabaseSDK.LinkGoogleToCurrentAnonymousWithIdTokenAsync(idToken, googleAccessToken, saveSessionToStorage);
+
         /// <summary>게스트(익명)로 가입하고 SDK 세션을 자동 설정.</summary>
         internal static Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(
             bool saveSessionToStorage = true) =>
@@ -62,6 +73,17 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="SupabaseSDK.TrySignInWithGoogleIdTokenAsync(string, bool)"/>
         public static Task<bool> TrySignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true) =>
             SupabaseSDK.TrySignInWithGoogleIdTokenAsync(idToken, saveSessionToStorage);
+
+        /// <inheritdoc cref="SupabaseSDK.TryLinkGoogleToCurrentAnonymousAsync(bool)"/>
+        public static Task<bool> TryLinkGoogleToCurrentAnonymousAsync(bool saveSessionToStorage = true) =>
+            SupabaseSDK.TryLinkGoogleToCurrentAnonymousAsync(saveSessionToStorage);
+
+        /// <inheritdoc cref="SupabaseSDK.TryLinkGoogleToCurrentAnonymousWithIdTokenAsync(string, string, bool)"/>
+        public static Task<bool> TryLinkGoogleToCurrentAnonymousWithIdTokenAsync(
+            string idToken,
+            string googleAccessToken = null,
+            bool saveSessionToStorage = true) =>
+            SupabaseSDK.TryLinkGoogleToCurrentAnonymousWithIdTokenAsync(idToken, googleAccessToken, saveSessionToStorage);
 
         /// <inheritdoc cref="SupabaseSDK.TrySignInAnonymouslyAsync(bool)"/>
         public static Task<bool> TrySignInAnonymouslyAsync(bool saveSessionToStorage = true) =>

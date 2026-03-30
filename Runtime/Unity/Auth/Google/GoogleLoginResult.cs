@@ -6,6 +6,7 @@ namespace Truesoft.Supabase.Unity.Auth.Google
     public sealed class GoogleLoginResult
     {
         public string IdToken;
+        public string AccessToken;
         public string GoogleUserId;
         public string DisplayName;
         public string GivenName;

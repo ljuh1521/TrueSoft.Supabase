@@ -72,6 +72,7 @@ namespace Truesoft.Supabase.Unity.Auth.Google
                     GivenName = Unescape(parts, 3),
                     FamilyName = Unescape(parts, 4),
                     ProfileImageUrl = Unescape(parts, 5),
+                    AccessToken = Unescape(parts, 6),
                 };
 
                 _onSuccess?.Invoke(result);

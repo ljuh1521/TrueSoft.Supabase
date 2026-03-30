@@ -255,7 +255,7 @@ namespace Truesoft.Supabase.Unity
         /// <summary>이미 가진 Google ID 토큰 문자열로 Supabase에 로그인하고 SDK 세션을 맞춥니다.</summary>
         /// <remarks>
         /// Android 네이티브 <see cref="SignInWithGoogleAsync(bool)"/>와 달리 «토큰 획득»은 호출자 책임입니다(iOS 플러그인, 웹 OAuth, 수동 입력 등).
-        /// 익명(게스트) 세션이 있으면 게스트→구글 연동을 위해 identity link를 먼저 시도합니다.
+        /// 익명(게스트) 세션에서는 자동 연동을 수행하지 않습니다. 연동은 <see cref="LinkGoogleToCurrentAnonymousWithIdTokenAsync"/>를 사용하세요.
         /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
         {
@@ -265,25 +265,8 @@ namespace Truesoft.Supabase.Unity
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
-            // 익명(게스트) 세션에서 Google idToken을 받으면, 먼저 identity link을 시도한 뒤 로그인합니다.
-            // 이를 통해 "게스트 -> 구글 연동" UX를 지원합니다.
             if (IsAnonymousSession(_currentSession))
-            {
-                try
-                {
-                    var linkResult = await Auth.LinkIdentityWithIdTokenAsync(
-                        _currentSession.AccessToken,
-                        "google",
-                        idToken);
-
-                    if (linkResult.IsSuccess == false)
-                        UnityEngine.Debug.LogWarning("[Supabase] anonymous->google link failed: " + linkResult.ErrorMessage);
-                }
-                catch (Exception e)
-                {
-                    UnityEngine.Debug.LogWarning("[Supabase] anonymous->google link exception: " + e.Message);
-                }
-            }
+                return SupabaseResult<SupabaseSession>.Fail("anonymous_session_requires_explicit_link");
 
             var result = await Auth.SignInWithGoogleIdTokenAsync(idToken);
             if (result.IsSuccess && result.Data != null)
@@ -315,6 +298,70 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
+        /// 현재 익명 세션에 Google identity를 연동합니다(ID 토큰 직접 전달).
+        /// 성공 시 같은 <c>auth.users.id</c>를 유지한 채 세션을 refresh 하며, 익명 플래그가 해제되어야 합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<SupabaseSession>> LinkGoogleToCurrentAnonymousWithIdTokenAsync(
+            string idToken,
+            string googleAccessToken = null,
+            bool saveSessionToStorage = true)
+        {
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            if (Auth == null)
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            if (string.IsNullOrWhiteSpace(idToken))
+                return SupabaseResult<SupabaseSession>.Fail("google_id_token_empty");
+
+            var s = _currentSession;
+            if (!IsAnonymousSession(s))
+                return SupabaseResult<SupabaseSession>.Fail("anonymous_session_required");
+
+            if (string.IsNullOrWhiteSpace(s.AccessToken) || string.IsNullOrWhiteSpace(s.RefreshToken))
+                return SupabaseResult<SupabaseSession>.Fail("anonymous_session_token_missing");
+
+            var link = await Auth.LinkIdentityWithIdTokenAsync(
+                s.AccessToken,
+                "google",
+                idToken.Trim(),
+                nonce: null,
+                oauthAccessToken: googleAccessToken);
+            if (link == null || !link.IsSuccess)
+                return SupabaseResult<SupabaseSession>.Fail(link?.ErrorMessage ?? "google_link_failed");
+
+            var refresh = await Auth.RefreshSessionAsync(s.RefreshToken);
+            if (refresh == null || !refresh.IsSuccess || refresh.Data == null)
+                return SupabaseResult<SupabaseSession>.Fail(refresh?.ErrorMessage ?? "google_link_refresh_failed");
+
+            if (refresh.Data.User == null || refresh.Data.User.IsAnonymous)
+                return SupabaseResult<SupabaseSession>.Fail("google_link_anonymous_not_cleared");
+
+            SetSession(refresh.Data, SupabaseSessionChangeKind.RestoredOrRefreshed);
+            if (saveSessionToStorage)
+                SaveSessionToStorage();
+
+            RememberLastSignInMethod(SignInMethodKind.Google);
+            if (!_isRecreatingAfterWithdrawalDelete)
+            {
+                var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                    SignInMethodKind.Google,
+                    saveSessionToStorage,
+                    allowRecreateOnDeletion: true);
+                if (guarded != null)
+                    return guarded;
+
+                var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                if (reserved != null)
+                    return reserved;
+            }
+
+            await TryEnsureProfileRowAfterSignInAsync();
+            return SupabaseResult<SupabaseSession>.Success(_currentSession);
+        }
+
+        /// <summary>
         /// <c>Resources/SupabaseSettings</c>에 입력한 <c>googleWebClientId</c>로 Android 네이티브 Google 로그인을 수행합니다.
         /// </summary>
         /// <remarks>
@@ -332,51 +379,74 @@ namespace Truesoft.Supabase.Unity
             if (Auth == null)
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
+            if (IsAnonymousSession(_currentSession))
+                return SupabaseResult<SupabaseSession>.Fail("anonymous_session_requires_explicit_link");
+
             var bridge = EnsureGoogleLoginBridge();
             var provider = new AndroidGoogleLoginProvider(bridge, webClientId.Trim());
-            var googleAuth = new SupabaseGoogleAuthService(provider, Auth, () => _currentSession);
+            var loginResult = await RequestGoogleLoginResultAsync(provider);
+            if (loginResult == null || !loginResult.IsSuccess || loginResult.Data == null)
+                return SupabaseResult<SupabaseSession>.Fail(loginResult?.ErrorMessage ?? "google_signin_failed");
 
-            var tcs = new TaskCompletionSource<SupabaseResult<SupabaseSession>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (string.IsNullOrWhiteSpace(loginResult.Data.IdToken))
+                return SupabaseResult<SupabaseSession>.Fail("google_id_token_empty");
 
-            googleAuth.SignInWithGoogle(
-                session =>
-                {
-                    if (session == null)
-                    {
-                        tcs.TrySetResult(SupabaseResult<SupabaseSession>.Fail("supabase_session_null"));
-                        return;
-                    }
-
-                    SetSession(session, SupabaseSessionChangeKind.NewSignIn);
-                    if (saveSessionToStorage)
-                        SaveSessionToStorage();
-
-                    RememberLastSignInMethod(SignInMethodKind.Google);
-
-                    tcs.TrySetResult(SupabaseResult<SupabaseSession>.Success(session));
-                },
-                err => tcs.TrySetResult(
-                    SupabaseResult<SupabaseSession>.Fail(string.IsNullOrWhiteSpace(err) ? "google_signin_failed" : err)));
-
-            var googleResult = await tcs.Task;
-            if (googleResult.IsSuccess && googleResult.Data != null && !_isRecreatingAfterWithdrawalDelete)
+            var googleResult = await Auth.SignInWithGoogleIdTokenAsync(loginResult.Data.IdToken.Trim());
+            if (googleResult.IsSuccess && googleResult.Data != null)
             {
-                var guarded = await HandleWithdrawalGuardAfterSignInAsync(
-                    SignInMethodKind.Google,
-                    saveSessionToStorage,
-                    allowRecreateOnDeletion: true);
-                if (guarded != null)
-                    return guarded;
+                SetSession(googleResult.Data, SupabaseSessionChangeKind.NewSignIn);
+                if (saveSessionToStorage)
+                    SaveSessionToStorage();
 
-                var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
-                if (reserved != null)
-                    return reserved;
+                RememberLastSignInMethod(SignInMethodKind.Google);
 
-                await TryApplyAnonymousDisplayNameAfterNewGoogleSignUpAsync(saveSessionToStorage);
-                await TryEnsureProfileRowAfterSignInAsync();
+                if (!_isRecreatingAfterWithdrawalDelete)
+                {
+                    var guarded = await HandleWithdrawalGuardAfterSignInAsync(
+                        SignInMethodKind.Google,
+                        saveSessionToStorage,
+                        allowRecreateOnDeletion: true);
+                    if (guarded != null)
+                        return guarded;
+
+                    var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                    if (reserved != null)
+                        return reserved;
+
+                    await TryApplyAnonymousDisplayNameAfterNewGoogleSignUpAsync(saveSessionToStorage);
+                    await TryEnsureProfileRowAfterSignInAsync();
+                }
             }
 
             return googleResult;
+        }
+
+        /// <summary>
+        /// 현재 익명 세션에 Google identity를 연동합니다(Android 네이티브 Google 로그인 사용).
+        /// </summary>
+        public static async Task<SupabaseResult<SupabaseSession>> LinkGoogleToCurrentAnonymousAsync(bool saveSessionToStorage = true)
+        {
+            var webClientId = TryGetGoogleWebClientIdFromSettings();
+            if (string.IsNullOrWhiteSpace(webClientId))
+                return SupabaseResult<SupabaseSession>.Fail("google_web_client_id_empty");
+
+            if (!await EnsureInitializedAsync())
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            if (Auth == null)
+                return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
+
+            var bridge = EnsureGoogleLoginBridge();
+            var provider = new AndroidGoogleLoginProvider(bridge, webClientId.Trim());
+            var loginResult = await RequestGoogleLoginResultAsync(provider);
+            if (loginResult == null || !loginResult.IsSuccess || loginResult.Data == null)
+                return SupabaseResult<SupabaseSession>.Fail(loginResult?.ErrorMessage ?? "google_signin_failed");
+
+            var google = loginResult.Data;
+            return await LinkGoogleToCurrentAnonymousWithIdTokenAsync(
+                google.IdToken,
+                google.AccessToken,
+                saveSessionToStorage);
         }
 
         /// <summary><see cref="SignInWithGoogleAsync(bool)"/>를 bool 기반으로 호출합니다.</summary>
@@ -390,6 +460,23 @@ namespace Truesoft.Supabase.Unity
         public static async Task<bool> TrySignInWithGoogleIdTokenAsync(string idToken, bool saveSessionToStorage = true)
         {
             var r = await SignInWithGoogleIdTokenAsync(idToken, saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthGoogleIdToken, r);
+        }
+
+        /// <summary><see cref="LinkGoogleToCurrentAnonymousAsync(bool)"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryLinkGoogleToCurrentAnonymousAsync(bool saveSessionToStorage = true)
+        {
+            var r = await LinkGoogleToCurrentAnonymousAsync(saveSessionToStorage);
+            return LogAndReturn(ApiLogTags.AuthGoogleSettings, r);
+        }
+
+        /// <summary><see cref="LinkGoogleToCurrentAnonymousWithIdTokenAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TryLinkGoogleToCurrentAnonymousWithIdTokenAsync(
+            string idToken,
+            string googleAccessToken = null,
+            bool saveSessionToStorage = true)
+        {
+            var r = await LinkGoogleToCurrentAnonymousWithIdTokenAsync(idToken, googleAccessToken, saveSessionToStorage);
             return LogAndReturn(ApiLogTags.AuthGoogleIdToken, r);
         }
 
@@ -628,12 +715,28 @@ namespace Truesoft.Supabase.Unity
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
+            var forceFreshAnonymous = false;
+            if (IsLoggedIn && !IsAnonymousSession(_currentSession))
+            {
+                // Google 등 비익명 계정에서 "익명 로그인"을 누르면 새 익명 계정으로 시작합니다.
+                await SignOutAsync(clearStorage: true, deleteUserSessionRow: true);
+                forceFreshAnonymous = true;
+            }
+            else if (!IsLoggedIn && ReadLastSignInMethod() == SignInMethodKind.Google)
+            {
+                // 직전 연동 계정을 복원하지 않도록, 익명 시작을 명시적으로 새 가입으로 강제합니다.
+                forceFreshAnonymous = true;
+                PlayerPrefs.DeleteKey(RefreshTokenKey);
+                SetAutoLoginBlocked(true);
+                PlayerPrefs.Save();
+            }
+
             // RestoreSessionOnStart가 꺼져 있어도, 저장된 refresh_token이 있으면 동일 계정을 이어갑니다.
-            if (!_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
+            if (!forceFreshAnonymous && !_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
                 await RestoreSessionAsyncCore(allowRecreateOnDeletion: true);
 
             // 로컬 토큰이 사라진(재설치/로그아웃/탈퇴 예약 후 ClearSession) 경우를 위해 서버의 best-effort 복구 토큰을 1회 시도합니다.
-            if (!_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
+            if (!forceFreshAnonymous && !_isRecreatingAfterWithdrawalDelete && !IsLoggedIn)
             {
                 var recovery = await TryRestoreSessionFromAnonymousRecoveryAsync();
                 if (recovery.Kind == AnonymousRecoveryKind.GateBlocked)
@@ -698,6 +801,31 @@ namespace Truesoft.Supabase.Unity
             }
 
             return result;
+        }
+
+        private static async Task<SupabaseResult<GoogleLoginResult>> RequestGoogleLoginResultAsync(AndroidGoogleLoginProvider provider)
+        {
+            if (provider == null)
+                return SupabaseResult<GoogleLoginResult>.Fail("google_provider_null");
+
+            var tcs = new TaskCompletionSource<SupabaseResult<GoogleLoginResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            provider.SignIn(
+                result =>
+                {
+                    if (result == null)
+                    {
+                        tcs.TrySetResult(SupabaseResult<GoogleLoginResult>.Fail("google_result_null"));
+                        return;
+                    }
+
+                    tcs.TrySetResult(SupabaseResult<GoogleLoginResult>.Success(result));
+                },
+                err =>
+                {
+                    tcs.TrySetResult(SupabaseResult<GoogleLoginResult>.Fail(
+                        string.IsNullOrWhiteSpace(err) ? "google_signin_failed" : err));
+                });
+            return await tcs.Task;
         }
 
         /// <summary>
