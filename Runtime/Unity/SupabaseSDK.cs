@@ -8,6 +8,7 @@ using Truesoft.Supabase.Unity.Auth.Anonymous;
 using Truesoft.Supabase.Unity.Auth;
 using Truesoft.Supabase.Unity.Auth.Google;
 using Truesoft.Supabase.Unity.Config;
+using Truesoft.Supabase.Unity.Diagnostics;
 using UnityEngine;
 
 namespace Truesoft.Supabase.Unity
@@ -322,6 +323,19 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(s.AccessToken) || string.IsNullOrWhiteSpace(s.RefreshToken))
                 return SupabaseResult<SupabaseSession>.Fail("anonymous_session_token_missing");
 
+            // #region agent log
+            SupabaseAgentDebugLog.Write(
+                "H4",
+                "SupabaseSDK.LinkGoogleToCurrentAnonymousWithIdTokenAsync",
+                "before_link",
+                new Dictionary<string, string>
+                {
+                    ["projectUrlHost"] = string.IsNullOrWhiteSpace(_initializedProjectUrl)
+                        ? ""
+                        : (Uri.TryCreate(_initializedProjectUrl.Trim(), UriKind.Absolute, out var u) ? u.Host : "parse_fail"),
+                });
+            // #endregion
+
             var link = await Auth.LinkIdentityWithIdTokenAsync(
                 s.AccessToken,
                 "google",
@@ -329,11 +343,35 @@ namespace Truesoft.Supabase.Unity
                 nonce: null,
                 oauthAccessToken: googleAccessToken);
             if (link == null || !link.IsSuccess)
+            {
+                // #region agent log
+                var em = link?.ErrorMessage ?? "null";
+                if (em.Length > 200)
+                    em = em.Substring(0, 200);
+                SupabaseAgentDebugLog.Write(
+                    "H1",
+                    "SupabaseSDK.LinkGoogleToCurrentAnonymousWithIdTokenAsync",
+                    "link_identity_failed",
+                    new Dictionary<string, string> { ["errorMessage"] = em });
+                // #endregion
                 return SupabaseResult<SupabaseSession>.Fail(link?.ErrorMessage ?? "google_link_failed");
+            }
 
             var refresh = await Auth.RefreshSessionAsync(s.RefreshToken);
             if (refresh == null || !refresh.IsSuccess || refresh.Data == null)
+            {
+                // #region agent log
+                var em = refresh?.ErrorMessage ?? "null";
+                if (em.Length > 200)
+                    em = em.Substring(0, 200);
+                SupabaseAgentDebugLog.Write(
+                    "H4",
+                    "SupabaseSDK.LinkGoogleToCurrentAnonymousWithIdTokenAsync",
+                    "refresh_after_link_failed",
+                    new Dictionary<string, string> { ["errorMessage"] = em });
+                // #endregion
                 return SupabaseResult<SupabaseSession>.Fail(refresh?.ErrorMessage ?? "google_link_refresh_failed");
+            }
 
             if (refresh.Data.User == null || refresh.Data.User.IsAnonymous)
                 return SupabaseResult<SupabaseSession>.Fail("google_link_anonymous_not_cleared");
