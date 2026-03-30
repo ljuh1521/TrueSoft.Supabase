@@ -286,7 +286,8 @@ namespace Truesoft.Supabase.Core.Data
                 withdrawn_at = null
             };
 
-            var singleJson = _jsonSerializer.ToJson(body);
+            // Unity JsonUtility.ToJson turns null string fields into "" — PostgREST then rejects timestamptz.
+            var singleJson = JsonConvert.SerializeObject(body);
             var bodyJson = "[" + singleJson + "]";
 
             // #region agent log
@@ -299,6 +300,7 @@ namespace Truesoft.Supabase.Core.Data
                     JsonConvert.SerializeObject(new
                     {
                         sessionId = "a19a0d",
+                        runId = "post-fix",
                         hypothesisId = "A",
                         location = "SupabasePublicProfileService.cs:EnsureMyProfileRowAsync:before_post",
                         message = "profile_upsert_attempt",
@@ -331,6 +333,7 @@ namespace Truesoft.Supabase.Core.Data
                     JsonConvert.SerializeObject(new
                     {
                         sessionId = "a19a0d",
+                        runId = "post-fix",
                         hypothesisId = "A",
                         location = "SupabasePublicProfileService.cs:EnsureMyProfileRowAsync:after_post",
                         message = "profile_upsert_response",
