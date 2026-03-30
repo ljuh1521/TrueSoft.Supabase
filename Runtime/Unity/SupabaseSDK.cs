@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
@@ -870,17 +871,81 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="IsDisplayNameAvailableAsync"/>
         public static async Task<bool> TryIsDisplayNameAvailableAsync(string displayName)
         {
+            // #region agent log
+            try
+            {
+                var acct = _currentSession?.User?.Id;
+                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var suffix = string.IsNullOrWhiteSpace(acct) || acct.Length < 8 ? "" : acct.Substring(acct.Length - 8);
+                var candLen = displayName == null ? 0 : displayName.Trim().Length;
+                var line =
+                    "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H1\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"before_check\",\"timestamp\":" +
+                    ts + ",\"data\":{\"loggedIn\":" + (IsLoggedIn ? "true" : "false") + ",\"accountSuffix\":\"" + suffix + "\",\"candidateLen\":" + candLen + "}}";
+                File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
+            }
+            catch
+            {
+                // ignore
+            }
+            // #endregion
+
             var r = await IsDisplayNameAvailableAsync(displayName);
             if (r == null || !r.IsSuccess)
             {
+                // #region agent log
+                try
+                {
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var line =
+                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H4\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"result_fail\",\"timestamp\":" +
+                        ts + ",\"data\":{\"err\":\"" + (r?.ErrorMessage ?? "null").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"}}";
+                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
+                }
+                catch
+                {
+                    // ignore
+                }
+                // #endregion
                 LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, false, r?.ErrorMessage ?? "unknown");
                 return false;
             }
 
             if (!r.Data)
+            {
+                // #region agent log
+                try
+                {
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var line =
+                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H2\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"result_taken\",\"timestamp\":" +
+                        ts + ",\"data\":{}}";
+                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
+                }
+                catch
+                {
+                    // ignore
+                }
+                // #endregion
                 LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, false, "display_name_taken");
+            }
             else
+            {
+                // #region agent log
+                try
+                {
+                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var line =
+                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H3\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"result_available\",\"timestamp\":" +
+                        ts + ",\"data\":{}}";
+                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
+                }
+                catch
+                {
+                    // ignore
+                }
+                // #endregion
                 LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, true, null);
+            }
 
             return r.Data;
         }
