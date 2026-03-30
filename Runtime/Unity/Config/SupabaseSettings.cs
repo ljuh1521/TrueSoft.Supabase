@@ -41,7 +41,7 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("채팅 메시지를 저장·조회하는 테이블 이름.")]
         public string chatMessagesTable = "chat_messages";
 
-        [Tooltip("공개 프로필 테이블 (권장: id UUID PK, user_id uuid, account_id uuid, withdrawn_at timestamptz). RLS로 누구나 SELECT, 본인만 INSERT/UPDATE.")]
+        [Tooltip("공개 프로필 테이블 (권장: id UUID PK, user_id text, account_id uuid, withdrawn_at timestamptz). RLS로 누구나 SELECT, 본인만 INSERT/UPDATE.")]
         public string publicProfilesTable = "profiles";
 
         [Header("Duplicate login (중복 로그인)")]

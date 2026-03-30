@@ -17,7 +17,7 @@ declare
   v_delay_days integer;
   v_scheduled_at timestamptz;
   v_account_id uuid;
-  v_user_id uuid;
+  v_user_id text;
   scheduled_at timestamptz;
 begin
   if auth.uid() is null then
@@ -27,7 +27,7 @@ begin
   v_delay_days := greatest(0, coalesce(p_delay_days, 0));
 
   v_account_id := auth.uid();
-  v_user_id := auth.uid();
+  v_user_id := auth.uid()::text;
 
   v_scheduled_at := case
     when v_delay_days <= 0 then now()

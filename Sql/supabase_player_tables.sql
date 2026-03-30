@@ -17,13 +17,13 @@
 -- ---------------------------------------------------------------------------
 create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  user_id text not null,
   account_id uuid unique references auth.users (id) on delete set null,
   withdrawn_at timestamptz null
 );
 
 -- 기존 DB에 컬럼만 없을 때 보강(신규 생성 테이블에서는 IF NOT EXISTS 로 무시됨)
-alter table public.profiles add column if not exists user_id uuid;
+alter table public.profiles add column if not exists user_id text;
 alter table public.profiles add column if not exists account_id uuid;
 alter table public.profiles add column if not exists withdrawn_at timestamptz;
 
@@ -60,6 +60,18 @@ begin
   end if;
 end $$;
 
+-- Google 등 OAuth subject(sub)는 UUID 형식이 아닐 수 있어 user_id는 text로 통일합니다.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'profiles'
+      and column_name = 'user_id' and udt_name = 'uuid'
+  ) then
+    alter table public.profiles alter column user_id type text using user_id::text;
+  end if;
+end $$;
+
 comment on table public.profiles is '공개 프로필. 게임 RLS는 account_id. 운영 조회는 user_id.';
 comment on column public.profiles.user_id is '플레이어 고유 id (동일 Google 등이면 재가입 후에도 동일 값 가능).';
 comment on column public.profiles.account_id is 'auth.users.id. 탈퇴 시 NULL. 게임 조회·수정 기준.';
@@ -93,15 +105,26 @@ using (account_id is not null and account_id = auth.uid());
 -- ---------------------------------------------------------------------------
 create table if not exists public.display_names (
   account_id uuid primary key references auth.users (id) on delete cascade,
-  user_id uuid not null,
+  user_id text not null,
   display_name text not null,
   updated_at timestamptz not null default now()
 );
 
 alter table public.display_names add column if not exists account_id uuid;
-alter table public.display_names add column if not exists user_id uuid;
+alter table public.display_names add column if not exists user_id text;
 alter table public.display_names add column if not exists display_name text;
 alter table public.display_names add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'display_names'
+      and column_name = 'user_id' and udt_name = 'uuid'
+  ) then
+    alter table public.display_names alter column user_id type text using user_id::text;
+  end if;
+end $$;
 
 comment on table public.display_names is '닉네임 유니크/공개 조회용. 실제 표시 이름은 auth.user_metadata.displayName이 소스.';
 comment on column public.display_names.account_id is 'auth.users.id (RLS: auth.uid()).';
@@ -137,13 +160,13 @@ where trim(display_name) <> '';
 -- ---------------------------------------------------------------------------
 create table if not exists public.user_saves (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null,
+  user_id text not null,
   account_id uuid unique references auth.users (id) on delete set null,
   save_data jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
 
-alter table public.user_saves add column if not exists user_id uuid;
+alter table public.user_saves add column if not exists user_id text;
 alter table public.user_saves add column if not exists account_id uuid;
 alter table public.user_saves add column if not exists save_data jsonb not null default '{}'::jsonb;
 alter table public.user_saves add column if not exists updated_at timestamptz not null default now();
@@ -178,6 +201,17 @@ begin
   ) then
     alter table public.user_saves
       add constraint user_saves_account_id_key unique (account_id);
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'user_saves'
+      and column_name = 'user_id' and udt_name = 'uuid'
+  ) then
+    alter table public.user_saves alter column user_id type text using user_id::text;
   end if;
 end $$;
 
@@ -362,16 +396,27 @@ grant execute on function public.ts_anon_recovery_upsert_refresh_token(text, tex
 -- ---------------------------------------------------------------------------
 create table if not exists public.account_closures (
   id bigint generated always as identity primary key,
-  user_id uuid not null,
+  user_id text not null,
   account_id uuid null,
   closed_at timestamptz not null default now(),
   note text null
 );
 
-alter table public.account_closures add column if not exists user_id uuid;
+alter table public.account_closures add column if not exists user_id text;
 alter table public.account_closures add column if not exists account_id uuid;
 alter table public.account_closures add column if not exists closed_at timestamptz not null default now();
 alter table public.account_closures add column if not exists note text;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'account_closures'
+      and column_name = 'user_id' and udt_name = 'uuid'
+  ) then
+    alter table public.account_closures alter column user_id type text using user_id::text;
+  end if;
+end $$;
 
 comment on table public.account_closures is '탈퇴 기록. PostgREST는 service role 등으로만 쓰는 것을 권장.';
 

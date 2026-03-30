@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
 
@@ -273,6 +275,29 @@ namespace Truesoft.Supabase.Core.Data
             var singleJson = _jsonSerializer.ToJson(body);
             var bodyJson = "[" + singleJson + "]";
 
+            // #region agent log
+            try
+            {
+                var stableLen = stable?.Length ?? 0;
+                var stableIsGuid = Guid.TryParse(stable, out _);
+                File.AppendAllText(
+                    Path.Combine(Directory.GetCurrentDirectory(), "debug-a19a0d.log"),
+                    JsonConvert.SerializeObject(new
+                    {
+                        sessionId = "a19a0d",
+                        hypothesisId = "A",
+                        location = "SupabasePublicProfileService.cs:EnsureMyProfileRowAsync:before_post",
+                        message = "profile_upsert_attempt",
+                        data = new { stableLen, stableIsGuid, accountIdLen = (accountId?.Trim() ?? "").Length },
+                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    }) + Environment.NewLine);
+            }
+            catch
+            {
+                // ignore debug log failures
+            }
+            // #endregion
+
             var response = await _httpClient.SendAsync(
                 method: "POST",
                 url: url,
@@ -281,6 +306,29 @@ namespace Truesoft.Supabase.Core.Data
 
             if (response == null)
                 return SupabaseResult<bool>.Fail("http_response_null");
+
+            // #region agent log
+            try
+            {
+                var b = response.Body ?? "";
+                var preview = b.Length > 500 ? b.Substring(0, 500) : b;
+                File.AppendAllText(
+                    Path.Combine(Directory.GetCurrentDirectory(), "debug-a19a0d.log"),
+                    JsonConvert.SerializeObject(new
+                    {
+                        sessionId = "a19a0d",
+                        hypothesisId = "A",
+                        location = "SupabasePublicProfileService.cs:EnsureMyProfileRowAsync:after_post",
+                        message = "profile_upsert_response",
+                        data = new { response.IsSuccess, response.StatusCode, bodyPreview = preview },
+                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    }) + Environment.NewLine);
+            }
+            catch
+            {
+                // ignore debug log failures
+            }
+            // #endregion
 
             if (response.IsSuccess == false)
                 return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "profile_upsert_failed");
