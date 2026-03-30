@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Data;
 using Truesoft.Supabase.Core.Http;
@@ -52,10 +51,6 @@ namespace Truesoft.Supabase.Unity.Config
             var options = settings.ToOptions();
             ProjectUrl = options.ProjectURL ?? string.Empty;
             EnableApiResultLogs = settings.enableApiResultLogs;
-
-            // 에디터/PC는 cwd, 기기는 persistentDataPath에 디버그 NDJSON이 쌓이도록 Core 경로를 고정합니다.
-            SupabasePublicProfileService.AgentDebugLogFilePath =
-                Path.Combine(UnityEngine.Application.persistentDataPath, "debug-a19a0d.log");
 
             var http = new UnitySupabaseHttpClient(options.TimeoutSeconds);
             var json = new UnitySupabaseJsonSerializer();

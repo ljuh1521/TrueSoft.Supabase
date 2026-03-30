@@ -308,7 +308,7 @@ namespace Truesoft.Supabase.Core.Auth
         }
 
         /// <summary>
-        /// <c>PUT /auth/v1/user</c>로 <c>user_metadata.displayName</c>만 갱신합니다(기존 메타데이터 키는 서버 병합 규칙에 따름).
+        /// <c>PUT /auth/v1/user</c>로 <c>user_metadata</c>의 <c>displayName</c>, <c>full_name</c>, <c>name</c>을 같은 값으로 갱신합니다(Google OIDC·대시보드 표시와 맞춤).
         /// </summary>
         public async Task<SupabaseResult<bool>> UpdateUserMetadataDisplayNameAsync(string accessToken, string displayName)
         {
@@ -319,9 +319,16 @@ namespace Truesoft.Supabase.Core.Auth
                 return SupabaseResult<bool>.Fail("display_name_empty");
 
             var url = $"{_supabaseUrl}/auth/v1/user";
+            var d = displayName.Trim();
+            // Google 등은 full_name/name을 쓰고 Studio도 그걸 표시하는 경우가 있어 displayName과 같이 맞춥니다.
             var bodyJson = _jsonSerializer.ToJson(new UpdateUserMetadataBody
             {
-                data = new UserMetadataDisplayNamePatch { displayName = displayName.Trim() }
+                data = new UserMetadataDisplayNamePatch
+                {
+                    displayName = d,
+                    full_name = d,
+                    name = d
+                }
             });
 
             var headers = new Dictionary<string, string>
@@ -446,6 +453,8 @@ namespace Truesoft.Supabase.Core.Auth
         private sealed class UserMetadataDisplayNamePatch
         {
             public string displayName;
+            public string full_name;
+            public string name;
         }
 
     }

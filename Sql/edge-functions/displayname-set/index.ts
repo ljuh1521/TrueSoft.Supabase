@@ -101,7 +101,13 @@ Deno.serve(async (req) => {
     );
   }
   const prevMeta = (existing.data.user.user_metadata ?? {}) as Record<string, unknown>;
-  const merged = { ...prevMeta, displayName };
+  // Studio 사용자 목록은 Google OIDC가 넣은 full_name/name을 보여주는 경우가 많아 displayName만으론 대시보드가 안 바뀝니다.
+  const merged = {
+    ...prevMeta,
+    displayName,
+    full_name: displayName,
+    name: displayName,
+  };
   const upd = await adminClient.auth.admin.updateUserById(user.id, { user_metadata: merged });
   if (upd.error) {
     return new Response(
