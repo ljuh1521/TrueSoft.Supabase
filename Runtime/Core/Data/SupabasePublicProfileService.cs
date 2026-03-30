@@ -84,8 +84,11 @@ namespace Truesoft.Supabase.Core.Data
 
         /// <summary>
         /// displayName이 사용 가능한지 조회합니다(공개).
+        /// 로그인 후 본인이 이미 같은 이름을 쓰는 경우(수정 화면 등)에는 <paramref name="ignoreAccountIdForSelf"/>에 현재 <c>auth.uid()</c>(세션의 사용자 id)를 넘기면 사용 가능으로 처리합니다.
         /// </summary>
-        public async Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(string displayName)
+        public async Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(
+            string displayName,
+            string ignoreAccountIdForSelf = null)
         {
             var norm = NormalizeDisplayName(displayName);
             if (norm.Length == 0)
@@ -136,13 +139,18 @@ namespace Truesoft.Supabase.Core.Data
                 }
 
                 var holder = rows[0].account_id?.Trim() ?? string.Empty;
+                var ignore = ignoreAccountIdForSelf?.Trim();
+                var selfIgnored = string.IsNullOrWhiteSpace(ignore) == false
+                    && string.Equals(holder, ignore, StringComparison.OrdinalIgnoreCase);
                 // #region agent log
                 AgentDebugLog(
                     "H1",
                     "SupabasePublicProfileService.IsDisplayNameAvailableAsync",
                     "holder_found",
-                    "{\"normLen\":" + norm.Length + ",\"rowCount\":" + rows.Length + ",\"holderSuffix\":\"" + AccountIdSuffix(holder) + "\",\"available\":false}");
+                    "{\"normLen\":" + norm.Length + ",\"rowCount\":" + rows.Length + ",\"holderSuffix\":\"" + AccountIdSuffix(holder) + "\",\"selfIgnored\":" + (selfIgnored ? "true" : "false") + ",\"available\":" + (selfIgnored ? "true" : "false") + "}");
                 // #endregion
+                if (selfIgnored)
+                    return SupabaseResult<bool>.Success(true);
                 return SupabaseResult<bool>.Success(false);
             }
             catch (Exception e)

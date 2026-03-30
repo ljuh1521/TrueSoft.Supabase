@@ -77,7 +77,7 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 
 **Unity API 요약**
 
-- 중복 확인: `TryIsDisplayNameAvailableAsync("후보닉")`
+- 중복 확인: `TryIsDisplayNameAvailableAsync("후보닉")` — 로그인 중이면 **현재 계정이 이미 쓰는 이름**은 사용 가능으로 나옵니다(닉 수정 화면용).
 - 최초/수정 저장: `TrySetMyDisplayNameAsync` 또는 별칭 `TryUpdateMyDisplayNameAsync`(동일).
 - 프로필 한 번에 조회: `TryGetPublicProfileAsync(userId)` — SDK는 URL 필터에 넘긴 값으로 조회하므로, **공개 조회를 `user_id`로 할지 `account_id`로 할지**에 맞춰 호출 인자를 통일합니다.
 - 탈퇴 표시: `TryMarkMyWithdrawnAsync()`(UTC 시각 기록) / 해제: `TryClearMyWithdrawalAsync()` / 임의 시각: `TrySetMyWithdrawnAtAsync(iso8601)`.

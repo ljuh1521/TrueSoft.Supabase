@@ -865,7 +865,8 @@ namespace Truesoft.Supabase.Unity
             if (_bootstrap?.PublicProfileService == null)
                 return SupabaseResult<bool>.Fail("sdk_not_initialized");
 
-            return await _bootstrap.PublicProfileService.IsDisplayNameAvailableAsync(displayName);
+            var selfAccountId = _currentSession?.User?.Id;
+            return await _bootstrap.PublicProfileService.IsDisplayNameAvailableAsync(displayName, selfAccountId);
         }
 
         /// <inheritdoc cref="IsDisplayNameAvailableAsync"/>
