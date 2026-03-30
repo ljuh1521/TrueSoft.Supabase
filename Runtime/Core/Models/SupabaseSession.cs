@@ -12,6 +12,11 @@ namespace Truesoft.Supabase.Core.Auth
         public long expires_at;
         public SupabaseUser user;
 
+        /// <summary>
+        /// Auth 응답 파싱 직후만 사용. Google OAuth로 <b>방금 생성된</b> 계정으로 추정되면 true(서버 JSON에는 없음).
+        /// </summary>
+        public bool likely_brand_new_google_signup;
+
         public string AccessToken => access_token;
         public string RefreshToken => refresh_token;
         public string TokenType => token_type;

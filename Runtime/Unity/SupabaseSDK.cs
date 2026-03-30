@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
@@ -308,6 +307,7 @@ namespace Truesoft.Supabase.Unity
                         return reserved;
                 }
 
+                await TryApplyAnonymousDisplayNameAfterNewGoogleSignUpAsync(saveSessionToStorage);
                 await TryEnsureProfileRowAfterSignInAsync();
             }
 
@@ -372,6 +372,7 @@ namespace Truesoft.Supabase.Unity
                 if (reserved != null)
                     return reserved;
 
+                await TryApplyAnonymousDisplayNameAfterNewGoogleSignUpAsync(saveSessionToStorage);
                 await TryEnsureProfileRowAfterSignInAsync();
             }
 
@@ -856,7 +857,7 @@ namespace Truesoft.Supabase.Unity
             return LogAndReturn(ApiLogTags.ProfileMyDisplayNameSet, r);
         }
 
-        /// <summary>displayName이 사용 가능한지 조회합니다(유니크 체크).</summary>
+        /// <summary>displayName이 사용 가능한지 조회합니다(유니크 체크). 로그인 중이면 현재 계정이 이미 쓰는 이름은 사용 가능으로 처리합니다.</summary>
         public static async Task<SupabaseResult<bool>> IsDisplayNameAvailableAsync(string displayName)
         {
             if (!await EnsureInitializedAsync())
@@ -872,81 +873,17 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="IsDisplayNameAvailableAsync"/>
         public static async Task<bool> TryIsDisplayNameAvailableAsync(string displayName)
         {
-            // #region agent log
-            try
-            {
-                var acct = _currentSession?.User?.Id;
-                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                var suffix = string.IsNullOrWhiteSpace(acct) || acct.Length < 8 ? "" : acct.Substring(acct.Length - 8);
-                var candLen = displayName == null ? 0 : displayName.Trim().Length;
-                var line =
-                    "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H1\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"before_check\",\"timestamp\":" +
-                    ts + ",\"data\":{\"loggedIn\":" + (IsLoggedIn ? "true" : "false") + ",\"accountSuffix\":\"" + suffix + "\",\"candidateLen\":" + candLen + "}}";
-                File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
-            }
-            catch
-            {
-                // ignore
-            }
-            // #endregion
-
             var r = await IsDisplayNameAvailableAsync(displayName);
             if (r == null || !r.IsSuccess)
             {
-                // #region agent log
-                try
-                {
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var line =
-                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H4\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"result_fail\",\"timestamp\":" +
-                        ts + ",\"data\":{\"err\":\"" + (r?.ErrorMessage ?? "null").Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"}}";
-                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
-                }
-                catch
-                {
-                    // ignore
-                }
-                // #endregion
                 LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, false, r?.ErrorMessage ?? "unknown");
                 return false;
             }
 
             if (!r.Data)
-            {
-                // #region agent log
-                try
-                {
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var line =
-                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H2\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"result_taken\",\"timestamp\":" +
-                        ts + ",\"data\":{}}";
-                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
-                }
-                catch
-                {
-                    // ignore
-                }
-                // #endregion
                 LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, false, "display_name_taken");
-            }
             else
-            {
-                // #region agent log
-                try
-                {
-                    var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                    var line =
-                        "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"H3\",\"location\":\"SupabaseSDK.TryIsDisplayNameAvailableAsync\",\"message\":\"result_available\",\"timestamp\":" +
-                        ts + ",\"data\":{}}";
-                    File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
-                }
-                catch
-                {
-                    // ignore
-                }
-                // #endregion
                 LogApiResult(ApiLogTags.ProfileDisplayNameAvailable, true, null);
-            }
 
             return r.Data;
         }
@@ -1993,6 +1930,45 @@ namespace Truesoft.Supabase.Unity
             {
                 Debug.LogWarning("[Supabase] ensure profile row exception: " + e.Message);
             }
+        }
+
+        /// <summary>
+        /// Google 신규 가입으로 판단되면 구글이 넣은 <c>user_metadata.displayName</c>을 <c>Player_xxxxxxxx</c>로 덮어쓰고 세션을 갱신합니다.
+        /// </summary>
+        private static async Task TryApplyAnonymousDisplayNameAfterNewGoogleSignUpAsync(bool saveSessionToStorage)
+        {
+            if (_bootstrap != null && _bootstrap.ApplyAnonymousDisplayNameOnNewGoogleSignUp == false)
+                return;
+
+            var s = _currentSession;
+            if (s == null || s.User == null || s.likely_brand_new_google_signup == false)
+                return;
+
+            if (Auth == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(s.AccessToken) || string.IsNullOrWhiteSpace(s.RefreshToken))
+                return;
+
+            var def = SupabaseAuthService.BuildAnonymousDefaultDisplayNameFromAuthUserId(s.User.Id);
+            var upd = await Auth.UpdateUserMetadataDisplayNameAsync(s.AccessToken, def);
+            if (upd == null || !upd.IsSuccess)
+            {
+                Debug.LogWarning("[Supabase] new Google user: displayName metadata reset failed: " + (upd?.ErrorMessage ?? "unknown"));
+                return;
+            }
+
+            var refr = await Auth.RefreshSessionAsync(s.RefreshToken);
+            if (refr == null || !refr.IsSuccess || refr.Data == null)
+            {
+                Debug.LogWarning("[Supabase] new Google user: displayName updated but session refresh failed: " + (refr?.ErrorMessage ?? "unknown"));
+                return;
+            }
+
+            refr.Data.likely_brand_new_google_signup = false;
+            SetSession(refr.Data, SupabaseSessionChangeKind.RestoredOrRefreshed);
+            if (saveSessionToStorage)
+                SaveSessionToStorage();
         }
 
         [Serializable]

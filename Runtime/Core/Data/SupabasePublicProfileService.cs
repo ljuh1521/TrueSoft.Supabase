@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
@@ -112,56 +111,23 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<bool>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-            {
-                // #region agent log
-                AgentDebugLog(
-                    "H4",
-                    "SupabasePublicProfileService.IsDisplayNameAvailableAsync",
-                    "http_not_success",
-                    "{\"statusCode\":" + response.StatusCode + ",\"bodyLen\":" + (response.Body?.Length ?? 0) + "}");
-                // #endregion
                 return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "display_name_check_failed");
-            }
 
             try
             {
                 var rows = _jsonSerializer.FromJsonArray<AccountIdRow>(response.Body);
                 if (rows == null || rows.Length == 0 || string.IsNullOrWhiteSpace(rows[0]?.account_id))
-                {
-                    // #region agent log
-                    AgentDebugLog(
-                        "H2",
-                        "SupabasePublicProfileService.IsDisplayNameAvailableAsync",
-                        "no_holder_row",
-                        "{\"normLen\":" + norm.Length + ",\"rowCount\":0,\"available\":true}");
-                    // #endregion
                     return SupabaseResult<bool>.Success(true);
-                }
 
                 var holder = rows[0].account_id?.Trim() ?? string.Empty;
                 var ignore = ignoreAccountIdForSelf?.Trim();
-                var selfIgnored = string.IsNullOrWhiteSpace(ignore) == false
-                    && string.Equals(holder, ignore, StringComparison.OrdinalIgnoreCase);
-                // #region agent log
-                AgentDebugLog(
-                    "H1",
-                    "SupabasePublicProfileService.IsDisplayNameAvailableAsync",
-                    "holder_found",
-                    "{\"normLen\":" + norm.Length + ",\"rowCount\":" + rows.Length + ",\"holderSuffix\":\"" + AccountIdSuffix(holder) + "\",\"selfIgnored\":" + (selfIgnored ? "true" : "false") + ",\"available\":" + (selfIgnored ? "true" : "false") + "}");
-                // #endregion
-                if (selfIgnored)
+                if (string.IsNullOrWhiteSpace(ignore) == false
+                    && string.Equals(holder, ignore, StringComparison.OrdinalIgnoreCase))
                     return SupabaseResult<bool>.Success(true);
                 return SupabaseResult<bool>.Success(false);
             }
             catch (Exception e)
             {
-                // #region agent log
-                AgentDebugLog(
-                    "H5",
-                    "SupabasePublicProfileService.IsDisplayNameAvailableAsync",
-                    "parse_exception",
-                    "{\"err\":\"" + EscapeJson(e.Message) + "\"}");
-                // #endregion
                 return SupabaseResult<bool>.Fail("display_name_check_parse_exception:" + e.Message);
             }
         }
@@ -451,40 +417,6 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<MyWithdrawalStatus>.Fail("withdrawal_status_parse_exception:" + e.Message);
             }
         }
-
-        // #region agent log
-        private static void AgentDebugLog(string hypothesisId, string location, string message, string dataJsonObject)
-        {
-            try
-            {
-                var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                var line =
-                    "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"" + hypothesisId +
-                    "\",\"location\":\"" + EscapeJson(location) +
-                    "\",\"message\":\"" + EscapeJson(message) +
-                    "\",\"timestamp\":" + ts + ",\"data\":" + dataJsonObject + "}";
-                File.AppendAllText(@"d:\Project\TrueSoft.Supabase\debug-a19a0d.log", line + Environment.NewLine);
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-        private static string AccountIdSuffix(string accountId)
-        {
-            if (string.IsNullOrWhiteSpace(accountId) || accountId.Length < 8)
-                return "";
-            return accountId.Substring(accountId.Length - 8);
-        }
-
-        private static string EscapeJson(string s)
-        {
-            if (string.IsNullOrEmpty(s))
-                return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
-        }
-        // #endregion
 
         private static string NormalizeDisplayName(string displayName)
         {

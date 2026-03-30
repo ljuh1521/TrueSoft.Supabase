@@ -40,6 +40,9 @@ namespace Truesoft.Supabase.Unity.Config
         /// <summary><see cref="SupabaseSettings.withdrawalGuardFunctionName"/>.</summary>
         public string WithdrawalGuardFunctionName { get; private set; } = "withdrawal-guard";
 
+        /// <summary><see cref="SupabaseSettings.applyAnonymousDisplayNameOnNewGoogleSignUp"/>.</summary>
+        public bool ApplyAnonymousDisplayNameOnNewGoogleSignUp { get; private set; } = true;
+
         public void Initialize(SupabaseSettings settings)
         {
             if (settings == null)
@@ -119,6 +122,7 @@ namespace Truesoft.Supabase.Unity.Config
             WithdrawalGuardFunctionName = string.IsNullOrWhiteSpace(options.WithdrawalGuardFunctionName)
                 ? "withdrawal-guard"
                 : options.WithdrawalGuardFunctionName.Trim();
+            ApplyAnonymousDisplayNameOnNewGoogleSignUp = options.ApplyAnonymousDisplayNameOnNewGoogleSignUp;
 
             SupabaseSDK.Initialize(this);
         }

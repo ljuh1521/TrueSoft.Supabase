@@ -67,6 +67,9 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("로그인 직후 호출할 Edge Function 이름(기본 withdrawal-guard).")]
         public string withdrawalGuardFunctionName = "withdrawal-guard";
 
+        [Tooltip("Google로 신규 가입으로 판단될 때만 Auth user_metadata.displayName을 Player_xxxxxxxx 형태로 덮어씁니다. 구글 실명 자동 반영을 막습니다.")]
+        public bool applyAnonymousDisplayNameOnNewGoogleSignUp = true;
+
         public SupabaseOptions ToOptions()
         {
             return new SupabaseOptions
@@ -88,7 +91,8 @@ namespace Truesoft.Supabase.Unity
                 EnableWithdrawalGuardOnLogin = enableWithdrawalGuardOnLogin,
                 WithdrawalGuardFunctionName = string.IsNullOrWhiteSpace(withdrawalGuardFunctionName)
                     ? "withdrawal-guard"
-                    : withdrawalGuardFunctionName.Trim()
+                    : withdrawalGuardFunctionName.Trim(),
+                ApplyAnonymousDisplayNameOnNewGoogleSignUp = applyAnonymousDisplayNameOnNewGoogleSignUp
             };
         }
     }

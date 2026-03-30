@@ -17,7 +17,8 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 - **SupabaseRuntime (씬 실행 정책)**: 시작 시 세션 복원 여부, RemoteConfig 첫 로드/폴링 주기 같은 런타임 동작 시점을 제어합니다.
 
 1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
-2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)
+2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)<br/>
+   Google **신규** 가입으로 판단될 때만 `user_metadata.displayName`을 `Player_xxxxxxxx`로 덮어쓰려면 `applyAnonymousDisplayNameOnNewGoogleSignUp`(기본 on)을 유지합니다. 끄면 구글 프로필 이름이 메타데이터에 그대로 남을 수 있습니다.
 3. API 결과 로그를 제어하려면 `enableApiResultLogs`를 설정합니다. (`true`면 Try API별 고정 태그(예: `[Supabase.UserData.Save]`)로 성공/실패 로그 출력. 호출자가 태그를 넘기지 않습니다.)
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장합니다. (`Resources.Load("SupabaseSettings")` 와 이름이 일치해야 합니다.)
 5. `SupabaseRuntime`은 선택 사항입니다.  

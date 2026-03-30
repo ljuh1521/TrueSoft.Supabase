@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Truesoft.Supabase.Core.Common;
@@ -204,6 +205,7 @@ namespace Truesoft.Supabase.Core.Auth
 
                 // profiles.user_id / user_saves.user_id에 넣을 안정 id를 session에 반영합니다.
                 ApplyStablePlayerUserId(session, response.Body);
+                session.likely_brand_new_google_signup = ComputeLikelyBrandNewGoogleSignUp(response.Body);
 
                 return SupabaseResult<SupabaseSession>.Success(session);
             }
@@ -236,6 +238,117 @@ namespace Truesoft.Supabase.Core.Auth
                 if (string.IsNullOrWhiteSpace(session.user.id) == false)
                     session.user.player_user_id = session.user.id.Trim();
             }
+        }
+
+        /// <summary>
+        /// Google OAuth로 <b>방금</b> 생성된 Auth 사용자로 보이면 true (<c>created_at</c> ≈ <c>last_sign_in_at</c>).
+        /// </summary>
+        private static bool ComputeLikelyBrandNewGoogleSignUp(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return false;
+
+            try
+            {
+                var jo = JObject.Parse(responseBody);
+                var user = jo["user"];
+                if (user == null || UserHasGoogleIdentity(user) == false)
+                    return false;
+
+                return CreatedWithinSecondsOfLastSignIn(user, maxSeconds: 12d);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool UserHasGoogleIdentity(JToken user)
+        {
+            if (user["identities"] is not JArray identities || identities.Count == 0)
+                return false;
+
+            foreach (var id in identities)
+            {
+                var p = id?["provider"]?.Value<string>();
+                if (string.Equals(p, "google", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool CreatedWithinSecondsOfLastSignIn(JToken user, double maxSeconds)
+        {
+            var cStr = user["created_at"]?.Value<string>();
+            var lStr = user["last_sign_in_at"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(cStr) || string.IsNullOrWhiteSpace(lStr))
+                return false;
+
+            if (DateTime.TryParse(cStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var c) == false)
+                return false;
+            if (DateTime.TryParse(lStr, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var l) == false)
+                return false;
+
+            return Math.Abs((l - c).TotalSeconds) <= maxSeconds;
+        }
+
+        /// <summary>
+        /// <c>auth.users.id</c>(UUID)로부터 규칙에 맞는 익명 기본 displayName을 만듭니다 (<c>Player_</c> + UUID 앞 8자, 소문자).
+        /// </summary>
+        public static string BuildAnonymousDefaultDisplayNameFromAuthUserId(string authUserId)
+        {
+            if (string.IsNullOrWhiteSpace(authUserId))
+                return "Player_unknown";
+
+            var compact = authUserId.Replace("-", "");
+            if (compact.Length < 8)
+                compact = compact.PadRight(8, '0');
+            return "Player_" + compact.Substring(0, 8).ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// <c>PUT /auth/v1/user</c>로 <c>user_metadata.displayName</c>만 갱신합니다(기존 메타데이터 키는 서버 병합 규칙에 따름).
+        /// </summary>
+        public async Task<SupabaseResult<bool>> UpdateUserMetadataDisplayNameAsync(string accessToken, string displayName)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(displayName))
+                return SupabaseResult<bool>.Fail("display_name_empty");
+
+            var url = $"{_supabaseUrl}/auth/v1/user";
+            var bodyJson = _jsonSerializer.ToJson(new UpdateUserMetadataBody
+            {
+                data = new UserMetadataDisplayNamePatch { displayName = displayName.Trim() }
+            });
+
+            var headers = new Dictionary<string, string>
+            {
+                { "apikey", _publishableKey },
+                { "Authorization", "Bearer " + accessToken.Trim() },
+                { "Content-Type", "application/json" }
+            };
+
+            var response = await _httpClient.SendAsync(
+                method: "PUT",
+                url: url,
+                jsonBody: bodyJson,
+                headers: headers);
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+            {
+                var msg = ExtractErrorMessage(response.Body);
+                if (string.IsNullOrWhiteSpace(msg))
+                    msg = response.ErrorMessage ?? response.Body ?? "auth_update_user_failed";
+                return SupabaseResult<bool>.Fail(msg);
+            }
+
+            return SupabaseResult<bool>.Success(true);
         }
 
         private static string ExtractStablePlayerUserId(JToken userToken)
@@ -321,6 +434,18 @@ namespace Truesoft.Supabase.Core.Auth
             public string error_description;
             public string msg;
             public int code;
+        }
+
+        [Serializable]
+        private sealed class UpdateUserMetadataBody
+        {
+            public UserMetadataDisplayNamePatch data;
+        }
+
+        [Serializable]
+        private sealed class UserMetadataDisplayNamePatch
+        {
+            public string displayName;
         }
 
     }
