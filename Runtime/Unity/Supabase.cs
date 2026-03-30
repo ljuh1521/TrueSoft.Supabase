@@ -182,6 +182,14 @@ namespace Truesoft.Supabase.Unity
         public static string GetCurrentServerCode() =>
             SupabaseSDK.GetCurrentServerCode();
 
+        /// <summary>DB에 기록된 내 서버(<c>ts_my_server_id</c>)를 조회합니다.</summary>
+        public static Task<SupabaseResult<MyServerInfo>> GetMyServerInfoAsync() =>
+            SupabaseSDK.GetMyServerInfoAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetMyServerInfoAsync"/>
+        public static Task<MyServerInfo> TryGetMyServerInfoAsync(MyServerInfo defaultValue = default) =>
+            SupabaseSDK.TryGetMyServerInfoAsync(defaultValue);
+
         /// <inheritdoc cref="SupabaseSDK.TryGetPublicProfileAsync"/>
         public static Task<PublicProfileSnapshot> TryGetPublicProfileAsync(string userId) =>
             SupabaseSDK.TryGetPublicProfileAsync(userId);

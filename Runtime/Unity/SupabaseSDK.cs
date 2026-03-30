@@ -136,6 +136,7 @@ namespace Truesoft.Supabase.Unity
             public const string ProfilePublicDisplayNameGet = "Supabase.Profile.DisplayName.Get";
             public const string ProfileMyDisplayNameSet = "Supabase.Profile.DisplayName.Set";
             public const string ProfileDisplayNameAvailable = "Supabase.Profile.DisplayName.Available";
+            public const string ProfileMyServerGet = "Supabase.Profile.Server.Get";
             public const string ProfileServerTransfer = "Supabase.Profile.Server.Transfer";
             public const string ProfileSnapshotGet = "Supabase.Profile.Snapshot.Get";
             public const string ProfileWithdrawnAt = "Supabase.Profile.WithdrawnAt";
@@ -1048,6 +1049,34 @@ namespace Truesoft.Supabase.Unity
 
             var fromSettings = _bootstrap?.DefaultServerCode;
             return string.IsNullOrWhiteSpace(fromSettings) ? "GLOBAL" : fromSettings.Trim();
+        }
+
+        /// <summary>DB에 기록된 내 <c>profiles.server_id</c>에 대응하는 서버 코드를 조회합니다(RPC <c>ts_my_server_id</c>).</summary>
+        public static async Task<SupabaseResult<MyServerInfo>> GetMyServerInfoAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<MyServerInfo>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            var svc = _bootstrap?.PublicProfileService;
+            if (svc == null)
+                return SupabaseResult<MyServerInfo>.Fail("sdk_not_initialized");
+
+            return await svc.GetMyServerIdAsync(_currentSession.AccessToken);
+        }
+
+        /// <inheritdoc cref="GetMyServerInfoAsync"/>
+        public static async Task<MyServerInfo> TryGetMyServerInfoAsync(MyServerInfo defaultValue = default)
+        {
+            var r = await GetMyServerInfoAsync();
+            if (r == null || !r.IsSuccess)
+            {
+                LogApiResult(ApiLogTags.ProfileMyServerGet, false, r?.ErrorMessage ?? "unknown");
+                return defaultValue;
+            }
+
+            LogApiResult(ApiLogTags.ProfileMyServerGet, true, null);
+            return r.Data;
         }
 
         /// <summary>현재 로그인 계정을 지정 서버 코드로 이주시킵니다.</summary>

@@ -8,7 +8,7 @@ using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 namespace Truesoft.SupabaseUnity.Samples
 {
     /// <summary>
-    /// 샘플: 서버 시각·로그인/데이터/RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
+    /// 샘플: 서버 시각·로그인/데이터·서버 샤드(조회/이주)·RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
     /// </summary>
     public sealed class ExampleSupabaseScenarios : MonoBehaviour
     {
@@ -27,6 +27,16 @@ namespace Truesoft.SupabaseUnity.Samples
 
         [Header("Public displayName (display_names 테이블 + Edge Functions 필요)")]
         [SerializeField] private string demoDisplayName = "SamplePlayer";
+
+        [Header("Server shard (game_servers, ts_my_server_id, ts_transfer_my_server)")]
+        [Tooltip("이주 시도 시 목표 server_code. DB game_servers에 행이 있어야 하고 allow_transfers=true 권장.")]
+        [SerializeField] private string serverShardTransferTargetCode = "GLOBAL";
+
+        [Tooltip("체크 시 TryTransferMyServerAsync(serverShardTransferTargetCode)까지 호출합니다. 닉 충돌 시 실패합니다.")]
+        [SerializeField] private bool serverShardAttemptTransfer = false;
+
+        [Tooltip("데모 시작 시 로컬 선호 서버를 덮어씁니다(비우면 유지). 로그인 동기화 흐름 테스트용.")]
+        [SerializeField] private string serverShardOptionalSetLocalCode = "";
 
         [Header("Duplicate login / Logout (user_sessions + Sql 참고)")]
         [Tooltip("켜면 OnEnable에서 OnDuplicateLoginDetected를 구독합니다. 다른 기기에서 같은 계정으로 로그인했을 때(이미 ClearSession 후) 호출됩니다.")]
@@ -77,6 +87,9 @@ namespace Truesoft.SupabaseUnity.Samples
 
         [Tooltip("C: 저장된(또는 로그인 시 발급한) 철회 토큰으로 탈퇴 예약 해제")]
         [SerializeField] private KeyCode keyWithdrawalCancel = KeyCode.C;
+
+        [Tooltip("N: 서버 샤드 — 로컬 서버 코드 + DB(ts_my_server_id) 조회, 선택 시 이주(ts_transfer_my_server)")]
+        [SerializeField] private KeyCode keyServerShard = KeyCode.N;
 
         private bool _keyboardBusy;
 
@@ -140,6 +153,8 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunWithdrawalStatusExampleAsync);
             else if (Input.GetKeyDown(keyWithdrawalCancel))
                 _ = RunAsyncGuarded(RunWithdrawalCancelRedeemExampleAsync);
+            else if (Input.GetKeyDown(keyServerShard))
+                _ = RunAsyncGuarded(RunServerShardExampleAsync);
         }
 
         private async Task RunAsyncGuarded(Func<Task<bool>> body)
@@ -266,6 +281,12 @@ namespace Truesoft.SupabaseUnity.Samples
         public void RunWithdrawalCancelRedeemExample()
         {
             _ = RunWithdrawalCancelRedeemExampleAsync();
+        }
+
+        [ContextMenu("Run Server Shard Example (my server + optional transfer)")]
+        public void RunServerShardExample()
+        {
+            _ = RunServerShardExampleAsync();
         }
 
         private async Task<bool> RunLoginExampleAsync()
@@ -401,6 +422,59 @@ namespace Truesoft.SupabaseUnity.Samples
         /// <summary>
         /// RPC <c>ts_server_now</c>로 DB 서버 시각을 가져옵니다. 로그인 세션 없이 호출 가능합니다.
         /// </summary>
+        /// <summary>
+        /// 로컬 <see cref="SupabaseClient.GetCurrentServerCode"/>와 RPC <c>ts_my_server_id</c> 결과를 비교하고,
+        /// 인스펙터에서 허용한 경우 <c>ts_transfer_my_server</c>(<see cref="SupabaseClient.TryTransferMyServerAsync"/>)를 호출합니다.
+        /// Retool·service_role 이주는 README의 <c>ts_admin_transfer_user_server</c>를 참고하세요.
+        /// </summary>
+        private async Task<bool> RunServerShardExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn)
+            {
+                Debug.LogWarning("[Sample] server shard skipped: sign in first (anonymous or Google).");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(serverShardOptionalSetLocalCode) == false)
+            {
+                SupabaseClient.SetCurrentServerCode(serverShardOptionalSetLocalCode.Trim());
+                Debug.Log("[Sample] server shard: applied local server code from inspector: " + serverShardOptionalSetLocalCode.Trim());
+            }
+
+            var localCode = SupabaseClient.GetCurrentServerCode();
+            var db = await SupabaseClient.GetMyServerInfoAsync();
+            if (db == null || !db.IsSuccess)
+            {
+                Debug.LogWarning("[Sample] server shard: ts_my_server_id failed — " + (db?.ErrorMessage ?? "null")
+                    + " (Sql/supabase_player_tables.sql 적용·로그인 상태 확인)");
+                return false;
+            }
+
+            Debug.Log(
+                "[Sample] server shard: local_selected_code=" + localCode
+                + ", db_server_code=" + db.Data.ServerCode
+                + ", db_server_id=" + db.Data.ServerId);
+
+            if (!serverShardAttemptTransfer)
+            {
+                Debug.Log("[Sample] server shard: transfer skipped (enable Server Shard Attempt Transfer in inspector to call TryTransferMyServerAsync).");
+                return true;
+            }
+
+            var target = serverShardTransferTargetCode?.Trim();
+            if (string.IsNullOrEmpty(target))
+            {
+                Debug.LogWarning("[Sample] server shard: transfer skipped — serverShardTransferTargetCode is empty.");
+                return false;
+            }
+
+            var moved = await SupabaseClient.TryTransferMyServerAsync(target, "sample_ExampleSupabaseScenarios");
+            Debug.Log(moved
+                ? "[Sample] server shard: TryTransferMyServerAsync ok. local prefs updated to target on success."
+                : "[Sample] server shard: TryTransferMyServerAsync failed (target missing, allow_transfers=false, or display_name_taken_in_target_server 등).");
+            return moved;
+        }
+
         private async Task<bool> RunServerTimeExampleAsync()
         {
             if (!await SupabaseClient.EnsureInitializedAsync())

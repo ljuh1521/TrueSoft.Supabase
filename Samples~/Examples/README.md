@@ -9,6 +9,7 @@
 - 공개 displayName(`display_names` + Edge Functions) 예시 — SQL 적용 + Edge Functions 배포 후 **Run Public DisplayName Example** 또는 전체 실행 시 포함
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
+- 서버 샤드 예시 — 로컬 서버 코드(`GetCurrentServerCode` / `SetCurrentServerCode`)와 DB의 `ts_my_server_id` 조회, 선택적으로 `TryTransferMyServerAsync`(RPC `ts_transfer_my_server`). 운영·Retool용 `ts_admin_transfer_user_server`는 루트 README 참고.
 
 ## 1. 샘플 가져오기
 
@@ -30,6 +31,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장
 5. (선택) 게스트 로그인 흐름을 쓰면 Supabase 대시보드에서 **Anonymous sign-ins** 활성화
 6. (선택) 중복 로그인·`user_sessions`를 쓰려면 패키지 루트 `Sql/supabase_player_tables.sql`의 `user_sessions` 블록을 적용하고, `SupabaseSettings`에서 **Enable Duplicate Session Monitor**를 켭니다.
+7. (선택) 서버 이주 샘플은 `Sql/supabase_player_tables.sql`의 `game_servers`·RPC(`ts_my_server_id`, `ts_transfer_my_server`)가 적용된 뒤, **로그인한 상태**에서 **Run Server Shard Example** 또는 키 **N**으로 실행합니다. 다른 월드로 옮기려면 DB에 목표 `server_code` 행을 추가하고 인스펙터에서 **Server Shard Attempt Transfer**를 켭니다.
 
 ## 3. 씬에서 실행
 
@@ -44,6 +46,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
      - **Run Function Example**
      - **Run Logout Example** — 로그인된 상태에서만 의미 있음
      - **Run Duplicate Login Info (Console)** — 두 기기에서 같은 계정으로 로그인해 볼 때의 동작 안내
+     - **Run Server Shard Example** — 로그인 필요; 키보드 테스트가 켜져 있으면 **N**
 
 ## 4. 확인
 
