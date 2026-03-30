@@ -743,28 +743,45 @@ namespace Truesoft.Supabase.Unity
                         string.IsNullOrWhiteSpace(recovery.ErrorMessage) ? "withdrawal_guard_failed" : recovery.ErrorMessage);
                 if (recovery.Kind == AnonymousRecoveryKind.Restored && IsLoggedIn)
                 {
-                    RememberLastSignInMethod(SignInMethodKind.Anonymous);
-                    if (saveSessionToStorage)
-                        SaveSessionToStorage();
-                    return SupabaseResult<SupabaseSession>.Success(_currentSession);
+                    if (!IsAnonymousSession(_currentSession))
+                    {
+                        // 연동 등으로 더 이상 익명이 아닌 계정의 refresh가 복구 테이블에 남은 경우 — 게스트 버튼은 새 익명을 의미함.
+                        await TryDeleteAnonymousRecoveryForCurrentDeviceAsync();
+                        await SignOutAsync(clearStorage: true, deleteUserSessionRow: true);
+                        RememberLastSignInMethod(SignInMethodKind.Google);
+                        PlayerPrefs.Save();
+                    }
+                    else
+                    {
+                        RememberLastSignInMethod(SignInMethodKind.Anonymous);
+                        if (saveSessionToStorage)
+                            SaveSessionToStorage();
+                        return SupabaseResult<SupabaseSession>.Success(_currentSession);
+                    }
                 }
             }
 
             if (IsLoggedIn)
             {
-                // 사용자가 "익명 로그인 버튼"을 눌렀으므로, restore/recovery로 로그인 상태가 만들어졌어도
-                // 마지막 로그인 방식은 익명으로 기록합니다.
-                RememberLastSignInMethod(SignInMethodKind.Anonymous);
+                if (IsAnonymousSession(_currentSession))
+                {
+                    RememberLastSignInMethod(SignInMethodKind.Anonymous);
 
-                var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
-                if (reserved != null)
-                    return reserved;
+                    var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
+                    if (reserved != null)
+                        return reserved;
 
-                await TryEnsureProfileRowAfterSignInAsync();
+                    await TryEnsureProfileRowAfterSignInAsync();
 
-                if (saveSessionToStorage)
-                    SaveSessionToStorage();
-                return SupabaseResult<SupabaseSession>.Success(_currentSession);
+                    if (saveSessionToStorage)
+                        SaveSessionToStorage();
+                    return SupabaseResult<SupabaseSession>.Success(_currentSession);
+                }
+
+                // 저장된 refresh 복원 등으로 비익명 세션이 잡힌 경우 — 익명 로그인 의도에 맞게 끊고 신규 익명 가입으로 진행
+                await SignOutAsync(clearStorage: true, deleteUserSessionRow: true);
+                RememberLastSignInMethod(SignInMethodKind.Google);
+                PlayerPrefs.Save();
             }
 
             if (Auth == null)
