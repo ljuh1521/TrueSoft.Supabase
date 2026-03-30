@@ -103,6 +103,35 @@ namespace Truesoft.Supabase.Core.Auth
             return SupabaseResult<bool>.Success(true);
         }
 
+        /// <summary>
+        /// RPC <c>ts_anon_recovery_delete_by_fingerprint</c>으로 해당 지문 행을 삭제합니다(익명→OAuth 연동 후 정리용).
+        /// </summary>
+        public async Task<SupabaseResult<bool>> DeleteByFingerprintAsync(string fingerprintHash)
+        {
+            if (string.IsNullOrWhiteSpace(fingerprintHash))
+                return SupabaseResult<bool>.Fail("fingerprint_hash_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_anon_recovery_delete_by_fingerprint";
+            var body = _jsonSerializer.ToJson(new DeleteRequest
+            {
+                p_fingerprint_hash = fingerprintHash.Trim()
+            });
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: body,
+                headers: CreateHeaders(prefer: "return=minimal"));
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "anonymous_recovery_delete_failed");
+
+            return SupabaseResult<bool>.Success(true);
+        }
+
         private Dictionary<string, string> CreateHeaders(string prefer)
         {
             var headers = new Dictionary<string, string>
@@ -119,6 +148,12 @@ namespace Truesoft.Supabase.Core.Auth
 
         [Serializable]
         private sealed class GetRequest
+        {
+            public string p_fingerprint_hash;
+        }
+
+        [Serializable]
+        private sealed class DeleteRequest
         {
             public string p_fingerprint_hash;
         }

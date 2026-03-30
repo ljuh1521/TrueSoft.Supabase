@@ -339,6 +339,7 @@ namespace Truesoft.Supabase.Unity
                 SaveSessionToStorage();
 
             RememberLastSignInMethod(SignInMethodKind.Google);
+            await TryDeleteAnonymousRecoveryForCurrentDeviceAsync();
             if (!_isRecreatingAfterWithdrawalDelete)
             {
                 var guarded = await HandleWithdrawalGuardAfterSignInAsync(
@@ -1547,6 +1548,26 @@ namespace Truesoft.Supabase.Unity
             return true;
         }
 
+        /// <summary>
+        /// Android에서 네이티브 Google 계정 로그아웃을 시도한 뒤 <see cref="SignOutAsync"/>로 Supabase 세션을 정리합니다.
+        /// 에디터·비 Android에서는 Google 단계가 실패해도 Supabase 로그아웃은 진행합니다.
+        /// </summary>
+        public static async Task SignOutFullyAsync(bool clearStorage = true, bool deleteUserSessionRow = true)
+        {
+            if (await EnsureInitializedAsync())
+                _ = await SignOutFromGoogleAsync();
+
+            await SignOutAsync(clearStorage, deleteUserSessionRow);
+        }
+
+        /// <summary><see cref="SignOutFullyAsync"/>를 bool 기반으로 호출합니다.</summary>
+        public static async Task<bool> TrySignOutFullyAsync(bool clearStorage = true, bool deleteUserSessionRow = true)
+        {
+            await SignOutFullyAsync(clearStorage, deleteUserSessionRow);
+            LogApiResult(ApiLogTags.AuthSignOut, true, null);
+            return true;
+        }
+
         /// <summary>로그아웃 시 호출. clearStorage가 true면 PlayerPrefs에 저장된 refresh_token도 삭제합니다.</summary>
         /// <remarks>
         /// 익명 계정을 같은 기기에서 다시 이어가려면 <see cref="SignOutAsync"/>를 사용하세요(로컬 삭제 전 서버 복구 토큰 upsert).
@@ -2028,6 +2049,26 @@ namespace Truesoft.Supabase.Unity
             catch
             {
                 // best-effort 복구 경로이므로 본 로그인 결과를 깨지 않습니다.
+            }
+        }
+
+        private static async Task TryDeleteAnonymousRecoveryForCurrentDeviceAsync()
+        {
+            var svc = AnonymousRecoveryService;
+            if (svc == null)
+                return;
+
+            var fingerprintHash = DeviceFingerprintProvider.TryCreateHashedFingerprint(_initializedProjectUrl);
+            if (string.IsNullOrWhiteSpace(fingerprintHash))
+                return;
+
+            try
+            {
+                _ = await svc.DeleteByFingerprintAsync(fingerprintHash);
+            }
+            catch
+            {
+                // best-effort
             }
         }
 

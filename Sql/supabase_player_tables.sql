@@ -391,6 +391,25 @@ $$;
 grant execute on function public.ts_anon_recovery_get_refresh_token(text) to anon, authenticated;
 grant execute on function public.ts_anon_recovery_upsert_refresh_token(text, text, uuid) to anon, authenticated;
 
+-- 익명 계정을 Google 등으로 연동한 뒤에는 동일 지문으로 복구 토큰을 쓰지 않도록 행을 제거합니다.
+create or replace function public.ts_anon_recovery_delete_by_fingerprint(p_fingerprint_hash text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_fingerprint_hash is null or length(trim(p_fingerprint_hash)) = 0 then
+    return;
+  end if;
+
+  delete from public.anonymous_recovery_tokens
+  where fingerprint_hash = trim(p_fingerprint_hash);
+end;
+$$;
+
+grant execute on function public.ts_anon_recovery_delete_by_fingerprint(text) to anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- account_closures (탈퇴 이력 예시 — 클라이언트 직접 접근 없음 가정)
 -- ---------------------------------------------------------------------------

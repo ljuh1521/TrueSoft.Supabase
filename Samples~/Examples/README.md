@@ -3,7 +3,7 @@
 하나의 컴포넌트에서 Supabase 주요 기능 예시를 **함수별로 분리**해 제공합니다.
 
 - 로그인 예시
-- 로그아웃 예시 (`ClearSession` — refresh·`user_sessions` 정리)
+- 로그아웃 예시 (`TrySignOutFullyAsync` — Android면 Google 네이티브 로그아웃 시도 후 Supabase 로그아웃)
 - 중복 로그인 감지 예시 (`OnDuplicateLoginDetected` 구독 + 콘솔 안내)
 - 저장/불러오기 예시
 - 공개 displayName(`display_names` + Edge Functions) 예시 — SQL 적용 + Edge Functions 배포 후 **Run Public DisplayName Example** 또는 전체 실행 시 포함

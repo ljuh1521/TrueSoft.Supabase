@@ -381,6 +381,14 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TrySignOutAsync(bool clearStorage = true, bool deleteUserSessionRow = true) =>
             SupabaseSDK.TrySignOutAsync(clearStorage, deleteUserSessionRow);
 
+        /// <inheritdoc cref="SupabaseSDK.SignOutFullyAsync"/>
+        public static Task SignOutFullyAsync(bool clearStorage = true, bool deleteUserSessionRow = true) =>
+            SupabaseSDK.SignOutFullyAsync(clearStorage, deleteUserSessionRow);
+
+        /// <inheritdoc cref="SupabaseSDK.TrySignOutFullyAsync"/>
+        public static Task<bool> TrySignOutFullyAsync(bool clearStorage = true, bool deleteUserSessionRow = true) =>
+            SupabaseSDK.TrySignOutFullyAsync(clearStorage, deleteUserSessionRow);
+
         /// <summary>현재 세션을 기기에 저장. 앱 재시작 후 RestoreSessionAsync로 복원 가능.</summary>
         public static void SaveSessionToStorage() => SupabaseSDK.SaveSessionToStorage();
 

@@ -45,11 +45,8 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("P: 익명 세션에 Google 연동(별도 버튼 흐름)")]
         [SerializeField] private KeyCode keyLinkGoogle = KeyCode.P;
 
-        [Tooltip("W: 로그아웃(ClearSession)")]
+        [Tooltip("W: 통합 로그아웃(TrySignOutFullyAsync: Android면 Google 네이티브 시도 후 Supabase SignOut)")]
         [SerializeField] private KeyCode keyLogout = KeyCode.W;
-
-        [Tooltip("O: 구글 로그아웃(TrySignOutFromGoogleAsync) + ClearSession")]
-        [SerializeField] private KeyCode keyLogoutGoogle = KeyCode.O;
 
         [Tooltip("E: 공개 displayName 설정")]
         [SerializeField] private KeyCode keySetDisplayName = KeyCode.E;
@@ -123,8 +120,6 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunGoogleLinkExampleAsync);
             else if (Input.GetKeyDown(keyLogout))
                 _ = RunAsyncGuarded(RunLogoutExampleAsync);
-            else if (Input.GetKeyDown(keyLogoutGoogle))
-                _ = RunAsyncGuarded(RunGoogleLogoutExampleAsync);
             else if (Input.GetKeyDown(keySetDisplayName))
                 _ = RunAsyncGuarded(RunPublicNicknameExampleAsync);
             else if (Input.GetKeyDown(keySaveLoad))
@@ -243,12 +238,6 @@ namespace Truesoft.SupabaseUnity.Samples
             _ = RunLogoutExampleAsync();
         }
 
-        [ContextMenu("Run Google Logout Example")]
-        public void RunGoogleLogoutExample()
-        {
-            _ = RunGoogleLogoutExampleAsync();
-        }
-
         [ContextMenu("Run Duplicate Login Info (Console)")]
         public void RunDuplicateLoginInfoExample()
         {
@@ -354,15 +343,6 @@ namespace Truesoft.SupabaseUnity.Samples
             return true;
         }
 
-        private async Task<bool> RunGoogleLogoutExampleAsync()
-        {
-            // Supabase 세션은 그대로이므로, 구글 네이티브까지 끊으려면 아래를 호출한 뒤 ClearSession도 같이 수행합니다.
-            var ok = await SupabaseClient.TrySignOutFromGoogleAsync();
-            SupabaseClient.ClearSession();
-            Debug.Log("[Sample] google logout example: SignOutFromGoogle + ClearSession 완료. result=" + ok);
-            return ok;
-        }
-
         private async Task<bool> RunPublicNicknameExampleAsync()
         {
             if (!SupabaseClient.IsLoggedIn || SupabaseClient.Session?.User == null)
@@ -393,9 +373,8 @@ namespace Truesoft.SupabaseUnity.Samples
         }
 
         /// <summary>
-        /// Supabase 세션 로그아웃: 저장된 refresh_token 삭제, <c>user_sessions</c> 행 삭제(루트 SQL 적용 시).
-        /// 익명 계정은 <c>TrySignOutAsync</c>로 로그아웃해 동일 기기에서 다음 익명 로그인 시 같은 auth 계정으로 이어지게 할 수 있습니다.
-        /// Android 네이티브 Google 계정까지 끊으려면 <c>TrySignOutFromGoogleAsync</c> 후 <c>ClearSession</c>을 호출하세요.
+        /// 통합 로그아웃: Android에서는 <c>TrySignOutFullyAsync</c>가 Google 네이티브 로그아웃을 시도한 뒤 Supabase <c>SignOutAsync</c>와 동일하게 처리합니다.
+        /// 익명이면 로컬 refresh 삭제 전 복구용 upsert가 수행됩니다.
         /// </summary>
         private async Task<bool> RunLogoutExampleAsync()
         {
@@ -405,8 +384,8 @@ namespace Truesoft.SupabaseUnity.Samples
                 return false;
             }
 
-            await SupabaseClient.TrySignOutAsync();
-            Debug.Log("[Sample] logout example: TrySignOutAsync 완료 (익명이면 복구용 refresh upsert 후 refresh 삭제·user_sessions 정리).");
+            await SupabaseClient.TrySignOutFullyAsync();
+            Debug.Log("[Sample] logout example: TrySignOutFullyAsync 완료.");
             return true;
         }
 
