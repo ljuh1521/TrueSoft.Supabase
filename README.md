@@ -157,6 +157,11 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 3. 탈퇴 후 재가입해도 **게임은 새 `account_id` 전용 새 행**만 보므로 **이전 세이브·프로필과 자동으로 이어지지 않음**. **`user_id`는 운영·감사용으로만** 같은 사람 아래 여러 행을 묶는 데 사용.  
 4. 공개 프로필·리더보드 등에서 **“현재 활성 닉네임”**만 보이게 하려면 `account_id is not null` 조건 등을 두는 식으로 정책을 정합니다.
 
+**서버 이주 (`server_id`)**
+
+- **유저 자가 이주**: 로그인된 앱 세션으로 `POST {SUPABASE_URL}/rest/v1/rpc/ts_transfer_my_server` (바디: `p_target_server_code`, 선택 `p_reason`) 또는 SDK `TryTransferMyServerAsync`. JWT의 `auth.uid()`에 해당하는 `profiles`·파생 테이블이 한 트랜잭션에서 같이 옮겨집니다. 대상 `game_servers.allow_transfers`가 false이면 거절되며, 이주 서버에 동일 닉이 이미 있으면 `display_name_taken_in_target_server`로 실패합니다.
+- **Retool·운영(임의 계정)**: **Project service_role 키만** 사용해 `POST {SUPABASE_URL}/rest/v1/rpc/ts_admin_transfer_user_server` 를 호출합니다. 헤더: `apikey: <service_role>`, `Authorization: Bearer <service_role>`, `Content-Type: application/json`. 바디 예: `{"p_account_id":"<auth.users의 uuid>","p_target_server_code":"KR1","p_reason":"support_ticket_123"}`. 응답은 `{ "ok", "reason", "target_server_id" }` 형태의 행 하나(배열)입니다. `forbidden_not_service_role`이면 JWT가 service_role이 아닙니다. **service_role 키는 클라이언트·버전관리에 넣지 말고** Retool 시크릿·백엔드에서만 쓰세요.
+
 #### 6. 문서
 
 - 개인정보 처리방침에 **보유 항목·기간·목적**을 테이블 단위로 대응시켜 두면, 설계와 운영이 맞물립니다.
@@ -165,7 +170,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
-- **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync` (단일 프로젝트 내 `server_id` 격리)
+- **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync`; 운영·Retool은 RPC `ts_admin_transfer_user_server` (service_role 전용, 위 「서버 이주 (`server_id`)」 절)
 - **로그아웃**: `TrySignOutFullyAsync` — Android에서는 네이티브 Google 로그아웃을 시도한 뒤 Supabase `SignOutAsync`와 동일 처리(익명이면 복구용 upsert 후 로컬 정리). `TrySignOutAsync`만 쓰면 Google 계정 선택기 상태는 그대로일 수 있습니다.
 - **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 `anonymous_recovery_tokens`에서 현재 기기 지문 행을 best-effort 삭제합니다(`Sql/supabase_player_tables.sql`의 `ts_anon_recovery_delete_by_fingerprint` 필요).
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
