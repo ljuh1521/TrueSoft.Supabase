@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Truesoft.Supabase.Core.Common;
@@ -66,10 +67,12 @@ namespace Truesoft.Supabase.Core.Auth
         }
 
         /// <summary>
-        /// 현재 로그인된 사용자(게스트 포함)에 OAuth identity를 ID token으로 링크합니다.
-        /// 예: 익명 로그인 후 Google idToken을 받아 linkIdentityWithIdToken과 유사한 동작을 수행합니다.
+        /// 현재 로그인된 사용자(게스트 포함)에 OIDC ID 토큰으로 identity를 링크합니다.
+        /// 호스티드 GoTrue는 <c>POST /user/identities/link_token</c> 대신
+        /// <c>POST /token?grant_type=id_token</c> 바디에 <c>link_identity: true</c>를 두고,
+        /// <c>Authorization: Bearer</c>에 현재 세션 access token을 넣는 방식(supabase-js <c>linkIdentity</c>)을 사용합니다.
         /// </summary>
-        public async Task<SupabaseResult<bool>> LinkIdentityWithIdTokenAsync(
+        public async Task<SupabaseResult<SupabaseSession>> LinkIdentityWithIdTokenAsync(
             string accessToken,
             string provider,
             string idToken,
@@ -77,30 +80,25 @@ namespace Truesoft.Supabase.Core.Auth
             string oauthAccessToken = null)
         {
             if (string.IsNullOrWhiteSpace(accessToken))
-                return SupabaseResult<bool>.Fail("access_token_empty");
+                return SupabaseResult<SupabaseSession>.Fail("access_token_empty");
 
             if (string.IsNullOrWhiteSpace(provider))
-                return SupabaseResult<bool>.Fail("provider_empty");
+                return SupabaseResult<SupabaseSession>.Fail("provider_empty");
 
             if (string.IsNullOrWhiteSpace(idToken))
-                return SupabaseResult<bool>.Fail("id_token_empty");
+                return SupabaseResult<SupabaseSession>.Fail("id_token_empty");
 
-            var url = $"{_supabaseUrl}/auth/v1/user/identities/link_token";
-
-            var body = new LinkIdentityWithIdTokenRequest
-            {
-                provider = provider,
-                id_token = idToken,
-                nonce = nonce,
-                access_token = string.IsNullOrWhiteSpace(oauthAccessToken) ? null : oauthAccessToken.Trim()
-            };
-
-            var bodyJson = _jsonSerializer.ToJson(body);
+            var url = $"{_supabaseUrl}/auth/v1/token?grant_type=id_token";
+            var bodyJson = BuildIdTokenLinkIdentityJson(
+                provider.Trim(),
+                idToken.Trim(),
+                nonce,
+                string.IsNullOrWhiteSpace(oauthAccessToken) ? null : oauthAccessToken.Trim());
 
             var headers = new Dictionary<string, string>
             {
                 { "apikey", _publishableKey },
-                { "Authorization", "Bearer " + accessToken },
+                { "Authorization", "Bearer " + accessToken.Trim() },
                 { "Content-Type", "application/json" }
             };
 
@@ -110,18 +108,32 @@ namespace Truesoft.Supabase.Core.Auth
                 jsonBody: bodyJson,
                 headers: headers);
 
-            if (response == null)
-                return SupabaseResult<bool>.Fail("http_response_null");
+            return HandleSessionResponse(response, "link_identity_id_token_failed");
+        }
 
-            if (response.IsSuccess == false)
-            {
-                var errorMessage = ExtractErrorMessage(response.Body);
-                if (string.IsNullOrWhiteSpace(errorMessage))
-                    errorMessage = response.ErrorMessage ?? response.Body ?? "link_identity_failed";
-                return SupabaseResult<bool>.Fail(errorMessage);
-            }
+        private static string BuildIdTokenLinkIdentityJson(
+            string provider,
+            string idToken,
+            string nonce,
+            string oauthAccessToken)
+        {
+            var sb = new StringBuilder(256);
+            sb.Append("{\"provider\":\"").Append(JsonEscapeForBody(provider))
+                .Append("\",\"id_token\":\"").Append(JsonEscapeForBody(idToken))
+                .Append("\",\"link_identity\":true");
+            if (string.IsNullOrWhiteSpace(nonce) == false)
+                sb.Append(",\"nonce\":\"").Append(JsonEscapeForBody(nonce.Trim())).Append('"');
+            if (string.IsNullOrWhiteSpace(oauthAccessToken) == false)
+                sb.Append(",\"access_token\":\"").Append(JsonEscapeForBody(oauthAccessToken)).Append('"');
+            sb.Append('}');
+            return sb.ToString();
+        }
 
-            return SupabaseResult<bool>.Success(true);
+        private static string JsonEscapeForBody(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return "";
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         public async Task<SupabaseResult<SupabaseSession>> SignInWithIdTokenAsync(
@@ -420,15 +432,6 @@ namespace Truesoft.Supabase.Core.Auth
         private sealed class AnonymousSignupRequest
         {
             // JsonUtility로 "{}"를 만들기 위한 용도입니다.
-        }
-
-        [Serializable]
-        private sealed class LinkIdentityWithIdTokenRequest
-        {
-            public string provider;
-            public string id_token;
-            public string nonce;
-            public string access_token;
         }
 
         [Serializable]
