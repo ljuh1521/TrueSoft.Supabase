@@ -18,8 +18,22 @@ namespace Truesoft.Supabase.Core.Data
     {
         private const int DisplayNameMaxLength = 64;
 
+        /// <summary>
+        /// 디버그 NDJSON(세션 a19a0d) 전체 파일 경로. 비어 있으면 <see cref="Directory.GetCurrentDirectory"/> 기준.
+        /// Unity 앱/에뮬레이터에서는 부트스트랩에서 <c>Application.persistentDataPath</c> 하위로 설정하는 것을 권장합니다.
+        /// </summary>
+        public static string AgentDebugLogFilePath { get; set; }
+
         /// <summary>PostgREST <c>IS NOT NULL</c> — 활성 행만 (<c>account_id</c>가 있는 프로필).</summary>
         private const string ActiveProfileFilter = "account_id=is.not_null";
+
+        private static string ResolveAgentDebugLogPath()
+        {
+            var custom = AgentDebugLogFilePath?.Trim();
+            if (string.IsNullOrEmpty(custom) == false)
+                return custom;
+            return Path.Combine(Directory.GetCurrentDirectory(), "debug-a19a0d.log");
+        }
 
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
@@ -281,7 +295,7 @@ namespace Truesoft.Supabase.Core.Data
                 var stableLen = stable?.Length ?? 0;
                 var stableIsGuid = Guid.TryParse(stable, out _);
                 File.AppendAllText(
-                    Path.Combine(Directory.GetCurrentDirectory(), "debug-a19a0d.log"),
+                    ResolveAgentDebugLogPath(),
                     JsonConvert.SerializeObject(new
                     {
                         sessionId = "a19a0d",
@@ -313,7 +327,7 @@ namespace Truesoft.Supabase.Core.Data
                 var b = response.Body ?? "";
                 var preview = b.Length > 500 ? b.Substring(0, 500) : b;
                 File.AppendAllText(
-                    Path.Combine(Directory.GetCurrentDirectory(), "debug-a19a0d.log"),
+                    ResolveAgentDebugLogPath(),
                     JsonConvert.SerializeObject(new
                     {
                         sessionId = "a19a0d",
