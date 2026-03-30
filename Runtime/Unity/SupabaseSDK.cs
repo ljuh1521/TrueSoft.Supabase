@@ -706,20 +706,20 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>게스트(익명)로 로그인하고 SDK 세션을 자동 설정합니다.</summary>
-        /// <remarks>저장된 refresh_token이 있으면 먼저 <see cref="RestoreSessionAsync"/>를 시도해 동일 계정을 이어갑니다(수동 로그인 버튼 흐름).</remarks>
+        /// <remarks>
+        /// 저장된 refresh_token이 있으면 먼저 <see cref="RestoreSessionAsync"/>를 시도해 동일 계정을 이어갑니다(수동 로그인 버튼 흐름).<br/>
+        /// 이미 Google 등 <b>비익명</b>으로 로그인 중이면 실패(<c>signed_in_non_anonymous_sign_out_first</c>) — 먼저 로그아웃한 뒤 호출하세요.
+        /// </remarks>
         public static async Task<SupabaseResult<SupabaseSession>> SignInAnonymouslyAsync(bool saveSessionToStorage = true)
         {
             if (!await EnsureInitializedAsync())
                 return SupabaseResult<SupabaseSession>.Fail("sdk_not_initialized");
 
-            var forceFreshAnonymous = false;
             if (IsLoggedIn && !IsAnonymousSession(_currentSession))
-            {
-                // Google 등 비익명 계정에서 "익명 로그인"을 누르면 새 익명 계정으로 시작합니다.
-                await SignOutAsync(clearStorage: true, deleteUserSessionRow: true);
-                forceFreshAnonymous = true;
-            }
-            else if (!IsLoggedIn && ReadLastSignInMethod() == SignInMethodKind.Google)
+                return SupabaseResult<SupabaseSession>.Fail("signed_in_non_anonymous_sign_out_first");
+
+            var forceFreshAnonymous = false;
+            if (!IsLoggedIn && ReadLastSignInMethod() == SignInMethodKind.Google)
             {
                 // 직전 연동 계정을 복원하지 않도록, 익명 시작을 명시적으로 새 가입으로 강제합니다.
                 forceFreshAnonymous = true;

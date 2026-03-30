@@ -231,6 +231,7 @@ var balance = Supabase.GetRemoteConfig<int>(\"game_balance\", 0);
 
 - 연동은 자동으로 수행하지 않고, **별도 버튼 UX**에서만 호출하는 것을 권장합니다.
 - 익명 세션에서 일반 `TrySignInWithGoogleAsync` / `TrySignInWithGoogleIdTokenAsync`를 호출하면 실패(`anonymous_session_requires_explicit_link`)합니다.
+- Google 등 비익명으로 이미 로그인된 상태에서 `TrySignInAnonymouslyAsync`를 호출하면 실패(`signed_in_non_anonymous_sign_out_first`)합니다. 먼저 `TrySignOutFullyAsync` 등으로 로그아웃하세요.
 - 익명 세션 연동은 `TryLinkGoogleToCurrentAnonymousAsync`(또는 ID 토큰 버전)를 사용하세요.
 - 연동 성공 시에는 같은 `auth.users.id`를 유지하면서 `is_anonymous`가 false가 되어야 합니다.
 - 연동하려는 Google 계정이 이미 다른 사용자에 연결되어 있으면 연동은 실패하며, 현재 익명 세션은 유지됩니다.
