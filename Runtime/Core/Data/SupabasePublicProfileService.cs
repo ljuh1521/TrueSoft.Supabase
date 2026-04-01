@@ -285,7 +285,8 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(stable))
                 stable = accountId.Trim();
 
-            var serverId = await TryResolveDefaultGameServerIdAsync(accessToken).ConfigureAwait(false);
+            // UnityWebRequest 는 메인 스레드에서 생성해야 함 — ConfigureAwait(false) 금지
+            var serverId = await TryResolveDefaultGameServerIdAsync(accessToken);
 
             var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}?on_conflict=account_id";
             var body = new UpsertProfileRow
@@ -363,7 +364,7 @@ namespace Truesoft.Supabase.Core.Data
                     method: "GET",
                     url: gsUrl,
                     jsonBody: null,
-                    headers: CreateUserHeaders(accessToken, null)).ConfigureAwait(false);
+                    headers: CreateUserHeaders(accessToken, null));
                 if (gsRes == null || !gsRes.IsSuccess || string.IsNullOrWhiteSpace(gsRes.Body))
                     return null;
 
