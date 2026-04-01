@@ -1,0 +1,18 @@
+---
+description: Temporary test/agent NDJSON logs go at host project root, not inside SDK sources
+alwaysApply: true
+---
+
+# Test and debug log files (NDJSON / session logs)
+
+When adding **temporary** runtime logs for debugging (e.g. Cursor debug mode NDJSON, hypothesis logging):
+
+1. **Write to the host project root**, not under `Runtime/`, `Sql/`, `Samples~/`, or any path inside the distributed SDK/package tree.
+   - **Unity host app**: project root = directory **above** `Assets` (same as `Path.GetFullPath(Path.Combine(Application.dataPath, ".."))`). Put files like `debug-<session>.log` there.
+   - **This workspace is the SDK repo**: use the **Cursor workspace root** (`d:\Project\TrueSoft.Supabase` or the consumer’s open folder) for `debug-*.log`.
+
+2. **Do not** add permanent “log path helper” types under `Runtime/Core` or `Runtime/Unity` for this purpose unless the product explicitly needs shipping diagnostics.
+
+3. **Secrets**: never log tokens, API keys, refresh tokens, or PII in these files.
+
+4. **Git**: do not commit session debug logs; they should match `.gitignore` patterns such as `/debug-*.log` at repo root when applicable.

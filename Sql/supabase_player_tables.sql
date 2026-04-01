@@ -255,6 +255,31 @@ on public.profiles for update
 using (account_id is not null and account_id = auth.uid())
 with check (server_id is not null);
 
+-- PostgREST upsert(merge-duplicates) UPDATE 분기에서 기존 server_id가 NULL이면 WITH CHECK(server_id is not null)가 계속 실패(42501→403).
+-- INSERT 시에도 JSON에 server_id가 없을 때 RLS/기본값 평가 순서에 따라 NULL로 남는 경우가 있어 BEFORE에서 보강.
+create or replace function public.ts_profiles_coalesce_server_id()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if new.server_id is null then
+    new.server_id := public.ts_default_server_id();
+  end if;
+  return new;
+end;
+$$;
+
+comment on function public.ts_profiles_coalesce_server_id() is
+  'profiles 행 INSERT·UPDATE 직전 server_id가 NULL이면 ts_default_server_id()로 채움. ensure-profile upsert·RLS 호환.';
+
+drop trigger if exists trg_profiles_coalesce_server_id on public.profiles;
+create trigger trg_profiles_coalesce_server_id
+before insert or update on public.profiles
+for each row
+execute function public.ts_profiles_coalesce_server_id();
+
 -- nickname은 auth.user_metadata.displayName으로 이동했으므로 profiles에 두지 않습니다.
 
 -- ---------------------------------------------------------------------------
@@ -1345,6 +1370,7 @@ from (
       ('ts_delete_my_anon_recovery_tokens'),
       ('auth_user_server_id'),
       ('ts_default_server_id'),
+      ('ts_profiles_coalesce_server_id'),
       ('ts_my_server_id'),
       ('ts_transfer_my_server'),
       ('ts_admin_transfer_user_server'),

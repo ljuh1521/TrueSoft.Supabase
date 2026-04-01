@@ -134,5 +134,8 @@ Temporary Items
 .apdisk
 
 # Custom
+# Cursor/agent session NDJSON logs (written at repo / Unity project root)
+/debug-*.log
+
 Assets/GoogleMobileAds/link.xml.meta
 Assets/StreamingAssets/google-services-desktop.json.meta
