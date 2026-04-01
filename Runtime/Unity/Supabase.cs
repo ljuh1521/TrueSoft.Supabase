@@ -130,6 +130,21 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new() =>
             SupabaseSDK.LoadUserDataAsync<T>();
 
+        /// <summary>로그인 직후 본인 user_saves 행 보장 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> EnsureMyUserSaveRowAsync() =>
+            SupabaseSDK.EnsureMyUserSaveRowAsync();
+
+        /// <summary>변경된 컬럼만 부분 저장(PATCH) (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> PatchUserDataAsync(
+            System.Collections.Generic.Dictionary<string, object> patch,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true) =>
+            SupabaseSDK.PatchUserDataAsync(patch, ensureRowFirst, setUpdatedAtIsoUtc);
+
+        /// <summary>프로젝트별 select 컬럼으로 로드 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<T>> LoadUserDataColumnsAsync<T>(string selectColumnsCsv = null) where T : class, new() =>
+            SupabaseSDK.LoadUserDataColumnsAsync<T>(selectColumnsCsv);
+
         /// <inheritdoc cref="SupabaseSDK.TrySaveUserDataAsync{T}(T)"/>
         public static Task<bool> TrySaveUserDataAsync<T>(T data) =>
             SupabaseSDK.TrySaveUserDataAsync(data);
@@ -137,6 +152,23 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataAsync{T}(T)"/>
         public static Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new() =>
             SupabaseSDK.TryLoadUserDataAsync(defaultValue);
+
+        /// <inheritdoc cref="SupabaseSDK.PatchUserDataAsync"/>
+        public static async Task<bool> TryPatchUserDataAsync(
+            System.Collections.Generic.Dictionary<string, object> patch,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true)
+        {
+            var r = await PatchUserDataAsync(patch, ensureRowFirst, setUpdatedAtIsoUtc);
+            return r != null && r.IsSuccess;
+        }
+
+        /// <inheritdoc cref="SupabaseSDK.LoadUserDataColumnsAsync{T}(string)"/>
+        public static async Task<T> TryLoadUserDataColumnsAsync<T>(string selectColumnsCsv = null, T defaultValue = default) where T : class, new()
+        {
+            var r = await LoadUserDataColumnsAsync<T>(selectColumnsCsv);
+            return r != null && r.IsSuccess ? r.Data : defaultValue;
+        }
 
         /// <summary>다른 사용자 공개 displayName 조회 (내부 Result API).</summary>
         internal static Task<SupabaseResult<string>> GetPublicDisplayNameAsync(string userId) =>

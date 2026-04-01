@@ -35,6 +35,9 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("Save/Load 유저 데이터에 사용하는 테이블 이름. 스키마가 public이 아니면 schema.table 형식으로 지정할 수 있습니다.")]
         public string userSavesTable = "user_saves";
 
+        [Tooltip("유저 세이브 로드 시 기본 select 컬럼 CSV(예: level,coins,updated_at). 비우면 게임 코드가 select를 직접 넘겨야 합니다.")]
+        public string userSavesDefaultSelectColumnsCsv = "";
+
         [Tooltip("Remote Config 행을 읽는 테이블 이름.")]
         public string remoteConfigTable = "remote_config";
 
@@ -82,6 +85,7 @@ namespace Truesoft.Supabase.Unity
                 PublishableKey = publishableKey,
                 TimeoutSeconds = timeoutSeconds,
                 UserSavesTable = string.IsNullOrWhiteSpace(userSavesTable) ? "user_saves" : userSavesTable.Trim(),
+                UserSavesDefaultSelectColumnsCsv = userSavesDefaultSelectColumnsCsv == null ? "" : userSavesDefaultSelectColumnsCsv.Trim(),
                 RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
                 ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
                 PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim(),

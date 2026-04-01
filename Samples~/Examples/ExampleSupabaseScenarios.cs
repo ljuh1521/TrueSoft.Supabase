@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Unity;
@@ -340,27 +341,30 @@ namespace Truesoft.SupabaseUnity.Samples
                 return false;
             }
 
-            var save = new SaveData
+            // 프로젝트별로 user_saves 테이블에 명시 컬럼(level/coins 등)을 두고, 변경된 값만 PATCH로 저장하는 방식의 예시입니다.
+            // 필요 컬럼 예: level int, coins int, updated_at timestamptz.
+            var patch = new Dictionary<string, object>
             {
-                level = level,
-                coins = coins,
-                updatedAtIso = DateTime.UtcNow.ToString("o")
+                { "level", level },
+                { "coins", coins }
             };
 
-            if (!await SupabaseClient.TrySaveUserDataAsync(save))
+            if (!await SupabaseClient.TryPatchUserDataAsync(patch, ensureRowFirst: true, setUpdatedAtIsoUtc: true))
             {
                 Debug.LogWarning("[Sample] save/load example failed at save.");
                 return false;
             }
 
-            var loaded = await SupabaseClient.TryLoadUserDataAsync<SaveData>();
+            var loaded = await SupabaseClient.TryLoadUserDataColumnsAsync<SaveDataRow>(
+                selectColumnsCsv: "level,coins,updated_at",
+                defaultValue: null);
             if (loaded == null)
             {
                 Debug.LogWarning("[Sample] save/load example failed at load.");
                 return false;
             }
 
-            Debug.Log($"[Sample] save/load example success. level={loaded.level}, coins={loaded.coins}");
+            Debug.Log($"[Sample] save/load example success. level={loaded.level}, coins={loaded.coins}, updated_at={loaded.updated_at}");
             return true;
         }
 
@@ -636,11 +640,11 @@ namespace Truesoft.SupabaseUnity.Samples
         }
 
         [Serializable]
-        private sealed class SaveData
+        private sealed class SaveDataRow
         {
             public int level;
             public int coins;
-            public string updatedAtIso;
+            public string updated_at;
         }
     }
 }

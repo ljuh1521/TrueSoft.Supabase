@@ -22,6 +22,9 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseAnonymousRecoveryService AnonymousRecoveryService { get; private set; }
         public SupabaseServerTimeService ServerTimeService { get; private set; }
 
+        /// <summary><see cref="SupabaseSettings.userSavesDefaultSelectColumnsCsv"/>.</summary>
+        public string UserSavesDefaultSelectColumnsCsv { get; private set; } = "";
+
         /// <summary><see cref="SupabaseSettings.enableDuplicateSessionMonitor"/>.</summary>
         public bool EnableDuplicateSessionMonitor { get; private set; }
 
@@ -127,6 +130,9 @@ namespace Truesoft.Supabase.Unity.Config
                 : options.WithdrawalGuardFunctionName.Trim();
             ApplyAnonymousDisplayNameOnNewGoogleSignUp = options.ApplyAnonymousDisplayNameOnNewGoogleSignUp;
             DefaultServerCode = string.IsNullOrWhiteSpace(options.DefaultServerCode) ? "GLOBAL" : options.DefaultServerCode.Trim();
+            UserSavesDefaultSelectColumnsCsv = options.UserSavesDefaultSelectColumnsCsv == null
+                ? ""
+                : options.UserSavesDefaultSelectColumnsCsv.Trim();
 
             SupabaseSDK.Initialize(this);
         }
