@@ -660,7 +660,8 @@ begin
   end if;
 end $$;
 
-comment on table public.anonymous_recovery_tokens is 'device-only 익명 복구용 refresh_token 저장소(best-effort).';
+comment on table public.anonymous_recovery_tokens is
+  'device-only 익명 복구용 refresh_token 저장소(best-effort). 탈퇴 요청(ts_request_withdrawal→ts_delete_my_anon_recovery_tokens), auth.users 삭제/익명해제, auth.identities에 비익명 provider 추가 시 해당 account 행 자동 삭제.';
 comment on column public.anonymous_recovery_tokens.fingerprint_hash is '클라이언트가 만든 SHA-256 해시 지문.';
 comment on column public.anonymous_recovery_tokens.server_id is '복구 토큰이 속한 서버 id.';
 comment on column public.anonymous_recovery_tokens.refresh_token is '복구용 refresh_token.';
@@ -797,6 +798,144 @@ $$;
 grant execute on function public.ts_anon_recovery_get_refresh_token(text, text) to anon, authenticated;
 grant execute on function public.ts_anon_recovery_upsert_refresh_token(text, text, uuid, text) to anon, authenticated;
 grant execute on function public.ts_anon_recovery_delete_by_fingerprint(text, text) to anon, authenticated;
+
+-- 본인 account_id(auth.uid())에 매달린 익명 복구 행만 삭제. 탈퇴 RPC(ts_request_withdrawal) 등에서 호출.
+create or replace function public.ts_delete_my_anon_recovery_tokens()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid := auth.uid();
+begin
+  if v_id is null then
+    return;
+  end if;
+
+  delete from public.anonymous_recovery_tokens
+  where account_id = v_id;
+end;
+$$;
+
+comment on function public.ts_delete_my_anon_recovery_tokens() is
+  '현재 JWT 사용자에 대한 anonymous_recovery_tokens 행 삭제(로그아웃 정리·탈퇴 요청 등).';
+
+grant execute on function public.ts_delete_my_anon_recovery_tokens() to authenticated;
+
+-- 트리거 전용: 임의 account_id(검증은 호출부). PostgREST에 노출하지 않음.
+create or replace function public._ts_delete_anon_recovery_tokens_by_account_id(p_account_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_account_id is null then
+    return;
+  end if;
+
+  delete from public.anonymous_recovery_tokens
+  where account_id = p_account_id;
+end;
+$$;
+
+revoke all on function public._ts_delete_anon_recovery_tokens_by_account_id(uuid) from public;
+revoke all on function public._ts_delete_anon_recovery_tokens_by_account_id(uuid) from anon, authenticated;
+
+-- auth.users: 익명→소셜 등 연동 시 is_anonymous true→false, 또는 계정 하드 삭제 시 복구 토큰 제거
+create or replace function public.ts_auth_users_anon_recovery_cleanup()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    perform public._ts_delete_anon_recovery_tokens_by_account_id(old.id);
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if coalesce(old.is_anonymous, false) = true
+      and coalesce(new.is_anonymous, false) = false then
+      perform public._ts_delete_anon_recovery_tokens_by_account_id(new.id);
+    end if;
+    return new;
+  end if;
+
+  return new;
+end;
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'auth'
+      and c.table_name = 'users'
+      and c.column_name = 'is_anonymous'
+  ) then
+    drop trigger if exists trg_auth_users_anon_recovery_cleanup_u on auth.users;
+    create trigger trg_auth_users_anon_recovery_cleanup_u
+      after update of is_anonymous on auth.users
+      for each row
+      execute function public.ts_auth_users_anon_recovery_cleanup();
+  end if;
+end $$;
+
+drop trigger if exists trg_auth_users_anon_recovery_cleanup_d on auth.users;
+create trigger trg_auth_users_anon_recovery_cleanup_d
+  after delete on auth.users
+  for each row
+  execute function public.ts_auth_users_anon_recovery_cleanup();
+
+-- 익명 계정에 Google 등 두 번째 identity 가 붙을 때(INSERT)에도 정리. is_anonymous 갱신 타이밍과 무관하게 동작.
+create or replace function public.ts_auth_identities_anon_recovery_cleanup()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.user_id is not null then
+    perform public._ts_delete_anon_recovery_tokens_by_account_id(new.user_id);
+  end if;
+  return new;
+end;
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables t
+    where t.table_schema = 'auth'
+      and t.table_name = 'identities'
+  )
+  and exists (
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'auth'
+      and c.table_name = 'identities'
+      and c.column_name = 'provider'
+  )
+  and exists (
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'auth'
+      and c.table_name = 'identities'
+      and c.column_name = 'user_id'
+  ) then
+    drop trigger if exists trg_auth_identities_anon_recovery_cleanup on auth.identities;
+    create trigger trg_auth_identities_anon_recovery_cleanup
+      after insert on auth.identities
+      for each row
+      when (new.provider is distinct from 'anonymous')
+      execute function public.ts_auth_identities_anon_recovery_cleanup();
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- sync triggers (profiles.server_id를 파생 테이블에 강제 반영)
@@ -1107,6 +1246,7 @@ from (
       ('ts_anon_recovery_get_refresh_token'),
       ('ts_anon_recovery_upsert_refresh_token'),
       ('ts_anon_recovery_delete_by_fingerprint'),
+      ('ts_delete_my_anon_recovery_tokens'),
       ('auth_user_server_id'),
       ('ts_my_server_id'),
       ('ts_transfer_my_server'),

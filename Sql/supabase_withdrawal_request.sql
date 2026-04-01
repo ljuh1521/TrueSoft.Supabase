@@ -3,6 +3,9 @@
 -- 클라이언트는 "유예 기간(일)"만 전달하고, 실제 withdrawn_at은 서버에서 계산합니다.
 -- 마지막 SELECT(Result 탭)로 함수 반영·GRANT 여부를 확인한다.
 --
+-- 선행: anonymous_recovery_tokens 정리를 위해 Sql/supabase_player_tables.sql 의
+--       public.ts_delete_my_anon_recovery_tokens() 가 정의되어 있어야 합니다(해당 파일을 먼저 실행).
+--
 -- 재실행: CREATE OR REPLACE 로 정의가 항상 이 파일의 최종본으로 맞춰진다. GRANT·COMMENT 도 재실행해도 동일.
 -- 인자/반환 타입을 바꿀 때는 기존 함수와 충돌하면 드롭 후 재생성이 필요할 수 있다.
 -- =============================================================================
@@ -45,12 +48,15 @@ begin
     return;
   end if;
 
+  -- 익명 복구 토큰은 탈퇴 시 더 이상 유효하지 않음(RLS로 일반 DELETE 불가 → DEFINER 헬퍼)
+  perform public.ts_delete_my_anon_recovery_tokens();
+
   return query select scheduled_at;
 end;
 $$;
 
 comment on function public.ts_request_withdrawal(integer) is
-  '탈퇴 요청 시 withdrawn_at을 서버 시각 기준으로 설정(0일이면 즉시 now, 그 외 now + delay_days)';
+  '탈퇴 요청 시 withdrawn_at을 서버 시각 기준으로 설정(0일이면 즉시 now, 그 외 now + delay_days). anonymous_recovery_tokens 본인 행 삭제.';
 
 grant execute on function public.ts_request_withdrawal(integer) to authenticated;
 

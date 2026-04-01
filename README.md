@@ -172,7 +172,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
 - **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync`; 운영·Retool은 RPC `ts_admin_transfer_user_server` (service_role 전용, 위 「서버 이주 (`server_id`)」 절)
 - **로그아웃**: `TrySignOutFullyAsync` — Android에서는 네이티브 Google 로그아웃을 시도한 뒤 Supabase `SignOutAsync`와 동일 처리(익명이면 복구용 upsert 후 로컬 정리). `TrySignOutAsync`만 쓰면 Google 계정 선택기 상태는 그대로일 수 있습니다.
-- **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 `anonymous_recovery_tokens`에서 현재 기기 지문 행을 best-effort 삭제합니다(`Sql/supabase_player_tables.sql`의 `ts_anon_recovery_delete_by_fingerprint` 필요).
+- **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 클라이언트가 지문 행을 best-effort 삭제(`ts_anon_recovery_delete_by_fingerprint`)하며, DB에도 `auth.identities` 비익명 provider 추가·`auth.users.is_anonymous` 해제·계정 삭제 시 해당 `account_id` 토큰이 자동 삭제되도록 트리거가 있습니다(`Sql/supabase_player_tables.sql`). 탈퇴 요청 RPC(`ts_request_withdrawal`)는 `ts_delete_my_anon_recovery_tokens`로 본인 행을 정리합니다.
 - **사용자 데이터**: `TrySaveUserDataAsync`, `TryLoadUserDataAsync` (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
 - **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql` 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
