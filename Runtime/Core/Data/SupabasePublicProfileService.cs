@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Truesoft.Supabase.Core.Common;
@@ -294,6 +295,38 @@ namespace Truesoft.Supabase.Core.Data
                 jsonBody: bodyJson,
                 headers: CreateUserHeaders(accessToken, "resolution=merge-duplicates,return=minimal"));
 
+            // #region agent log
+            try
+            {
+                var logPath = Environment.GetEnvironmentVariable("TRUESOFT_DEBUG_LOG");
+                if (string.IsNullOrWhiteSpace(logPath))
+                    logPath = @"d:\Project\TrueSoft.Supabase\debug-a19a0d.log";
+                var snip = response?.Body;
+                if (!string.IsNullOrEmpty(snip) && snip.Length > 220)
+                    snip = snip.Substring(0, 220);
+                var line = JsonConvert.SerializeObject(new Dictionary<string, object>
+                {
+                    ["sessionId"] = "a19a0d",
+                    ["hypothesisId"] = "C",
+                    ["location"] = "SupabasePublicProfileService.EnsureMyProfileRowAsync",
+                    ["message"] = "post_profiles_upsert_response",
+                    ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    ["data"] = new Dictionary<string, object>
+                    {
+                        ["profilesTable"] = _profilesTable,
+                        ["statusCode"] = response?.StatusCode ?? -1,
+                        ["isSuccess"] = response?.IsSuccess ?? false,
+                        ["bodySnippet"] = snip ?? ""
+                    }
+                });
+                File.AppendAllText(logPath, line + "\n");
+            }
+            catch
+            {
+                // ignore
+            }
+            // #endregion
+
             if (response == null)
                 return SupabaseResult<bool>.Fail("http_response_null");
 
@@ -545,7 +578,9 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         [Serializable]
-        private sealed class UpsertDisplayNameRow
+        private sealed class UpsertDis
+        
+         playNameRow
         {
             public string account_id;
             public string user_id;
@@ -565,8 +600,7 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class DisplayNameGetRequest
         {
             public string user_id;
-        }
-
+        
         [Serializable]
         private sealed class MyServerInfoRow
         {
