@@ -18,6 +18,11 @@ namespace Truesoft.Supabase.Core.Data
     {
         private const int DisplayNameMaxLength = 64;
 
+        private static readonly JsonSerializerSettings JsonProfileUpsertSettings = new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore
+        };
+
         /// <summary>PostgREST <c>IS NOT NULL</c> — 활성 행만 (<c>account_id</c>가 있는 프로필).</summary>
         private const string ActiveProfileFilter = "account_id=is.not_null";
 
@@ -28,6 +33,9 @@ namespace Truesoft.Supabase.Core.Data
         private readonly string _defaultServerCode;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
+
+        /// <summary>EnsureMyProfileRowAsync 가 <c>game_servers</c>에서 한 번 조회한 기본 월드 id (캐시).</summary>
+        private string _cachedDefaultGameServerId;
 
         public SupabasePublicProfileService(
             string supabaseUrl,
@@ -277,16 +285,19 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(stable))
                 stable = accountId.Trim();
 
+            var serverId = await TryResolveDefaultGameServerIdAsync(accessToken).ConfigureAwait(false);
+
             var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}?on_conflict=account_id";
             var body = new UpsertProfileRow
             {
                 user_id = stable,
                 account_id = accountId.Trim(),
-                withdrawn_at = null
+                withdrawn_at = null,
+                server_id = serverId
             };
 
-            // Unity JsonUtility.ToJson turns null string fields into "" — PostgREST then rejects timestamptz.
-            var singleJson = JsonConvert.SerializeObject(body);
+            // withdrawn_at 등 null 은 본문에서 제외(PostgREST timestamptz). server_id 는 RLS(with check server_id) 구 DB 호환용으로 채움.
+            var singleJson = JsonConvert.SerializeObject(body, JsonProfileUpsertSettings);
             var bodyJson = "[" + singleJson + "]";
 
             var response = await _httpClient.SendAsync(
@@ -334,6 +345,40 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "profile_upsert_failed");
 
             return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <summary>
+        /// <c>game_servers</c> 공개 SELECT(RLS)로 <see cref="_defaultServerCode"/>에 해당하는 <c>id</c>를 한 번 조회해 캐시합니다.
+        /// 프로필 upsert 시 <c>server_id</c>를 넣어, INSERT RLS가 <c>server_id is not null</c>인 구 스키마에서도 통과하게 합니다.
+        /// </summary>
+        private async Task<string> TryResolveDefaultGameServerIdAsync(string accessToken)
+        {
+            if (!string.IsNullOrEmpty(_cachedDefaultGameServerId))
+                return _cachedDefaultGameServerId;
+
+            try
+            {
+                var gsUrl = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, "game_servers")}?server_code=eq.{Uri.EscapeDataString(_defaultServerCode)}&select=id";
+                var gsRes = await _httpClient.SendAsync(
+                    method: "GET",
+                    url: gsUrl,
+                    jsonBody: null,
+                    headers: CreateUserHeaders(accessToken, null)).ConfigureAwait(false);
+                if (gsRes == null || !gsRes.IsSuccess || string.IsNullOrWhiteSpace(gsRes.Body))
+                    return null;
+
+                var rows = JsonConvert.DeserializeObject<List<GameServerIdRow>>(gsRes.Body);
+                var id = rows != null && rows.Count > 0 ? rows[0]?.id : null;
+                if (string.IsNullOrWhiteSpace(id))
+                    return null;
+
+                _cachedDefaultGameServerId = id.Trim();
+                return _cachedDefaultGameServerId;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>현재 로그인 계정의 서버 식별자를 조회합니다.</summary>
@@ -636,6 +681,12 @@ namespace Truesoft.Supabase.Core.Data
             public string user_id;
             public string account_id;
             public string withdrawn_at;
+            public string server_id;
+        }
+
+        private sealed class GameServerIdRow
+        {
+            public string id;
         }
 
         [Serializable]
