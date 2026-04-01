@@ -420,15 +420,18 @@ namespace Truesoft.SupabaseUnity.Samples
         }
 
         /// <summary>
-        /// RPC <c>ts_server_now</c>로 DB 서버 시각을 가져옵니다. 로그인 세션 없이 호출 가능합니다.
-        /// </summary>
-        /// <summary>
         /// 로컬 <see cref="SupabaseClient.GetCurrentServerCode"/>와 RPC <c>ts_my_server_id</c> 결과를 비교하고,
         /// 인스펙터에서 허용한 경우 <c>ts_transfer_my_server</c>(<see cref="SupabaseClient.TryTransferMyServerAsync"/>)를 호출합니다.
         /// Retool·service_role 이주는 README의 <c>ts_admin_transfer_user_server</c>를 참고하세요.
         /// </summary>
         private async Task<bool> RunServerShardExampleAsync()
         {
+            if (!await SupabaseClient.EnsureInitializedAsync())
+            {
+                Debug.LogWarning("[Sample] server shard skipped: SDK not initialized.");
+                return false;
+            }
+
             if (!SupabaseClient.IsLoggedIn)
             {
                 Debug.LogWarning("[Sample] server shard skipped: sign in first (anonymous or Google).");
@@ -445,8 +448,10 @@ namespace Truesoft.SupabaseUnity.Samples
             var db = await SupabaseClient.GetMyServerInfoAsync();
             if (db == null || !db.IsSuccess)
             {
-                Debug.LogWarning("[Sample] server shard: ts_my_server_id failed — " + (db?.ErrorMessage ?? "null")
-                    + " (Sql/supabase_player_tables.sql 적용·로그인 상태 확인)");
+                var hint = string.Equals(db?.ErrorMessage, "my_server_not_found", StringComparison.Ordinal)
+                    ? "profiles에 account_id=본인 행이 없을 때 흔함. TryStartAsync(restoreSessionFirst:true)로 복원하면 SDK가 프로필 upsert를 수행합니다. Q로 익명 로그인해도 됩니다. Console의 [Supabase] ensure profile row failed 유무·RLS를 확인하세요."
+                    : "Sql/supabase_player_tables.sql(ts_my_server_id)·로그인·프로필 행 확인.";
+                Debug.LogWarning("[Sample] server shard: ts_my_server_id failed — " + (db?.ErrorMessage ?? "null") + ". " + hint);
                 return false;
             }
 
@@ -475,6 +480,9 @@ namespace Truesoft.SupabaseUnity.Samples
             return moved;
         }
 
+        /// <summary>
+        /// RPC <c>ts_server_now</c>로 DB 서버 시각을 가져옵니다. 로그인 세션 없이 호출 가능합니다.
+        /// </summary>
         private async Task<bool> RunServerTimeExampleAsync()
         {
             if (!await SupabaseClient.EnsureInitializedAsync())

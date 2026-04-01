@@ -1755,6 +1755,9 @@ namespace Truesoft.Supabase.Unity
                         return reserved.IsSuccess;
                 }
 
+                // TryStartAsync / TryRestoreSessionAsync 경로는 SignIn* 를 거치지 않아 프로필 보장이 빠질 수 있음 → ts_my_server_id 빈 결과 방지
+                await TryEnsureProfileRowAfterSignInAsync();
+
                 return true;
             }
 
