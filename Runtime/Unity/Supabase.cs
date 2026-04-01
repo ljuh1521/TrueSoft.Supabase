@@ -145,6 +145,18 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<T>> LoadUserDataColumnsAsync<T>(string selectColumnsCsv = null) where T : class, new() =>
             SupabaseSDK.LoadUserDataColumnsAsync<T>(selectColumnsCsv);
 
+        /// <summary><see cref="SupabaseSDK.LoadUserSaveAttributedAsync{T}(bool)"/> (내부 Result API).</summary>
+        internal static Task<SupabaseResult<T>> LoadUserSaveAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new() =>
+            SupabaseSDK.LoadUserSaveAttributedAsync<T>(includeUpdatedAt);
+
+        /// <summary><see cref="SupabaseSDK.PatchUserSaveDiffAsync{T}(T, T, bool, bool)"/> (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> PatchUserSaveDiffAsync<T>(
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true) =>
+            SupabaseSDK.PatchUserSaveDiffAsync(previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
+
         /// <inheritdoc cref="SupabaseSDK.TrySaveUserDataAsync{T}(T)"/>
         public static Task<bool> TrySaveUserDataAsync<T>(T data) =>
             SupabaseSDK.TrySaveUserDataAsync(data);
@@ -169,6 +181,18 @@ namespace Truesoft.Supabase.Unity
             var r = await LoadUserDataColumnsAsync<T>(selectColumnsCsv);
             return r != null && r.IsSuccess ? r.Data : defaultValue;
         }
+
+        /// <inheritdoc cref="SupabaseSDK.TryLoadUserSaveAttributedAsync{T}(T, bool)"/>
+        public static Task<T> TryLoadUserSaveAttributedAsync<T>(T defaultValue = default, bool includeUpdatedAt = true) where T : class, new() =>
+            SupabaseSDK.TryLoadUserSaveAttributedAsync(defaultValue, includeUpdatedAt);
+
+        /// <inheritdoc cref="SupabaseSDK.TryPatchUserSaveDiffAsync{T}(T, T, bool, bool)"/>
+        public static Task<bool> TryPatchUserSaveDiffAsync<T>(
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true) =>
+            SupabaseSDK.TryPatchUserSaveDiffAsync(previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
 
         /// <summary>다른 사용자 공개 displayName 조회 (내부 Result API).</summary>
         internal static Task<SupabaseResult<string>> GetPublicDisplayNameAsync(string userId) =>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
 
@@ -148,7 +149,8 @@ namespace Truesoft.Supabase.Core.Data
                 payload["updated_at"] = DateTime.UtcNow.ToString("o");
             }
 
-            var bodyJson = _jsonSerializer.ToJson(payload);
+            // Dictionary<string,object> 등은 Unity JsonUtility로 직렬화되지 않음 → Newtonsoft 사용.
+            var bodyJson = JsonConvert.SerializeObject(payload);
 
             var response = await _httpClient.SendAsync(
                 method: "PATCH",
@@ -258,6 +260,61 @@ namespace Truesoft.Supabase.Core.Data
             {
                 return SupabaseResult<T>.Fail("load_parse_exception:" + e.Message);
             }
+        }
+
+        /// <summary>
+        /// <see cref="UserSaveColumnAttribute"/>로 표시한 컬럼만 모아 <c>select</c> 후 로드합니다.
+        /// </summary>
+        public async Task<SupabaseResult<T>> LoadAttributedAsync<T>(
+            string accessToken,
+            string accountId,
+            bool includeUpdatedAt = true) where T : class, new()
+        {
+            string csv;
+            try
+            {
+                csv = UserSaveSchema.GetSelectColumnsCsv<T>(includeUpdatedAt);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<T>.Fail("user_save_schema_invalid:" + e.Message);
+            }
+
+            return await LoadColumnsAsync<T>(accessToken, accountId, csv);
+        }
+
+        /// <summary>
+        /// <see cref="UserSaveSchema.BuildPatch{T}(T, T)"/>로 변경분만 PATCH합니다.
+        /// </summary>
+        public async Task<SupabaseResult<bool>> PatchDiffAsync<T>(
+            string accessToken,
+            string accountId,
+            string playerUserId,
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true)
+        {
+            Dictionary<string, object> patch;
+            try
+            {
+                patch = UserSaveSchema.BuildPatch(previous, current);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<bool>.Fail("user_save_patch_build_failed:" + e.Message);
+            }
+
+            if (patch == null || patch.Count == 0)
+                return SupabaseResult<bool>.Success(true);
+
+            return await PatchAsync(
+                accessToken,
+                accountId,
+                playerUserId,
+                patch,
+                ensureRowFirst,
+                setUpdatedAtIsoUtc);
         }
 
         private Dictionary<string, string> CreateAuthHeaders(string accessToken, string prefer = null)

@@ -149,5 +149,70 @@ namespace Truesoft.Supabase.Unity
                 accountId: userId,
                 selectColumnsCsv: selectColumnsCsv);
         }
+
+        /// <summary>
+        /// <see cref="UserSaveColumnAttribute"/>로 표시한 컬럼만 모아 로드합니다.
+        /// </summary>
+        public Task<SupabaseResult<T>> LoadAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new()
+        {
+            var session = _sessionGetter?.Invoke();
+            return LoadAttributedAsync<T>(session, includeUpdatedAt);
+        }
+
+        public async Task<SupabaseResult<T>> LoadAttributedAsync<T>(SupabaseSession session, bool includeUpdatedAt = true) where T : class, new()
+        {
+            if (session == null)
+                return SupabaseResult<T>.Fail("session_null");
+
+            var accessToken = session.AccessToken;
+            var userId = session.User?.Id;
+
+            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
+                return SupabaseResult<T>.Fail("auth_not_signed_in");
+
+            return await _userDataService.LoadAttributedAsync<T>(
+                accessToken: accessToken,
+                accountId: userId,
+                includeUpdatedAt: includeUpdatedAt);
+        }
+
+        /// <summary>
+        /// <see cref="UserSaveSchema.BuildPatch{T}(T, T)"/>로 변경분만 PATCH합니다.
+        /// </summary>
+        public Task<SupabaseResult<bool>> PatchDiffAsync<T>(
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true)
+        {
+            var session = _sessionGetter?.Invoke();
+            return PatchDiffAsync(session, previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
+        }
+
+        public async Task<SupabaseResult<bool>> PatchDiffAsync<T>(
+            SupabaseSession session,
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true)
+        {
+            if (session == null)
+                return SupabaseResult<bool>.Fail("session_null");
+
+            var accessToken = session.AccessToken;
+            var userId = session.User?.Id;
+
+            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
+                return SupabaseResult<bool>.Fail("auth_not_signed_in");
+
+            return await _userDataService.PatchDiffAsync(
+                accessToken: accessToken,
+                accountId: userId,
+                playerUserId: session.User.PlayerUserId,
+                previous: previous,
+                current: current,
+                ensureRowFirst: ensureRowFirst,
+                setUpdatedAtIsoUtc: setUpdatedAtIsoUtc);
+        }
     }
 }

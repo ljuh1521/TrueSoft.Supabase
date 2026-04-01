@@ -3,7 +3,8 @@
   "rootNamespace": "Truesoft.Supabase.Editor",
   "references": [
     "Truesoft.Supabase.Core",
-    "Truesoft.Supabase.Unity"
+    "Truesoft.Supabase.Unity",
+    "Unity.Newtonsoft.Json"
   ],
   "includePlatforms": [
     "Editor"

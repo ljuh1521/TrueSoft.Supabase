@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using Truesoft.Supabase.Core.Data;
 using Truesoft.Supabase.Unity;
 
 using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
@@ -341,23 +342,18 @@ namespace Truesoft.SupabaseUnity.Samples
                 return false;
             }
 
-            // 프로젝트별로 user_saves 테이블에 명시 컬럼(level/coins 등)을 두고, 변경된 값만 PATCH로 저장하는 방식의 예시입니다.
+            // user_saves에 level/coins 등 명시 컬럼을 두고, [UserSaveColumn]으로 select·PATCH 키를 모델과 DB에 맞춥니다.
             // 필요 컬럼 예: level int, coins int, updated_at timestamptz.
-            var patch = new Dictionary<string, object>
-            {
-                { "level", level },
-                { "coins", coins }
-            };
+            var previous = await SupabaseClient.TryLoadUserSaveAttributedAsync<SaveDataRow>(new SaveDataRow());
+            var current = new SaveDataRow { level = level, coins = coins };
 
-            if (!await SupabaseClient.TryPatchUserDataAsync(patch, ensureRowFirst: true, setUpdatedAtIsoUtc: true))
+            if (!await SupabaseClient.TryPatchUserSaveDiffAsync(previous, current, ensureRowFirst: true, setUpdatedAtIsoUtc: true))
             {
                 Debug.LogWarning("[Sample] save/load example failed at save.");
                 return false;
             }
 
-            var loaded = await SupabaseClient.TryLoadUserDataColumnsAsync<SaveDataRow>(
-                selectColumnsCsv: "level,coins,updated_at",
-                defaultValue: null);
+            var loaded = await SupabaseClient.TryLoadUserSaveAttributedAsync<SaveDataRow>(defaultValue: null);
             if (loaded == null)
             {
                 Debug.LogWarning("[Sample] save/load example failed at load.");
@@ -642,9 +638,9 @@ namespace Truesoft.SupabaseUnity.Samples
         [Serializable]
         private sealed class SaveDataRow
         {
-            public int level;
-            public int coins;
-            public string updated_at;
+            [UserSaveColumn] public int level;
+            [UserSaveColumn] public int coins;
+            [UserSaveColumn] public string updated_at;
         }
     }
 }

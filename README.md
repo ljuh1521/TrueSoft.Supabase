@@ -30,12 +30,49 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 있으므로, `SupabaseSettings`에서 바꿀 수 있습니다.
 
-- **User Saves**: 신규는 **명시 컬럼 + 변경분 PATCH** 권장 — `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` (테이블은 `userSavesTable`, 기본 `user_saves`). `TrySaveUserDataAsync` / `TryLoadUserDataAsync`는 `save_data(jsonb)` 통째 저장·로드용(초기 프로젝트는 생략 가능).
+- **User Saves**: 신규는 **명시 컬럼 + 변경분 PATCH** 권장 — `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` (테이블은 `userSavesTable`, 기본 `user_saves`). 컬럼명을 C# 모델에 한 번만 적어 두고 `select`·PATCH 키를 맞추려면 **`[UserSaveColumn]` + `TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync`** 를 쓸 수 있습니다(아래 절). `TrySaveUserDataAsync` / `TryLoadUserDataAsync`는 `save_data(jsonb)` 통째 저장·로드용(초기 프로젝트는 생략 가능).
 - **Remote Config**: `remoteConfigTable` (기본 `remote_config`)
 - **채팅**: `chatMessagesTable` (기본 `chat_messages`)
 - **공개 프로필**: `publicProfilesTable` (기본 `profiles`) — `TryGetPublicDisplayNameAsync`, `TrySetMyDisplayNameAsync`
 
 코드에서 `SupabaseOptions`의 `UserSavesTable`, `RemoteConfigTable`, `ChatMessagesTable`, `PublicProfilesTable`도 같은 역할을 합니다. Unity 에셋 경로로 쓸 때는 `SupabaseSettings.ToOptions()`가 비어 있는 테이블 필드를 기본 이름으로 채웁니다. `SupabaseOptions`만 직접 만들 때는 빈 문자열을 넣지 말고, 필드 기본값을 두거나 유효한 이름을 지정하세요. 스키마가 `public`이 아니면 `schema.table` 형식으로 지정할 수 있습니다. 잘못된 문자(`..`, `/`, `\` 등)는 초기화 시 검증되어 예외가 납니다.
+
+## 세이브 POCO: `[UserSaveColumn]` API와 에디터 OpenAPI 생성기
+
+DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트 **select / PATCH**가 어긋나지 않도록, 필드에 어노테이션을 붙이거나 에디터에서 스키마를 받아 POCO를 생성할 수 있습니다.
+
+### 코드에서 쓰기 (`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync`)
+
+1. 세이브 한 행을 담는 클래스에 `public` 필드(또는 프로퍼티)를 두고, DB에 올릴 컬럼마다 **`[UserSaveColumn("db_column")]`** 을 붙입니다. 인자를 생략하면 **멤버 이름이 곧 컬럼명**입니다.
+2. **로드:** `Supabase.TryLoadUserSaveAttributedAsync<MySaveRow>(defaultValue, includeUpdatedAt: true)` — 붙인 컬럼만 모아 `select` CSV를 만들고 기존 컬럼 로드 경로로 가져옵니다.
+3. **변경분만 저장:** 메모리에 **이전 스냅샷**과 **현재 스냅샷**을 둔 뒤 `Supabase.TryPatchUserSaveDiffAsync(previous, current, ensureRowFirst: true, setUpdatedAtIsoUtc: true)` — 값이 바뀐 컬럼만 PATCH합니다. 둘이 같으면 네트워크 PATCH는 생략됩니다.
+
+내부 `SupabaseResult`를 쓰려면 `Supabase.LoadUserSaveAttributedAsync` / `Supabase.PatchUserSaveDiffAsync` 를 사용할 수 있습니다. Try 계열 실패 로그 태그는 `Supabase.UserData.LoadAttributed`, `Supabase.UserData.PatchDiff` 입니다.
+
+### 주의점 (JsonUtility · 컬럼명)
+
+- **Unity `JsonUtility`로 역직렬화할 때**, PostgREST가 내려주는 **JSON 키(보통 DB 컬럼명과 동일)** 와 **C# 필드 이름이 같아야** 값이 채워집니다. 그래서 DB가 `snake_case`이면 필드도 `level`, `updated_at` 처럼 **컬럼명과 동일한 이름**을 쓰는 편이 안전합니다.
+- `[UserSaveColumn("other_name")]` 만으로 **JSON 키 이름이 바뀌지는 않습니다.** 컬럼명과 C# 이름이 다르게 두고 싶다면 Newtonsoft 등 **별도 역직렬화**가 필요합니다.
+- `updated_at` 은 스키마 도우미가 `select`에 넣을 수 있지만, **diff PATCH에는 자동으로 넣지 않습니다.** 서버/트리거가 갱신하거나, SDK 옵션 `setUpdatedAtIsoUtc` 등 기존 PATCH 경로와 같이 쓰입니다.
+- 복합 타입(jsonb 배열 등)은 POCO 한 필드에 담기 어렵습니다. 해당 컬럼은 수동 설계하거나 다른 API를 쓰세요.
+
+### 에디터: OpenAPI로 POCO 자동 생성
+
+메뉴 **TrueSoft > Supabase > Generate User Save POCO from OpenAPI…** 를 열면 PostgREST가 제공하는 OpenAPI 설명(`GET …/rest/v1/`, `Accept: application/openapi+json`)을 바탕으로 **`[Serializable]` + `[UserSaveColumn]` 필드**가 들어간 `.cs` 초안을 만들 수 있습니다.
+
+**사용 순서 요약**
+
+1. (선택) `Resources/SupabaseSettings`를 창에 넣으면 URL·publishable key·`userSavesTable`이 채워집니다.
+2. **Fetch from API & preview** 로 가져오거나, 브라우저·CLI로 받은 스펙을 **Import OpenAPI JSON…** 으로 엽니다.
+3. 테이블명·스킵할 컬럼(CSV)·클래스 이름·네임스페이스를 조정한 뒤 미리보기를 확인합니다.
+4. **Save as .cs in project…** 로 `Assets` 아래에 저장합니다.
+
+**주의점**
+
+- OpenAPI에 **어떤 테이블이 보이는지**는 요청 시 사용하는 **DB 역할**에 따라 달라집니다. JWT 없이 **anon 키만** 쓰면, RLS·권한 때문에 `user_saves` 정의가 스펙에 **안 나올 수 있습니다.** 그때는 (1) 대시보드/API로 받은 OpenAPI JSON을 **파일로 임포트**하거나, (2) 에디터에서만 **Service Role 키**로 Fetch 하세요.
+- **Service Role 키는 절대 플레이어 빌드·저장소·버전 관리에 넣지 마세요.** 팀원 PC·CI 시크릿 등 **에디터/파이프라인 한정**으로만 쓰는 것을 전제로 합니다.
+- 생성기는 타입을 완전히 추론하지 못하는 컬럼(배열·일부 `$ref`·jsonb 등)을 `string /* … refine */` 형태로 남깁니다. **실제 게임에 맞게 타입과 주석을 손으로 다듬어야** 합니다.
+- C# 식별자가 될 수 없는 컬럼명(하이픈 등)은 **JsonUtility와 맞지 않아 생성 시 건너뛰고** 경고를 냅니다. 그런 컬럼은 수동 매핑이 필요합니다.
 
 ### 아직 “고정”인 부분 (하드코딩이 없다는 뜻은 아님)
 
@@ -173,7 +210,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync`; 운영·Retool은 RPC `ts_admin_transfer_user_server` (service_role 전용, 위 「서버 이주 (`server_id`)」 절)
 - **로그아웃**: `TrySignOutFullyAsync` — Android에서는 네이티브 Google 로그아웃을 시도한 뒤 Supabase `SignOutAsync`와 동일 처리(익명이면 복구용 upsert 후 로컬 정리). `TrySignOutAsync`만 쓰면 Google 계정 선택기 상태는 그대로일 수 있습니다.
 - **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 클라이언트가 지문 행을 best-effort 삭제(`ts_anon_recovery_delete_by_fingerprint`)하며, DB에도 `auth.identities` 비익명 provider 추가·`auth.users.is_anonymous` 해제·계정 삭제 시 해당 `account_id` 토큰이 자동 삭제되도록 트리거가 있습니다(`Sql/supabase_player_tables.sql`). 탈퇴 요청 RPC(`ts_request_withdrawal`)는 `ts_delete_my_anon_recovery_tokens`로 본인 행을 정리합니다.
-- **사용자 데이터**: 프로젝트별 컬럼 기반이면 `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)`를 사용하세요. (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
+- **사용자 데이터**: 프로젝트별 컬럼 기반이면 `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` 또는 **`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync` + `[UserSaveColumn]`** 를 사용하세요. (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
 - **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql` 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
 - **원격 설정(하이브리드 추천)**: `SupabaseRuntime`의 **주기 폴링은 유지**하되, RemoteConfig의 성공 로그는 **실제 변경이 적용된 경우에만** 출력됩니다. 또한 중요한 화면/행동 전에는 `Supabase.RefreshRemoteConfigOnDemandAsync()`로 **온디맨드 즉시 동기화**를 수행한 뒤, 다음 주기 폴링 타이밍을 미뤄 의도치 않은 잦은 호출을 방지합니다.

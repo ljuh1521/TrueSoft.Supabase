@@ -1,0 +1,132 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+
+namespace Truesoft.Supabase.Core.Data
+{
+    /// <summary>
+    /// <see cref="UserSaveColumnAttribute"/>가 붙은 멤버로부터 <c>select</c> 목록·PATCH 딕셔너리를 만듭니다.
+    /// </summary>
+    public static class UserSaveSchema
+    {
+        private const string UpdatedAtColumn = "updated_at";
+
+        /// <summary>
+        /// <typeparamref name="T"/>에 붙은 컬럼들로 PostgREST <c>select</c>용 CSV를 만듭니다(정렬 안정).
+        /// </summary>
+        /// <param name="includeUpdatedAt"><c>updated_at</c>를 목록에 포함할지(로드 시 타임스탬프가 필요하면 true).</param>
+        public static string GetSelectColumnsCsv<T>(bool includeUpdatedAt = true)
+        {
+            var names = GetColumnNames(typeof(T), includeUpdatedAt);
+            if (names.Count == 0)
+                throw new InvalidOperationException($"No {nameof(UserSaveColumnAttribute)} on public fields/properties of {typeof(T).Name}.");
+
+            return string.Join(",", names);
+        }
+
+        /// <summary>컬럼명 목록(중복 제거, 정렬).</summary>
+        public static IReadOnlyList<string> GetColumnNames<T>(bool includeUpdatedAt = true) =>
+            GetColumnNames(typeof(T), includeUpdatedAt);
+
+        private static List<string> GetColumnNames(Type t, bool includeUpdatedAt)
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var m in GetMappedMembers(t))
+            {
+                var col = ResolveColumnName(m);
+                if (string.IsNullOrEmpty(col) == false)
+                    set.Add(col);
+            }
+
+            if (includeUpdatedAt)
+                set.Add(UpdatedAtColumn);
+
+            var list = set.ToList();
+            list.Sort(StringComparer.Ordinal);
+            return list;
+        }
+
+        /// <summary>
+        /// 두 스냅샷을 비교해 변경된 컬럼만 PATCH용 딕셔너리로 만듭니다.
+        /// </summary>
+        public static Dictionary<string, object> BuildPatch<T>(T previous, T current)
+        {
+            if (current == null)
+                throw new ArgumentNullException(nameof(current));
+
+            var patch = new Dictionary<string, object>(StringComparer.Ordinal);
+            var prev = previous; // may be null
+
+            foreach (var m in GetMappedMembers(typeof(T)))
+            {
+                var col = ResolveColumnName(m);
+                if (string.IsNullOrEmpty(col) || string.Equals(col, UpdatedAtColumn, StringComparison.Ordinal))
+                    continue;
+
+                var oldVal = GetValue(m, prev);
+                var newVal = GetValue(m, current);
+
+                if (EqualsValues(oldVal, newVal))
+                    continue;
+
+                patch[col] = newVal;
+            }
+
+            return patch;
+        }
+
+        private static bool EqualsValues(object a, object b)
+        {
+            if (a == null && b == null)
+                return true;
+            if (a == null || b == null)
+                return false;
+            return a.Equals(b);
+        }
+
+        private static IEnumerable<MemberInfo> GetMappedMembers(Type t)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+            foreach (var p in t.GetProperties(flags))
+            {
+                if (p.GetIndexParameters().Length > 0)
+                    continue;
+                if (p.GetCustomAttribute<UserSaveColumnAttribute>() == null)
+                    continue;
+                if (p.CanRead == false)
+                    continue;
+                yield return p;
+            }
+
+            foreach (var f in t.GetFields(flags))
+            {
+                if (f.GetCustomAttribute<UserSaveColumnAttribute>() == null)
+                    continue;
+                yield return f;
+            }
+        }
+
+        private static string ResolveColumnName(MemberInfo m)
+        {
+            var attr = m.GetCustomAttribute<UserSaveColumnAttribute>();
+            if (attr == null)
+                return null;
+            if (string.IsNullOrWhiteSpace(attr.ColumnName) == false)
+                return attr.ColumnName.Trim();
+            return m.Name;
+        }
+
+        private static object GetValue(MemberInfo m, object instance)
+        {
+            if (instance == null)
+                return null;
+            return m switch
+            {
+                FieldInfo f => f.GetValue(instance),
+                PropertyInfo p => p.GetValue(instance),
+                _ => null
+            };
+        }
+    }
+}

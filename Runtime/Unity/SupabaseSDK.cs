@@ -126,6 +126,8 @@ namespace Truesoft.Supabase.Unity
             public const string AuthRefreshSession = "Supabase.Auth.RefreshSession";
             public const string UserDataSave = "Supabase.UserData.Save";
             public const string UserDataLoad = "Supabase.UserData.Load";
+            public const string UserDataLoadAttributed = "Supabase.UserData.LoadAttributed";
+            public const string UserDataPatchDiff = "Supabase.UserData.PatchDiff";
             public const string EdgeFunctionInvoke = "Supabase.EdgeFunction.Invoke";
             public const string RemoteConfigRefresh = "Supabase.RemoteConfig.Refresh";
             public const string RemoteConfigPoll = "Supabase.RemoteConfig.Poll";
@@ -523,6 +525,24 @@ namespace Truesoft.Supabase.Unity
         {
             var r = await LoadUserDataAsync<T>();
             return LogAndReturnData(ApiLogTags.UserDataLoad, r, defaultValue);
+        }
+
+        /// <inheritdoc cref="LoadUserSaveAttributedAsync{T}(bool)"/>
+        public static async Task<T> TryLoadUserSaveAttributedAsync<T>(T defaultValue = default, bool includeUpdatedAt = true) where T : class, new()
+        {
+            var r = await LoadUserSaveAttributedAsync<T>(includeUpdatedAt);
+            return LogAndReturnData(ApiLogTags.UserDataLoadAttributed, r, defaultValue);
+        }
+
+        /// <inheritdoc cref="PatchUserSaveDiffAsync{T}(T, T, bool, bool)"/>
+        public static async Task<bool> TryPatchUserSaveDiffAsync<T>(
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true)
+        {
+            var r = await PatchUserSaveDiffAsync(previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
+            return LogAndReturn(ApiLogTags.UserDataPatchDiff, r);
         }
 
         /// <summary><see cref="InvokeFunctionAsync{TResponse}(string, object)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
@@ -989,6 +1009,34 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<T>.Fail("select_columns_empty");
 
             return await UserSaves.LoadColumnsAsync<T>(select);
+        }
+
+        /// <summary>
+        /// <see cref="UserSaveColumnAttribute"/>가 붙은 멤버로 <c>select</c> 목록을 만들고 로드합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<T>> LoadUserSaveAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<T>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            return await UserSaves.LoadAttributedAsync<T>(includeUpdatedAt);
+        }
+
+        /// <summary>
+        /// 이전 스냅샷과 비교해 변경된 컬럼만 PATCH합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<bool>> PatchUserSaveDiffAsync<T>(
+            T previous,
+            T current,
+            bool ensureRowFirst = true,
+            bool setUpdatedAtIsoUtc = true)
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            return await UserSaves.PatchDiffAsync(previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
         }
 
         /// <summary>
