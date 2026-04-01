@@ -280,6 +280,41 @@ before insert or update on public.profiles
 for each row
 execute function public.ts_profiles_coalesce_server_id();
 
+-- 클라이언트 ensure-profile: PostgREST upsert만으로는 RLS/병합 순서에 따라 42501이 남을 수 있어 RPC로 통일.
+-- account_id는 항상 auth.uid()만 사용(클라이언트 조작 불가). user_id는 p_user_id 또는 uid 문자열.
+create or replace function public.ts_ensure_my_profile(p_user_id text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid;
+  v_stable text;
+  v_server uuid;
+begin
+  v_uid := auth.uid();
+  if v_uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  v_stable := coalesce(nullif(trim(p_user_id), ''), v_uid::text);
+  v_server := public.ts_default_server_id();
+
+  insert into public.profiles (user_id, account_id, withdrawn_at, server_id)
+  values (v_stable, v_uid, null, v_server)
+  on conflict (account_id) do update set
+    user_id = excluded.user_id,
+    withdrawn_at = excluded.withdrawn_at,
+    server_id = coalesce(profiles.server_id, excluded.server_id);
+end;
+$$;
+
+comment on function public.ts_ensure_my_profile(text) is
+  '로그인 직후 본인 profiles 행 보장(upsert). SECURITY DEFINER. SDK EnsureMyProfileRowAsync 가 호출.';
+
+grant execute on function public.ts_ensure_my_profile(text) to authenticated;
+
 -- nickname은 auth.user_metadata.displayName으로 이동했으므로 profiles에 두지 않습니다.
 
 -- ---------------------------------------------------------------------------
@@ -1371,6 +1406,7 @@ from (
       ('auth_user_server_id'),
       ('ts_default_server_id'),
       ('ts_profiles_coalesce_server_id'),
+      ('ts_ensure_my_profile'),
       ('ts_my_server_id'),
       ('ts_transfer_my_server'),
       ('ts_admin_transfer_user_server'),

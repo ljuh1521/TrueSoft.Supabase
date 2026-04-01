@@ -18,11 +18,6 @@ namespace Truesoft.Supabase.Core.Data
     {
         private const int DisplayNameMaxLength = 64;
 
-        private static readonly JsonSerializerSettings JsonProfileUpsertSettings = new JsonSerializerSettings
-        {
-            NullValueHandling = NullValueHandling.Ignore
-        };
-
         /// <summary>PostgREST <c>IS NOT NULL</c> — 활성 행만 (<c>account_id</c>가 있는 프로필).</summary>
         private const string ActiveProfileFilter = "account_id=is.not_null";
 
@@ -267,8 +262,8 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 로그인 직후, 현재 계정(account_id)에 대응하는 profiles 행이 항상 존재하도록 upsert합니다.
-        /// withdrawn_at은 활성 계정 기준으로 null로 정리합니다.
+        /// 로그인 직후, 현재 계정(account_id)에 대응하는 profiles 행이 항상 존재하도록 합니다.
+        /// RPC <c>ts_ensure_my_profile</c>(SECURITY DEFINER)로 upsert하며, <c>withdrawn_at</c>은 null로 정리합니다.
         /// </summary>
         public async Task<SupabaseResult<bool>> EnsureMyProfileRowAsync(
             string accessToken,
@@ -285,37 +280,23 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(stable))
                 stable = accountId.Trim();
 
-            // UnityWebRequest 는 메인 스레드에서 생성해야 함 — ConfigureAwait(false) 금지
-            var serverId = await TryResolveDefaultGameServerIdAsync(accessToken);
-
-            var url = $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}?on_conflict=account_id";
-            var body = new UpsertProfileRow
-            {
-                user_id = stable,
-                account_id = accountId.Trim(),
-                withdrawn_at = null,
-                server_id = serverId
-            };
-
-            // withdrawn_at 등 null 은 본문에서 제외(PostgREST timestamptz). server_id 는 RLS(with check server_id) 구 DB 호환용으로 채움.
-            var singleJson = JsonConvert.SerializeObject(body, JsonProfileUpsertSettings);
-            var bodyJson = "[" + singleJson + "]";
+            var url = $"{_supabaseUrl.TrimEnd('/')}/rest/v1/rpc/ts_ensure_my_profile";
+            var bodyJson = _jsonSerializer.ToJson(new EnsureMyProfileRpcBody { p_user_id = stable });
 
             var response = await _httpClient.SendAsync(
                 method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateUserHeaders(accessToken, "resolution=merge-duplicates,return=minimal"));
+                headers: CreateUserHeaders(accessToken, prefer: null));
 
             if (response == null)
                 return SupabaseResult<bool>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
             {
-                // UnityWebRequest 는 ErrorMessage 에 "HTTP/1.1 403" 만 넣는 경우가 많고, RLS 사유는 Body(JSON)에 있다.
                 var detail = string.IsNullOrWhiteSpace(response.Body) == false
                     ? response.Body.Trim()
-                    : (response.ErrorMessage ?? "profile_upsert_failed");
+                    : (response.ErrorMessage ?? "profile_ensure_rpc_failed");
                 return SupabaseResult<bool>.Fail(detail);
             }
 
@@ -324,7 +305,7 @@ namespace Truesoft.Supabase.Core.Data
 
         /// <summary>
         /// <c>game_servers</c> 공개 SELECT(RLS)로 <see cref="_defaultServerCode"/>에 해당하는 <c>id</c>를 한 번 조회해 캐시합니다.
-        /// 프로필 upsert 시 <c>server_id</c>를 넣어, INSERT RLS가 <c>server_id is not null</c>인 구 스키마에서도 통과하게 합니다.
+        /// (레거시/기타 REST 경로용. <see cref="EnsureMyProfileRowAsync"/> 는 <c>ts_ensure_my_profile</c> RPC를 사용합니다.)
         /// </summary>
         private async Task<string> TryResolveDefaultGameServerIdAsync(string accessToken)
         {
@@ -679,12 +660,9 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         [Serializable]
-        private sealed class UpsertProfileRow
+        private sealed class EnsureMyProfileRpcBody
         {
-            public string user_id;
-            public string account_id;
-            public string withdrawn_at;
-            public string server_id;
+            public string p_user_id;
         }
 
         private sealed class GameServerIdRow
