@@ -218,12 +218,13 @@ using (
   and server_id = public.auth_user_server_id()
 );
 
+-- server_id 는 DEFAULT(ts_default_server_id()) 로 채워지나, PostgREST JSON upsert 시 RLS WITH CHECK 가
+-- 기본값 적용 전에 평가되면 server_id 가 null 로 보여 42501 이 날 수 있음 → insert 정책에서는 account_id 만 검증.
 create policy "profiles_insert_own"
 on public.profiles for insert
 with check (
   account_id is not null
   and account_id = auth.uid()
-  and server_id is not null
 );
 
 create policy "profiles_update_own"
