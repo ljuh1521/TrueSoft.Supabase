@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Truesoft.Supabase.Core.Common;
@@ -307,38 +307,6 @@ namespace Truesoft.Supabase.Core.Data
                 jsonBody: bodyJson,
                 headers: CreateUserHeaders(accessToken, "resolution=merge-duplicates,return=minimal"));
 
-            // #region agent log
-            try
-            {
-                var logPath = Environment.GetEnvironmentVariable("TRUESOFT_DEBUG_LOG");
-                if (string.IsNullOrWhiteSpace(logPath))
-                    logPath = @"d:\Project\TrueSoft.Supabase\debug-a19a0d.log";
-                var snip = response?.Body;
-                if (!string.IsNullOrEmpty(snip) && snip.Length > 220)
-                    snip = snip.Substring(0, 220);
-                var line = JsonConvert.SerializeObject(new Dictionary<string, object>
-                {
-                    ["sessionId"] = "a19a0d",
-                    ["hypothesisId"] = "C",
-                    ["location"] = "SupabasePublicProfileService.EnsureMyProfileRowAsync",
-                    ["message"] = "post_profiles_upsert_response",
-                    ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    ["data"] = new Dictionary<string, object>
-                    {
-                        ["profilesTable"] = _profilesTable,
-                        ["statusCode"] = response?.StatusCode ?? -1,
-                        ["isSuccess"] = response?.IsSuccess ?? false,
-                        ["bodySnippet"] = snip ?? ""
-                    }
-                });
-                File.AppendAllText(logPath, line + "\n");
-            }
-            catch
-            {
-                // ignore
-            }
-            // #endregion
-
             if (response == null)
                 return SupabaseResult<bool>.Fail("http_response_null");
 
@@ -365,21 +333,49 @@ namespace Truesoft.Supabase.Core.Data
                     url: gsUrl,
                     jsonBody: null,
                     headers: CreateUserHeaders(accessToken, null));
-                if (gsRes == null || !gsRes.IsSuccess || string.IsNullOrWhiteSpace(gsRes.Body))
+                if (gsRes != null && gsRes.IsSuccess && string.IsNullOrWhiteSpace(gsRes.Body) == false)
+                {
+                    var rows = JsonConvert.DeserializeObject<List<GameServerIdRow>>(gsRes.Body);
+                    var id = rows != null && rows.Count > 0 ? rows[0]?.id : null;
+                    if (string.IsNullOrWhiteSpace(id) == false)
+                    {
+                        _cachedDefaultGameServerId = id.Trim();
+                        return _cachedDefaultGameServerId;
+                    }
+                }
+
+                // game_servers REST 가 막혀 있거나 행이 없을 때: SECURITY DEFINER RPC (DB 에 grant 필요)
+                var rpcUrl = $"{_supabaseUrl.TrimEnd('/')}/rest/v1/rpc/ts_default_server_id";
+                var rpcRes = await _httpClient.SendAsync(
+                    method: "POST",
+                    url: rpcUrl,
+                    jsonBody: "{}",
+                    headers: CreateUserHeaders(accessToken, null));
+                if (rpcRes == null || !rpcRes.IsSuccess || string.IsNullOrWhiteSpace(rpcRes.Body))
                     return null;
 
-                var rows = JsonConvert.DeserializeObject<List<GameServerIdRow>>(gsRes.Body);
-                var id = rows != null && rows.Count > 0 ? rows[0]?.id : null;
-                if (string.IsNullOrWhiteSpace(id))
+                var uuid = ExtractFirstUuidFromJson(rpcRes.Body);
+                if (string.IsNullOrWhiteSpace(uuid))
                     return null;
 
-                _cachedDefaultGameServerId = id.Trim();
+                _cachedDefaultGameServerId = uuid;
                 return _cachedDefaultGameServerId;
             }
             catch
             {
                 return null;
             }
+        }
+
+        private static string ExtractFirstUuidFromJson(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+                return null;
+
+            var m = Regex.Match(
+                body.Trim(),
+                @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+            return m.Success ? m.Value : null;
         }
 
         /// <summary>현재 로그인 계정의 서버 식별자를 조회합니다.</summary>

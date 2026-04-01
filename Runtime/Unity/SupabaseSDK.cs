@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
@@ -808,26 +807,13 @@ namespace Truesoft.Supabase.Unity
                         saveSessionToStorage,
                         allowRecreateOnDeletion: true);
                     if (guarded != null)
-                    {
-                        // #region agent log
-                        AgentDebugNdjson("D", "SupabaseSDK.SignInAnonymouslyAsync", "return_before_ensure", "withdrawal_guard_blocked");
-                        // #endregion
                         return guarded;
-                    }
 
                     var reserved = await HandleWithdrawalReservationGateAfterSignInAsync();
                     if (reserved != null)
-                    {
-                        // #region agent log
-                        AgentDebugNdjson("D", "SupabaseSDK.SignInAnonymouslyAsync", "return_before_ensure", "withdrawal_reservation_gate");
-                        // #endregion
                         return reserved;
-                    }
                 }
 
-                // #region agent log
-                AgentDebugNdjson("E", "SupabaseSDK.SignInAnonymouslyAsync", "before_TryEnsureProfileRowAfterSignIn", "new_anonymous_path");
-                // #endregion
                 await TryEnsureProfileRowAfterSignInAsync();
             }
 
@@ -1770,9 +1756,6 @@ namespace Truesoft.Supabase.Unity
                 }
 
                 // TryStartAsync / TryRestoreSessionAsync 경로는 SignIn* 를 거치지 않아 프로필 보장이 빠질 수 있음 → ts_my_server_id 빈 결과 방지
-                // #region agent log
-                AgentDebugNdjson("E", "SupabaseSDK.RestoreSessionAsyncCore", "before_TryEnsureProfileRowAfterSignIn", "restore_session_path");
-                // #endregion
                 await TryEnsureProfileRowAfterSignInAsync();
 
                 return true;
@@ -2184,53 +2167,24 @@ namespace Truesoft.Supabase.Unity
         private static async Task TryEnsureProfileRowAfterSignInAsync()
         {
             var svc = _bootstrap?.PublicProfileService;
-            var s = _currentSession;
-            // #region agent log
-            AgentDebugNdjson(
-                "A",
-                "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync",
-                "entry",
-                $"hasSvc={svc != null},hasSession={s != null},hasUser={s?.User != null},hasToken={string.IsNullOrWhiteSpace(s?.AccessToken) == false},uidLen={(s?.User?.Id?.Length ?? 0)}");
-            // #endregion
             if (svc == null)
-            {
-                // #region agent log
-                AgentDebugNdjson("A", "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync", "early_exit", "publicProfileService_null");
-                // #endregion
                 return;
-            }
 
+            var s = _currentSession;
             if (s == null || s.User == null)
-            {
-                // #region agent log
-                AgentDebugNdjson("A", "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync", "early_exit", "session_or_user_null");
-                // #endregion
                 return;
-            }
 
             if (string.IsNullOrWhiteSpace(s.AccessToken) || string.IsNullOrWhiteSpace(s.User.Id))
-            {
-                // #region agent log
-                AgentDebugNdjson("A", "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync", "early_exit", "token_or_userId_empty");
-                // #endregion
                 return;
-            }
 
             try
             {
                 var r = await svc.EnsureMyProfileRowAsync(s.AccessToken, s.User.Id, s.User.PlayerUserId);
                 if (r == null || !r.IsSuccess)
                 {
-                    // #region agent log
-                    AgentDebugNdjson("B", "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync", "ensure_failed", r?.ErrorMessage ?? "null_result");
-                    // #endregion
                     Debug.LogWarning("[Supabase] ensure profile row failed: " + (r?.ErrorMessage ?? "unknown"));
                     return;
                 }
-
-                // #region agent log
-                AgentDebugNdjson("B", "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync", "ensure_http_ok", "success");
-                // #endregion
 
                 var selectedCode = GetCurrentServerCode();
                 if (string.IsNullOrWhiteSpace(selectedCode))
@@ -2249,40 +2203,9 @@ namespace Truesoft.Supabase.Unity
             }
             catch (Exception e)
             {
-                // #region agent log
-                AgentDebugNdjson("A", "SupabaseSDK.TryEnsureProfileRowAfterSignInAsync", "exception", e.Message);
-                // #endregion
                 Debug.LogWarning("[Supabase] ensure profile row exception: " + e.Message);
             }
         }
-
-        // #region agent log
-        private static string AgentEsc(string s)
-        {
-            if (string.IsNullOrEmpty(s))
-                return "";
-            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", " ").Replace("\n", " ");
-        }
-
-        private const string AgentDebugLogPath = @"d:\Project\TrueSoft.Supabase\debug-a19a0d.log";
-
-        private static void AgentDebugNdjson(string hypothesisId, string location, string message, string detail = null)
-        {
-            try
-            {
-                var path = AgentDebugLogPath;
-                var d = detail != null ? $",\"detail\":\"{AgentEsc(detail)}\"" : "";
-                var line =
-                    $"{{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"{AgentEsc(hypothesisId)}\",\"location\":\"{AgentEsc(location)}\",\"message\":\"{AgentEsc(message)}\"{d},\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}}}\n";
-                File.AppendAllText(path, line);
-            }
-            catch
-            {
-                // ignore
-            }
-        }
-
-        // #endregion
 
         /// <summary>
         /// Google 신규 가입으로 판단되면 구글이 넣은 <c>user_metadata.displayName</c>을 <c>Player_xxxxxxxx</c>로 덮어쓰고 세션을 갱신합니다.

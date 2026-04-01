@@ -1,15 +1,18 @@
 -- =============================================================================
 -- 플레이어 데이터: user_id(운영·동일인) + account_id(게임·auth.users.id)
 -- README「플레이어 데이터 테이블 구조」「공개 프로필」「§5」와 동일 모델.
--- Supabase SQL Editor에서 실행. 기존 policy 이름이 겹치면 아래 DROP 후 재실행.
--- 마지막 SELECT(Result 탭)로 테이블·RLS·함수·인덱스 반영 여부를 확인한다.
+-- Supabase SQL Editor에서 실행. 마지막 SELECT(Result 탭)로 테이블·RLS·함수·인덱스 반영 여부를 확인한다.
 --
--- 재실행·스키마 진화(이 스크립트만으로 현재 의도 상태로 수렴)
+-- ■ 한 번에 재실행(이미 테이블·정책이 있어도 됨)
+--   이 파일 전체를 통째로 실행하면 최종 스키마·RLS·함수·GRANT 로 수렴하도록 설계했다.
+--
+-- 재실행·스키마 진화
 -- - 테이블: CREATE IF NOT EXISTS 후, 누락 컬럼은 ADD COLUMN IF NOT EXISTS 로 보강.
 -- - 새 컬럼을 파일에 추가할 때: CREATE TABLE 절과 ADD COLUMN IF NOT EXISTS 절을 둘 다 같은 이름·타입으로 갱신할 것.
 -- - FK/UNIQUE: 아래 DO 블록의 고정 이름 제약이 없을 때만 추가(이미 있으면 건너뜀). 수동으로 이름을 바꾼 DB와는 중복 정의에 주의.
 -- - COMMENT ON, RLS, 정책(DROP IF EXISTS 후 CREATE), 인덱스(IF NOT EXISTS), 함수(OR REPLACE), GRANT 는 재실행 시에도 최종 정의로 맞춤.
--- - 컬럼 타입 변경·데이터가 있는 경우의 NOT NULL 강제 등은 자동으로 하지 않으며, 필요 시 별도 마이그레이션으로 처리.
+-- - server_id NOT NULL 은 NULL 채운 뒤, 컬럼이 아직 nullable 일 때만 적용(재실행 시 중복 ALTER 방지). 남는 NULL 이 있으면 NOTICE 후 건너뜀.
+-- - auth 스키마 트리거는 권한·환경에 따라 실패할 수 있어 NOTICE 로 건너뛸 수 있음.
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -69,6 +72,11 @@ as $$
   limit 1;
 $$;
 
+comment on function public.ts_default_server_id() is
+  '기본 game_servers 행 id. 클라이언트 프로필 upsert 시 server_id 채움·RLS 호환용으로 authenticated 에서 호출 가능.';
+
+grant execute on function public.ts_default_server_id() to anon, authenticated;
+
 comment on table public.game_servers is '게임 서버(월드) 마스터.';
 comment on column public.game_servers.server_code is '클라이언트에서 선택/표시하는 고유 코드(예: GLOBAL, KR1).';
 
@@ -102,8 +110,23 @@ where p.server_id is null;
 alter table public.profiles
   alter column server_id set default public.ts_default_server_id();
 
-alter table public.profiles
-  alter column server_id set not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'server_id'
+      and is_nullable = 'YES'
+  ) then
+    alter table public.profiles
+      alter column server_id set not null;
+  end if;
+exception
+  when others then
+    raise notice 'profiles.server_id SET NOT NULL skipped: %', sqlerrm;
+end $$;
 
 do $$
 begin
@@ -263,8 +286,23 @@ update public.display_names d
 set server_id = public.ts_default_server_id()
 where d.server_id is null;
 
-alter table public.display_names
-  alter column server_id set not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'display_names'
+      and column_name = 'server_id'
+      and is_nullable = 'YES'
+  ) then
+    alter table public.display_names
+      alter column server_id set not null;
+  end if;
+exception
+  when others then
+    raise notice 'display_names.server_id SET NOT NULL skipped: %', sqlerrm;
+end $$;
 
 do $$
 begin
@@ -365,8 +403,23 @@ update public.user_saves u
 set server_id = public.ts_default_server_id()
 where u.server_id is null;
 
-alter table public.user_saves
-  alter column server_id set not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'user_saves'
+      and column_name = 'server_id'
+      and is_nullable = 'YES'
+  ) then
+    alter table public.user_saves
+      alter column server_id set not null;
+  end if;
+exception
+  when others then
+    raise notice 'user_saves.server_id SET NOT NULL skipped: %', sqlerrm;
+end $$;
 
 do $$
 begin
@@ -491,8 +544,23 @@ update public.user_sessions s
 set server_id = public.ts_default_server_id()
 where s.server_id is null;
 
-alter table public.user_sessions
-  alter column server_id set not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'user_sessions'
+      and column_name = 'server_id'
+      and is_nullable = 'YES'
+  ) then
+    alter table public.user_sessions
+      alter column server_id set not null;
+  end if;
+exception
+  when others then
+    raise notice 'user_sessions.server_id SET NOT NULL skipped: %', sqlerrm;
+end $$;
 
 do $$
 begin
@@ -593,8 +661,23 @@ update public.anonymous_recovery_tokens t
 set server_id = public.ts_default_server_id()
 where t.server_id is null;
 
-alter table public.anonymous_recovery_tokens
-  alter column server_id set not null;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'anonymous_recovery_tokens'
+      and column_name = 'server_id'
+      and is_nullable = 'YES'
+  ) then
+    alter table public.anonymous_recovery_tokens
+      alter column server_id set not null;
+  end if;
+exception
+  when others then
+    raise notice 'anonymous_recovery_tokens.server_id SET NOT NULL skipped: %', sqlerrm;
+end $$;
 
 do $$
 begin
@@ -884,13 +967,22 @@ begin
       for each row
       execute function public.ts_auth_users_anon_recovery_cleanup();
   end if;
+exception
+  when others then
+    raise notice 'trg_auth_users_anon_recovery_cleanup_u: skipped — %', sqlerrm;
 end $$;
 
-drop trigger if exists trg_auth_users_anon_recovery_cleanup_d on auth.users;
-create trigger trg_auth_users_anon_recovery_cleanup_d
-  after delete on auth.users
-  for each row
-  execute function public.ts_auth_users_anon_recovery_cleanup();
+do $$
+begin
+  drop trigger if exists trg_auth_users_anon_recovery_cleanup_d on auth.users;
+  create trigger trg_auth_users_anon_recovery_cleanup_d
+    after delete on auth.users
+    for each row
+    execute function public.ts_auth_users_anon_recovery_cleanup();
+exception
+  when others then
+    raise notice 'trg_auth_users_anon_recovery_cleanup_d: skipped — %', sqlerrm;
+end $$;
 
 -- 익명 계정에 Google 등 두 번째 identity 가 붙을 때(INSERT)에도 정리. is_anonymous 갱신 타이밍과 무관하게 동작.
 create or replace function public.ts_auth_identities_anon_recovery_cleanup()
@@ -936,6 +1028,9 @@ begin
       when (new.provider is distinct from 'anonymous')
       execute function public.ts_auth_identities_anon_recovery_cleanup();
   end if;
+exception
+  when others then
+    raise notice 'trg_auth_identities_anon_recovery_cleanup: skipped — %', sqlerrm;
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -1249,6 +1344,7 @@ from (
       ('ts_anon_recovery_delete_by_fingerprint'),
       ('ts_delete_my_anon_recovery_tokens'),
       ('auth_user_server_id'),
+      ('ts_default_server_id'),
       ('ts_my_server_id'),
       ('ts_transfer_my_server'),
       ('ts_admin_transfer_user_server'),
