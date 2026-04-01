@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -519,6 +520,17 @@ namespace Truesoft.Supabase.Core.Data
                 jsonBody: bodyJson,
                 headers: CreateUserHeaders(accessToken, prefer: null));
 
+            // #region agent log
+            AgentWithdrawalDebugLog(
+                "SupabasePublicProfileService:RequestMyWithdrawalByDelayDaysAsync:after_http",
+                response?.IsSuccess == true ? "verify" : "H1_H2_H3_H5",
+                "ts_request_withdrawal response",
+                response?.StatusCode ?? -1,
+                response?.IsSuccess ?? false,
+                response?.ErrorMessage,
+                response?.Body);
+            // #endregion
+
             if (response == null)
                 return SupabaseResult<string>.Fail("http_response_null");
 
@@ -529,15 +541,84 @@ namespace Truesoft.Supabase.Core.Data
             {
                 var rows = _jsonSerializer.FromJsonArray<WithdrawalRequestRow>(response.Body);
                 if (rows == null || rows.Length == 0 || rows[0] == null || string.IsNullOrWhiteSpace(rows[0].scheduled_at))
+                {
+                    // #region agent log
+                    AgentWithdrawalDebugLog(
+                        "SupabasePublicProfileService:RequestMyWithdrawalByDelayDaysAsync:parse_empty",
+                        "H4",
+                        "withdrawal rows empty or scheduled_at missing",
+                        response.StatusCode,
+                        true,
+                        null,
+                        response.Body);
+                    // #endregion
+
                     return SupabaseResult<string>.Fail("withdrawal_request_scheduled_at_empty");
+                }
 
                 return SupabaseResult<string>.Success(rows[0].scheduled_at.Trim());
             }
             catch (Exception e)
             {
+                // #region agent log
+                AgentWithdrawalDebugLog(
+                    "SupabasePublicProfileService:RequestMyWithdrawalByDelayDaysAsync:parse_exception",
+                    "H4",
+                    "parse exception: " + e.Message,
+                    response.StatusCode,
+                    true,
+                    null,
+                    response.Body);
+                // #endregion
+
                 return SupabaseResult<string>.Fail("withdrawal_request_parse_exception:" + e.Message);
             }
         }
+
+        // #region agent log
+        private static void AgentWithdrawalDebugLog(
+            string location,
+            string hypothesisId,
+            string message,
+            long statusCode,
+            bool isSuccess,
+            string errorMessage,
+            string body)
+        {
+            try
+            {
+                var bodyTrunc = body == null ? "" : (body.Length <= 600 ? body : body.Substring(0, 600));
+                static string J(string s)
+                {
+                    if (string.IsNullOrEmpty(s))
+                        return "";
+                    return s
+                        .Replace("\\", "\\\\")
+                        .Replace("\"", "\\\"")
+                        .Replace("\r", " ")
+                        .Replace("\n", " ");
+                }
+
+                var err = J(errorMessage);
+                var b = J(bodyTrunc);
+                var line =
+                    "{\"sessionId\":\"a19a0d\",\"hypothesisId\":\"" + hypothesisId + "\",\"location\":\"" + J(location) +
+                    "\",\"message\":\"" + J(message) + "\",\"data\":{\"statusCode\":" + statusCode +
+                    ",\"isSuccess\":" + (isSuccess ? "true" : "false") + ",\"errorMessage\":\"" + err +
+                    "\",\"bodyTrunc\":\"" + b + "\"},\"timestamp\":" +
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "}\n";
+
+                var dir = Environment.GetEnvironmentVariable("TRUESOFT_DEBUG_LOG_DIR");
+                if (string.IsNullOrWhiteSpace(dir))
+                    dir = Directory.GetCurrentDirectory();
+                File.AppendAllText(Path.Combine(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), "debug-a19a0d.log"), line);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+        // #endregion
 
         /// <summary>
         /// 로그인한 본인의 탈퇴 예약 게이트 상태를 조회합니다.

@@ -13,7 +13,7 @@
 create or replace function public.ts_request_withdrawal(p_delay_days integer)
 returns table(scheduled_at timestamptz)
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 declare
@@ -56,7 +56,7 @@ end;
 $$;
 
 comment on function public.ts_request_withdrawal(integer) is
-  '탈퇴 요청 시 withdrawn_at을 서버 시각 기준으로 설정(0일이면 즉시 now, 그 외 now + delay_days). anonymous_recovery_tokens 본인 행 삭제.';
+  '탈퇴 요청 시 withdrawn_at을 서버 시각 기준으로 설정(0일이면 즉시 now, 그 외 now + delay_days). SECURITY DEFINER: profiles RLS(INSERT/UPDATE WITH CHECK)와 충돌하지 않도록. 본인 auth.uid()만 대상.';
 
 grant execute on function public.ts_request_withdrawal(integer) to authenticated;
 
