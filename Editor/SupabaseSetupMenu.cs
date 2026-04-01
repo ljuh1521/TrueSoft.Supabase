@@ -12,7 +12,7 @@ namespace Truesoft.Supabase.Editor
         private const string DefaultFolder = "Assets/Resources";
         private const string AssetName = "SupabaseSettings.asset";
 
-        [MenuItem("TrueSoft/Supabase/Create Settings Asset")]
+        [MenuItem("TrueSoft/Supabase/설정 에셋 만들기")]
         public static void CreateSettingsAsset()
         {
             var settings = GetOrCreateSettingsAsset();
@@ -20,7 +20,7 @@ namespace Truesoft.Supabase.Editor
             EditorGUIUtility.PingObject(settings);
         }
 
-        [MenuItem("TrueSoft/Supabase/Create Runtime Object In Scene")]
+        [MenuItem("TrueSoft/Supabase/씬에 런타임 오브젝트 만들기")]
         public static void CreateRuntimeObjectInScene()
         {
             var existing = Object.FindObjectOfType<SupabaseRuntime>();
@@ -28,14 +28,14 @@ namespace Truesoft.Supabase.Editor
             {
                 Selection.activeObject = existing.gameObject;
                 EditorGUIUtility.PingObject(existing.gameObject);
-                Debug.Log("[Supabase] Runtime object already exists in current scene.");
+                Debug.Log("[Supabase] 현재 씬에 Runtime 오브젝트가 이미 있습니다.");
                 return;
             }
 
             var settings = GetOrCreateSettingsAsset();
 
             var go = new GameObject("SupabaseSDK");
-            Undo.RegisterCreatedObjectUndo(go, "Create Supabase Runtime Object");
+            Undo.RegisterCreatedObjectUndo(go, "Supabase Runtime 오브젝트 만들기");
 
             var runtime = go.AddComponent<SupabaseRuntime>();
             var so = new SerializedObject(runtime);
@@ -47,7 +47,7 @@ namespace Truesoft.Supabase.Editor
             EditorGUIUtility.PingObject(go);
             EditorSceneManager.MarkSceneDirty(go.scene);
 
-            Debug.Log("[Supabase] Runtime object created in scene: " + go.name);
+            Debug.Log("[Supabase] 씬에 Runtime 오브젝트를 만들었습니다: " + go.name);
         }
 
         private static SupabaseSettings GetOrCreateSettingsAsset()
@@ -60,7 +60,7 @@ namespace Truesoft.Supabase.Editor
             var existing = AssetDatabase.LoadAssetAtPath<SupabaseSettings>(assetPath);
             if (existing != null)
             {
-                Debug.Log("[Supabase] Settings asset already exists: " + assetPath);
+                Debug.Log("[Supabase] Settings 에셋이 이미 있습니다: " + assetPath);
                 return existing;
             }
 
@@ -69,7 +69,7 @@ namespace Truesoft.Supabase.Editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[Supabase] Settings asset created: " + assetPath);
+            Debug.Log("[Supabase] Settings 에셋을 만들었습니다: " + assetPath);
             return settings;
         }
     }

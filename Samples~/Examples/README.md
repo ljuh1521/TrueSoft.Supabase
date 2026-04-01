@@ -25,7 +25,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 
 ## 2. 실행 전 준비
 
-1. **TrueSoft** > **Supabase** > **Create Settings Asset**으로 `SupabaseSettings` 생성
+1. **TrueSoft** > **Supabase** > **설정 에셋 만들기**로 `SupabaseSettings` 생성
 2. `projectUrl`, `publishableKey` 입력
 3. Android 네이티브 Google 로그인을 쓸 경우 `googleWebClientId` 입력
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장

@@ -11,7 +11,7 @@ namespace Truesoft.Supabase.Unity
     /// 런타임에서는 <c>Resources/SupabaseSettings</c> 이름으로 로드되므로 경로·파일명을 맞춰야 합니다.
     /// <see cref="Supabase.TrySignInWithGoogleAsync(bool)"/> 호출 시 <see cref="googleWebClientId"/>를 읽습니다.
     /// </remarks>
-    [CreateAssetMenu(fileName = "SupabaseSettings", menuName = "TrueSoft/Supabase Settings")]
+    [CreateAssetMenu(fileName = "SupabaseSettings", menuName = "TrueSoft/Supabase/Supabase 설정")]
     public sealed class SupabaseSettings : ScriptableObject
     {
         [Header("Project Values (공통 설정값)")]

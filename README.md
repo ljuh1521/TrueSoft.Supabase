@@ -16,7 +16,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 - **SupabaseSettings (공통 설정값)**: 프로젝트 URL, publishable key, Google Web Client ID, 기본 로그/타임아웃 같은 정적 값을 정의합니다.
 - **SupabaseRuntime (씬 실행 정책)**: 시작 시 세션 복원 여부, RemoteConfig 첫 로드/폴링 주기 같은 런타임 동작 시점을 제어합니다.
 
-1. 메뉴 **TrueSoft > Supabase > Create Settings Asset** 으로 `SupabaseSettings` 를 만듭니다.
+1. 메뉴 **TrueSoft > Supabase > 설정 에셋 만들기** 로 `SupabaseSettings` 를 만듭니다.
 2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)<br/>
    Google **신규** 가입으로 판단될 때만 `user_metadata.displayName`을 `Player_xxxxxxxx`로 덮어쓰려면 `applyAnonymousDisplayNameOnNewGoogleSignUp`(기본 on)을 유지합니다. 끄면 구글 프로필 이름이 메타데이터에 그대로 남을 수 있습니다.
    익명 계정에 Google을 붙이는 흐름을 쓸 계획이라면 Supabase 대시보드의 Authentication 설정에서 **Manual linking (beta)** 를 켜세요.
@@ -58,17 +58,18 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 ### 에디터: OpenAPI로 POCO 자동 생성
 
-메뉴 **TrueSoft > Supabase > Generate User Save POCO from OpenAPI…** 를 열면 PostgREST가 제공하는 OpenAPI 설명(`GET …/rest/v1/`, `Accept: application/openapi+json`)을 바탕으로 **`[Serializable]` + `[UserSaveColumn]` 필드**가 들어간 `.cs` 초안을 만들 수 있습니다.
+메뉴 **TrueSoft > Supabase > OpenAPI로 세이브 POCO 생성…** 을 열면 PostgREST OpenAPI(`GET …/rest/v1/`, `Accept: application/openapi+json`)를 바탕으로 **`[Serializable]` + `[UserSaveColumn]` 필드**가 들어간 `.cs` 초안을 만들 수 있습니다.
 
 **사용 순서 요약**
 
 1. (선택) `Resources/SupabaseSettings`를 창에 넣으면 URL·publishable key·`userSavesTable`이 채워집니다.
-2. **Fetch from API & preview** 로 가져오거나, 브라우저·CLI로 받은 스펙을 **Import OpenAPI JSON…** 으로 엽니다.
+2. **API에서 가져와 미리보기**로 가져오거나, 브라우저·CLI로 받은 스펙을 **OpenAPI JSON 가져오기…**로 엽니다.
 3. 테이블명·스킵할 컬럼(CSV)·클래스 이름·네임스페이스를 조정한 뒤 미리보기를 확인합니다.
-4. **Save as .cs in project…** 로 `Assets` 아래에 저장합니다.
+4. **프로젝트에 .cs 저장…**으로 `Assets` 아래에 저장합니다.
 
 **주의점**
 
+- **가져오기에서 HTTP 401** 이면 거의 항상 **키 또는 URL** 문제입니다. 대시보드 **Settings → API** 의 **anon `public` 키**(JWT 형태, `eyJ…` 시작)를 확인하세요. URL은 **`https://xxxx.supabase.co`** 프로젝트 루트만 쓰면 됩니다. 그래도 안 되면 **OpenAPI JSON 가져오기…**로 우회하세요.
 - OpenAPI에 **어떤 테이블이 보이는지**는 요청 시 사용하는 **DB 역할**에 따라 달라집니다. JWT 없이 **anon 키만** 쓰면, RLS·권한 때문에 `user_saves` 정의가 스펙에 **안 나올 수 있습니다.** 그때는 (1) 대시보드/API로 받은 OpenAPI JSON을 **파일로 임포트**하거나, (2) 에디터에서만 **Service Role 키**로 Fetch 하세요.
 - **Service Role 키는 절대 플레이어 빌드·저장소·버전 관리에 넣지 마세요.** 팀원 PC·CI 시크릿 등 **에디터/파이프라인 한정**으로만 쓰는 것을 전제로 합니다.
 - 생성기는 타입을 완전히 추론하지 못하는 컬럼(배열·일부 `$ref`·jsonb 등)을 `string /* … refine */` 형태로 남깁니다. **실제 게임에 맞게 타입과 주석을 손으로 다듬어야** 합니다.

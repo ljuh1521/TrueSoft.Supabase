@@ -11,27 +11,69 @@ namespace Truesoft.Supabase.Editor
     /// <summary>PostgREST OpenAPI(JSON)에서 세이브 테이블 컬럼을 읽고 UserSaveColumn POCO 텍스트를 만듭니다.</summary>
     internal static class PostgrestOpenApiUserSavePoco
     {
-        public static string BuildRestRootUrl(string projectUrl)
+        /// <summary>붙여넣기 오류로 섞인 공백·줄바꿈을 정리합니다.</summary>
+        public static string NormalizeApiKey(string apiKey)
+        {
+            if (string.IsNullOrEmpty(apiKey))
+                return apiKey;
+
+            var s = apiKey.Trim().TrimStart('\uFEFF');
+            s = s.Replace("\r", string.Empty).Replace("\n", string.Empty).Replace("\t", string.Empty);
+            if (s.Length > 0 && s.StartsWith("eyJ", StringComparison.Ordinal))
+            {
+                var sb = new StringBuilder(s.Length);
+                foreach (var ch in s)
+                {
+                    if (!char.IsWhiteSpace(ch))
+                        sb.Append(ch);
+                }
+
+                s = sb.ToString();
+            }
+
+            return s.Trim();
+        }
+
+        /// <summary>프로젝트 루트만 남김. <c>…/rest/v1</c> 까지 붙여 넣은 경우 제거.</summary>
+        public static string NormalizeProjectUrl(string projectUrl)
         {
             if (string.IsNullOrWhiteSpace(projectUrl))
-                throw new ArgumentException("projectUrl is empty.", nameof(projectUrl));
-            return projectUrl.TrimEnd('/') + "/rest/v1/";
+                return projectUrl?.Trim() ?? string.Empty;
+
+            var u = projectUrl.Trim().TrimStart('\uFEFF');
+            const string marker = "/rest/v1";
+            var idx = u.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                u = u.Substring(0, idx);
+
+            return u.TrimEnd('/');
+        }
+
+        public static string BuildRestRootUrl(string projectUrl)
+        {
+            var baseUrl = NormalizeProjectUrl(projectUrl);
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new ArgumentException("프로젝트 URL이 비어 있습니다.", nameof(projectUrl));
+            return baseUrl.TrimEnd('/') + "/rest/v1/";
         }
 
         public static string FetchOpenApiJson(string restRootUrl, string apiKey, int timeoutSeconds)
         {
-            if (string.IsNullOrWhiteSpace(apiKey))
-                throw new ArgumentException("apiKey is empty.", nameof(apiKey));
+            var key = NormalizeApiKey(apiKey);
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("API 키가 비어 있습니다.", nameof(apiKey));
 
             using var req = UnityWebRequest.Get(restRootUrl);
             req.timeout = Math.Max(5, timeoutSeconds);
-            req.SetRequestHeader("apikey", apiKey.Trim());
-            req.SetRequestHeader("Authorization", "Bearer " + apiKey.Trim());
+            req.SetRequestHeader("apikey", key);
+            req.SetRequestHeader("Authorization", "Bearer " + key);
             req.SetRequestHeader("Accept", "application/openapi+json");
 
             var op = req.SendWebRequest();
             while (op.isDone == false)
                 System.Threading.Thread.Sleep(16);
+
+            var body = req.downloadHandler?.text ?? string.Empty;
 
 #if UNITY_2020_2_OR_NEWER
             var ok = req.result == UnityWebRequest.Result.Success;
@@ -39,9 +81,14 @@ namespace Truesoft.Supabase.Editor
             var ok = req.isNetworkError == false && req.isHttpError == false;
 #endif
             if (!ok)
-                throw new IOException($"{req.error} (HTTP {req.responseCode})");
+            {
+                var snippet = body.Length > 800 ? body.Substring(0, 800) + "…" : body;
+                if (string.IsNullOrWhiteSpace(snippet))
+                    snippet = "(no response body)";
+                throw new IOException($"{req.error} (HTTP {req.responseCode})\n{snippet}");
+            }
 
-            return req.downloadHandler.text;
+            return body;
         }
 
         public static ParseTableResult ParseTableColumns(string openApiJson, string tableName, HashSet<string> skipColumns)
@@ -53,7 +100,7 @@ namespace Truesoft.Supabase.Editor
             {
                 return ParseTableResult.Fail(
                     $"OpenAPI에서 테이블 스키마를 찾지 못했습니다: '{tableName}'. "
-                    + "anon 역할에는 목록에 안 나올 수 있습니다. Service Role 키(에디터 전용)로 시도하거나 openapi.json 파일을 임포트하세요.");
+                    + "anon에서 안 보이면 Service Role 키(에디터 전용) 또는 openapi.json 임포트를 사용하세요.");
             }
 
             var schemaObj = ResolveSchema(root, schemaToken as JObject);
@@ -76,7 +123,7 @@ namespace Truesoft.Supabase.Editor
                 if (IsValidCSharpIdentifierChars(colName) == false)
                 {
                     warnings.Add(
-                        $"컬럼 '{colName}' 건너뜀: C# 식별자가 아닙니다. Unity JsonUtility는 JSON 키와 필드 이름이 같아야 하므로 수동으로 매핑하세요.");
+                        $"컬럼 '{colName}' 건너뜀: C# 식별자가 아닙니다. 수동 매핑이 필요합니다.");
                     continue;
                 }
 
@@ -106,14 +153,14 @@ namespace Truesoft.Supabase.Editor
             string tableLabel)
         {
             if (columns == null || columns.Count == 0)
-                throw new InvalidOperationException("No columns to emit.");
+                throw new InvalidOperationException("생성할 컬럼이 없습니다.");
 
             var sb = new StringBuilder();
             sb.AppendLine("// <auto-generated>");
-            sb.AppendLine("// PostgREST OpenAPI → POCO (Unity JsonUtility: field names match JSON keys / DB columns).");
+            sb.AppendLine("// PostgREST OpenAPI → POCO");
             sb.AppendLine("// Table: " + tableLabel);
             sb.AppendLine("// Generated (UTC): " + DateTime.UtcNow.ToString("O"));
-            sb.AppendLine("// Menu: TrueSoft/Supabase/Generate User Save POCO from OpenAPI…");
+            sb.AppendLine("// Menu: TrueSoft/Supabase/OpenAPI로 세이브 POCO 생성…");
             sb.AppendLine("// </auto-generated>");
             sb.AppendLine();
             sb.AppendLine("using System;");
@@ -131,7 +178,7 @@ namespace Truesoft.Supabase.Editor
             }
 
             sb.AppendLine(indent + "/// <summary>");
-            sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 행 — OpenAPI 기반 생성. 필요 시 컬럼·타입을 손으로 다듬으세요.");
+            sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 행 모델입니다. 생성 후 타입은 프로젝트에 맞게 조정하세요.");
             sb.AppendLine(indent + "/// </summary>");
             sb.AppendLine(indent + "[Serializable]");
             sb.AppendLine(indent + "public sealed class " + className.Trim());
@@ -159,7 +206,7 @@ namespace Truesoft.Supabase.Editor
         private static JToken FindTableSchemaToken(JObject root, string tableName)
         {
             if (string.IsNullOrWhiteSpace(tableName))
-                throw new ArgumentException("tableName is empty.", nameof(tableName));
+                throw new ArgumentException("테이블 이름이 비어 있습니다.", nameof(tableName));
 
             var shortName = tableName.Contains(".", StringComparison.Ordinal)
                 ? tableName.Substring(tableName.LastIndexOf('.') + 1)

@@ -10,10 +10,10 @@ namespace Truesoft.Supabase.Unity
         /// <summary>콘솔에 그대로 붙여 넣을 수 있는 최소 체크리스트(한국어).</summary>
         public const string InitializationChecklistKo =
             "[Supabase 초기화 점검]\n" +
-            "1) 메뉴 TrueSoft > Supabase > Create Settings Asset 로 SupabaseSettings 생성\n" +
+            "1) 메뉴 TrueSoft > Supabase > 설정 에셋 만들기 로 SupabaseSettings 생성\n" +
             "2) projectUrl, publishableKey 입력\n" +
             "3) 에셋을 Assets/Resources/SupabaseSettings.asset 경로·파일명으로 저장 (Resources.Load 이름은 'SupabaseSettings')\n" +
-            "4) 씬에 SupabaseRuntime이 없으면 샘플이 자동 생성합니다. 수동 배치: TrueSoft > Supabase > Create Runtime Object In Scene";
+            "4) 씬에 SupabaseRuntime이 없으면 샘플이 자동 생성합니다. 수동 배치: TrueSoft > Supabase > 씬에 런타임 오브젝트 만들기";
 
         /// <summary>
         /// <paramref name="context"/>는 로그 태그로 사용됩니다 (예: BasicSetup, FullSDKUsage).

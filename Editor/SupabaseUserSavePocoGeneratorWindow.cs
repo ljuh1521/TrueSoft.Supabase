@@ -29,10 +29,10 @@ namespace Truesoft.Supabase.Editor
 
         private List<string> _lastWarnings = new List<string>();
 
-        [MenuItem("TrueSoft/Supabase/Generate User Save POCO from OpenAPI…")]
+        [MenuItem("TrueSoft/Supabase/OpenAPI로 세이브 POCO 생성…")]
         private static void Open()
         {
-            var w = GetWindow<SupabaseUserSavePocoGeneratorWindow>(true, "User save POCO (OpenAPI)", true);
+            var w = GetWindow<SupabaseUserSavePocoGeneratorWindow>(true, "세이브 POCO (OpenAPI)", true);
             w.minSize = new Vector2(520, 420);
         }
 
@@ -48,54 +48,53 @@ namespace Truesoft.Supabase.Editor
         private void OnGUI()
         {
             EditorGUILayout.HelpBox(
-                "PostgREST OpenAPI(GET …/rest/v1/)에서 테이블 정의를 읽어 POCO를 만듭니다. "
-                + "Unity JsonUtility는 JSON 키와 필드 이름이 같아야 하므로 필드명은 DB 컬럼명과 동일합니다. "
-                + "테이블이 anon OpenAPI에 없으면 Service Role 키(에디터 전용) 또는 저장된 openapi.json 임포트를 사용하세요.",
+                "OpenAPI에서 세이브 테이블을 읽어 POCO를 만듭니다. "
+                + "테이블이 anon 스펙에 없으면 에디터 전용 Service Role 키 또는 openapi.json 임포트를 사용하세요.",
                 MessageType.Info);
 
             EditorGUI.BeginChangeCheck();
-            settings = (SupabaseSettings)EditorGUILayout.ObjectField("Settings (optional)", settings, typeof(SupabaseSettings), false);
+            settings = (SupabaseSettings)EditorGUILayout.ObjectField("Settings (선택)", settings, typeof(SupabaseSettings), false);
             if (EditorGUI.EndChangeCheck() && settings != null)
                 PullFromSettings();
 
-            projectUrl = EditorGUILayout.TextField("Project URL", projectUrl);
-            anonKey = EditorGUILayout.PasswordField("Publishable (anon) key", anonKey);
+            projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
+            anonKey = EditorGUILayout.PasswordField("Publishable(anon) 키", anonKey);
 
             useServiceRoleKey = EditorGUILayout.ToggleLeft(
-                "Fetch with service role key (editor only — never ship in builds)",
+                "Service Role 키로 가져오기 (에디터 전용)",
                 useServiceRoleKey);
             if (useServiceRoleKey)
-                serviceRoleKey = EditorGUILayout.PasswordField("Service role key", serviceRoleKey);
+                serviceRoleKey = EditorGUILayout.PasswordField("Service Role 키", serviceRoleKey);
 
-            tableName = EditorGUILayout.TextField("Table name", tableName);
-            skipColumnsCsv = EditorGUILayout.TextField("Skip columns (CSV)", skipColumnsCsv);
-            className = EditorGUILayout.TextField("Class name", className);
-            namespaceName = EditorGUILayout.TextField("Namespace (optional)", namespaceName);
+            tableName = EditorGUILayout.TextField("테이블 이름", tableName);
+            skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼 (CSV)", skipColumnsCsv);
+            className = EditorGUILayout.TextField("클래스 이름", className);
+            namespaceName = EditorGUILayout.TextField("네임스페이스 (선택)", namespaceName);
 
             EditorGUILayout.Space(6);
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("Fetch from API & preview", GUILayout.Height(28)))
+                if (GUILayout.Button("API에서 가져와 미리보기", GUILayout.Height(28)))
                     FetchFromApi();
 
-                if (GUILayout.Button("Import OpenAPI JSON…", GUILayout.Height(28)))
+                if (GUILayout.Button("OpenAPI JSON 가져오기…", GUILayout.Height(28)))
                     ImportJsonFile();
             }
 
             foreach (var w in _lastWarnings)
                 EditorGUILayout.HelpBox(w, MessageType.Warning);
 
-            EditorGUILayout.LabelField("Preview", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("미리보기", EditorStyles.boldLabel);
             scroll = EditorGUILayout.BeginScrollView(scroll, GUILayout.ExpandHeight(true));
             var ro = GUI.enabled;
             GUI.enabled = false;
-            EditorGUILayout.TextArea(string.IsNullOrEmpty(previewText) ? "(empty)" : previewText, GUILayout.MinHeight(220));
+            EditorGUILayout.TextArea(string.IsNullOrEmpty(previewText) ? "(비어 있음)" : previewText, GUILayout.MinHeight(220));
             GUI.enabled = ro;
             EditorGUILayout.EndScrollView();
 
             using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(previewText)))
             {
-                if (GUILayout.Button("Save as .cs in project…", GUILayout.Height(26)))
+                if (GUILayout.Button("프로젝트에 .cs 저장…", GUILayout.Height(26)))
                     SaveToProject();
             }
         }
@@ -132,7 +131,7 @@ namespace Truesoft.Supabase.Editor
                 var key = useServiceRoleKey ? serviceRoleKey : anonKey;
                 if (string.IsNullOrWhiteSpace(key))
                 {
-                    EditorUtility.DisplayDialog("Supabase POCO", "API key is empty.", "OK");
+                    EditorUtility.DisplayDialog("Supabase POCO", "API 키가 비어 있습니다.", "확인");
                     return;
                 }
 
@@ -143,13 +142,13 @@ namespace Truesoft.Supabase.Editor
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "Fetch failed:\n" + e.Message, "OK");
+                EditorUtility.DisplayDialog("Supabase POCO", "가져오기에 실패했습니다.\n" + e.Message, "확인");
             }
         }
 
         private void ImportJsonFile()
         {
-            var path = EditorUtility.OpenFilePanel("OpenAPI JSON", "", "json");
+            var path = EditorUtility.OpenFilePanel("OpenAPI JSON 열기", "", "json");
             if (string.IsNullOrEmpty(path))
                 return;
 
@@ -161,7 +160,7 @@ namespace Truesoft.Supabase.Editor
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "Import failed:\n" + e.Message, "OK");
+                EditorUtility.DisplayDialog("Supabase POCO", "가져오기에 실패했습니다.\n" + e.Message, "확인");
             }
         }
 
@@ -170,7 +169,7 @@ namespace Truesoft.Supabase.Editor
             var cn = string.IsNullOrWhiteSpace(className) ? DefaultClassName : className.Trim();
             if (IsValidTypeName(cn) == false)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "Class name is not a valid C# identifier.", "OK");
+                EditorUtility.DisplayDialog("Supabase POCO", "클래스 이름이 C# 식별자 규칙에 맞지 않습니다.", "확인");
                 return;
             }
 
@@ -178,7 +177,7 @@ namespace Truesoft.Supabase.Editor
             var parsed = PostgrestOpenApiUserSavePoco.ParseTableColumns(openApiJson, tableName, skip);
             if (!parsed.IsSuccess)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", parsed.ErrorMessage, "OK");
+                EditorUtility.DisplayDialog("Supabase POCO", parsed.ErrorMessage, "확인");
                 return;
             }
 
@@ -186,7 +185,7 @@ namespace Truesoft.Supabase.Editor
 
             if (parsed.Columns == null || parsed.Columns.Count == 0)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "No columns to emit (모두 스킵되었거나 스키마가 비었습니다).", "OK");
+                EditorUtility.DisplayDialog("Supabase POCO", "생성할 컬럼이 없습니다. (모두 제외되었거나 스키마가 비어 있습니다.)", "확인");
                 return;
             }
 
@@ -221,7 +220,7 @@ namespace Truesoft.Supabase.Editor
             if (name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) == false)
                 name += ".cs";
 
-            var path = EditorUtility.SaveFilePanelInProject("Save user save POCO", name, "cs", "");
+            var path = EditorUtility.SaveFilePanelInProject("세이브 POCO 저장", name, "cs", "");
             if (string.IsNullOrEmpty(path))
                 return;
 
@@ -235,7 +234,7 @@ namespace Truesoft.Supabase.Editor
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", e.Message, "OK");
+                EditorUtility.DisplayDialog("Supabase POCO", e.Message, "확인");
             }
         }
     }

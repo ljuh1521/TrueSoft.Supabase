@@ -13,7 +13,7 @@ namespace Truesoft.Supabase.Unity.Config
     /// - RemoteConfig 첫 로드/폴링 주기
     /// </summary>
     [DefaultExecutionOrder(-100)]
-    [AddComponentMenu("TrueSoft/Supabase/Supabase Runtime")]
+    [AddComponentMenu("TrueSoft/Supabase/Supabase 런타임")]
     public sealed class SupabaseRuntime : MonoBehaviour
     {
         private static SupabaseRuntime _instance;
