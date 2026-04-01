@@ -578,9 +578,7 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         [Serializable]
-        private sealed class UpsertDis
-        
-         playNameRow
+        private sealed class UpsertDisplayNameRow
         {
             public string account_id;
             public string user_id;
@@ -600,7 +598,8 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class DisplayNameGetRequest
         {
             public string user_id;
-        
+        }
+
         [Serializable]
         private sealed class MyServerInfoRow
         {
