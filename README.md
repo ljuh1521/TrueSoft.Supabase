@@ -49,6 +49,16 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 내부 `SupabaseResult`를 쓰려면 `Supabase.LoadUserSaveAttributedAsync` / `Supabase.PatchUserSaveDiffAsync` 를 사용할 수 있습니다. Try 계열 실패 로그 태그는 `Supabase.UserData.LoadAttributed`, `Supabase.UserData.PatchDiff` 입니다.
 
+### 정적 API 모드 (`SaveData.Gold = 10` 스타일)
+
+OpenAPI 생성기에서 **정적 API 생성**을 켜면, `SaveData.Gold = 10` 같은 프로퍼티 변경이 자동 저장 대상이 됩니다.
+
+- 변경은 즉시 매번 보내지 않고 **쿨타임 배치**로 묶입니다.
+- 중요한 타이밍에는 `TryRequestImmediateSave()`(요청) 또는 `TryFlushNowAsync()`(완료 대기)로 **즉시 전송**을 사용할 수 있습니다.
+- 이미 전송 중이면 즉시 전송은 중복 실행하지 않고, 완료 후 dirty를 다시 평가합니다.
+- 런타임(`SupabaseRuntime`)은 **Pause/Quit 시 dirty가 있으면 즉시 전송을 시도**합니다.
+- 쿨타임은 `Supabase.ConfigureUserSaveAutoSyncCooldown(seconds)`로 조정할 수 있습니다.
+
 ### 주의점 (JsonUtility · 컬럼명)
 
 - **Unity `JsonUtility`로 역직렬화할 때**, PostgREST가 내려주는 **JSON 키(보통 DB 컬럼명과 동일)** 와 **C# 필드 이름이 같아야** 값이 채워집니다. 그래서 DB가 `snake_case`이면 필드도 `level`, `updated_at` 처럼 **컬럼명과 동일한 이름**을 쓰는 편이 안전합니다.
@@ -65,6 +75,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 1. (선택) `Resources/SupabaseSettings`를 넣으면 URL·`userSavesTable`이 채워집니다. **Secret 키는 대시보드에서 복사해 창에 직접 입력합니다**(에셋에 넣지 마세요).
 2. **API에서 가져와 미리보기**는 **Secret 키가 있을 때만** 사용합니다. 키 없이 쓰려면 브라우저·CLI로 받은 스펙을 **OpenAPI JSON 가져오기…**로 엽니다.
 3. 테이블명·제외 컬럼·클래스 이름·네임스페이스를 조정한 뒤 미리보기를 확인합니다.
+   - `정적 API 생성`을 켜면 내부 Row + static 프로퍼티 코드가 함께 생성됩니다.
 4. **프로젝트에 .cs 저장…**으로 `Assets` 아래에 저장합니다.
 
 **주의점**

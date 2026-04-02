@@ -24,6 +24,7 @@ namespace Truesoft.Supabase.Editor
         [SerializeField] private string tableName = "user_saves";
         [SerializeField] private string skipColumnsCsv = "";
         [SerializeField] private string className = DefaultClassName;
+        [SerializeField] private bool generateStaticApi;
         [SerializeField] private string namespaceName = "";
         [SerializeField] private string previewText = "";
         [SerializeField] private Vector2 scroll;
@@ -51,7 +52,7 @@ namespace Truesoft.Supabase.Editor
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
             {
                 EditorGUILayout.HelpBox(
-                    "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. API 가져오기는 Secret 키·에디터 전용, JSON은 키 없음.",
+                    "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. 정적 API 모드는 SaveData.Gold 변경 시 쿨타임 자동 저장을 사용합니다.",
                     MessageType.Info);
 
                 EditorGUI.BeginChangeCheck();
@@ -65,6 +66,7 @@ namespace Truesoft.Supabase.Editor
                 tableName = EditorGUILayout.TextField("테이블 이름", tableName);
                 skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼", skipColumnsCsv);
                 className = EditorGUILayout.TextField("클래스 이름", className);
+                generateStaticApi = EditorGUILayout.Toggle("정적 API 생성", generateStaticApi);
                 namespaceName = EditorGUILayout.TextField("네임스페이스", namespaceName);
 
                 EditorGUILayout.Space(6);
@@ -200,7 +202,8 @@ namespace Truesoft.Supabase.Editor
                 parsed.Columns,
                 cn,
                 namespaceName,
-                tableName);
+                tableName,
+                generateStaticApi);
 
             Repaint();
         }

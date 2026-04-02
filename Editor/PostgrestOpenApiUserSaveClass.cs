@@ -169,7 +169,8 @@ namespace Truesoft.Supabase.Editor
             IReadOnlyList<OpenApiColumn> columns,
             string className,
             string namespaceName,
-            string tableLabel)
+            string tableLabel,
+            bool staticApi = false)
         {
             if (columns == null || columns.Count == 0)
                 throw new InvalidOperationException("생성할 컬럼이 없습니다.");
@@ -183,8 +184,12 @@ namespace Truesoft.Supabase.Editor
             sb.AppendLine("// </auto-generated>");
             sb.AppendLine();
             sb.AppendLine("using System;");
+            if (staticApi)
+                sb.AppendLine("using System.Threading.Tasks;");
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using Truesoft.Supabase.Core.Data;");
+            if (staticApi)
+                sb.AppendLine("using Truesoft.Supabase.Unity;");
             sb.AppendLine();
 
             var useNs = string.IsNullOrWhiteSpace(namespaceName) == false;
@@ -196,30 +201,201 @@ namespace Truesoft.Supabase.Editor
                 sb.AppendLine("{");
             }
 
+            if (staticApi)
+                AppendStaticApiClass(sb, indent, className.Trim(), namespaceName, tableLabel, columns);
+            else
+                AppendRowModelClass(sb, indent, className.Trim(), tableLabel, columns);
+
+            if (useNs)
+                sb.AppendLine("}");
+
+            return sb.ToString();
+        }
+
+        private static void AppendRowModelClass(
+            StringBuilder sb,
+            string indent,
+            string className,
+            string tableLabel,
+            IReadOnlyList<OpenApiColumn> columns)
+        {
             sb.AppendLine(indent + "/// <summary>");
             sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 행 모델.");
             sb.AppendLine(indent + "/// </summary>");
             sb.AppendLine(indent + "[Serializable]");
-            sb.AppendLine(indent + "public sealed class " + className.Trim());
+            sb.AppendLine(indent + "public sealed class " + className);
             sb.AppendLine(indent + "{");
 
             foreach (var c in columns)
             {
                 if (string.IsNullOrWhiteSpace(c.Comment) == false)
-                {
                     sb.AppendLine(indent + "    /// <summary>" + EscapeXml(c.Comment.Trim()) + "</summary>");
-                }
 
                 var fieldName = LegalFieldName(c.Name);
                 sb.AppendLine(indent + "    [UserSaveColumn] public " + c.ClrType + " " + fieldName + ";");
             }
 
             sb.AppendLine(indent + "}");
+        }
 
-            if (useNs)
-                sb.AppendLine("}");
+        private static void AppendStaticApiClass(
+            StringBuilder sb,
+            string indent,
+            string className,
+            string namespaceName,
+            string tableLabel,
+            IReadOnlyList<OpenApiColumn> columns)
+        {
+            var rowTypeName = className + "Row";
+            var fullKey = string.IsNullOrWhiteSpace(namespaceName)
+                ? className
+                : namespaceName.Trim() + "." + className;
 
-            return sb.ToString();
+            sb.AppendLine(indent + "/// <summary>");
+            sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 정적 접근 모델.");
+            sb.AppendLine(indent + "/// </summary>");
+            sb.AppendLine(indent + "public static class " + className);
+            sb.AppendLine(indent + "{");
+            sb.AppendLine(indent + "    private const string SyncKey = \"" + EscapeCSharpString(fullKey) + "\";");
+            sb.AppendLine(indent + "    private static readonly " + rowTypeName + " Current = new " + rowTypeName + "();");
+            sb.AppendLine(indent + "    private static " + rowTypeName + " LastSynced = new " + rowTypeName + "();");
+            sb.AppendLine(indent + "    private static bool IsDirty;");
+            sb.AppendLine(indent + "    private static bool IsRegistered;");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    static " + className + "()");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        EnsureRegistered();");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    private static void EnsureRegistered()");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        if (IsRegistered)");
+            sb.AppendLine(indent + "            return;");
+            sb.AppendLine();
+            sb.AppendLine(indent + "        Supabase.RegisterUserSaveStaticSync(SyncKey, HasDirty, FlushDirtyAsync, ResetLocalState);");
+            sb.AppendLine(indent + "        IsRegistered = true;");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    public static void ConfigureCooldown(float seconds)");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        Supabase.ConfigureUserSaveAutoSyncCooldown(seconds);");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    public static bool TryRequestImmediateSave()");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        EnsureRegistered();");
+            sb.AppendLine(indent + "        return Supabase.RequestImmediateUserSaveStaticFlush(SyncKey);");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    public static Task<bool> TryFlushNowAsync(int timeoutMs = 5000)");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        EnsureRegistered();");
+            sb.AppendLine(indent + "        return Supabase.TryFlushUserSaveImmediateAsync(SyncKey, timeoutMs);");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    public static async Task<bool> TryLoadAsync(bool includeUpdatedAt = true)");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        EnsureRegistered();");
+            sb.AppendLine(indent + "        var loaded = await Supabase.TryLoadUserSaveAttributedAsync<" + rowTypeName + ">(defaultValue: null, includeUpdatedAt: includeUpdatedAt);");
+            sb.AppendLine(indent + "        if (loaded == null)");
+            sb.AppendLine(indent + "            return false;");
+            sb.AppendLine();
+            sb.AppendLine(indent + "        CopyInto(Current, loaded);");
+            sb.AppendLine(indent + "        LastSynced = CloneRow(loaded);");
+            sb.AppendLine(indent + "        IsDirty = false;");
+            sb.AppendLine(indent + "        return true;");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+
+            var usedPropertyNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var c in columns)
+            {
+                var fieldName = LegalFieldName(c.Name);
+                var propertyName = StaticPropertyName(c.Name, usedPropertyNames);
+                if (string.IsNullOrWhiteSpace(c.Comment) == false)
+                    sb.AppendLine(indent + "    /// <summary>" + EscapeXml(c.Comment.Trim()) + "</summary>");
+                sb.AppendLine(indent + "    public static " + c.ClrType + " " + propertyName);
+                sb.AppendLine(indent + "    {");
+                sb.AppendLine(indent + "        get => Current." + fieldName + ";");
+                sb.AppendLine(indent + "        set");
+                sb.AppendLine(indent + "        {");
+                sb.AppendLine(indent + "            if (Equals(Current." + fieldName + ", value))");
+                sb.AppendLine(indent + "                return;");
+                sb.AppendLine(indent + "            Current." + fieldName + " = value;");
+                sb.AppendLine(indent + "            MarkDirty();");
+                sb.AppendLine(indent + "        }");
+                sb.AppendLine(indent + "    }");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine(indent + "    private static void MarkDirty()");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        EnsureRegistered();");
+            sb.AppendLine(indent + "        IsDirty = true;");
+            sb.AppendLine(indent + "        Supabase.MarkUserSaveStaticDirty(SyncKey);");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    private static bool HasDirty() => IsDirty;");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    private static async Task<bool> FlushDirtyAsync()");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        if (!IsDirty)");
+            sb.AppendLine(indent + "            return true;");
+            sb.AppendLine();
+            sb.AppendLine(indent + "        var ok = await Supabase.TryPatchUserSaveDiffAsync(LastSynced, Current, ensureRowFirst: true, setUpdatedAtIsoUtc: true);");
+            sb.AppendLine(indent + "        if (!ok)");
+            sb.AppendLine(indent + "            return false;");
+            sb.AppendLine();
+            sb.AppendLine(indent + "        LastSynced = CloneRow(Current);");
+            sb.AppendLine(indent + "        IsDirty = false;");
+            sb.AppendLine(indent + "        return true;");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    private static void ResetLocalState()");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        CopyInto(Current, new " + rowTypeName + "());");
+            sb.AppendLine(indent + "        LastSynced = new " + rowTypeName + "();");
+            sb.AppendLine(indent + "        IsDirty = false;");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    private static " + rowTypeName + " CloneRow(" + rowTypeName + " src)");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        if (src == null)");
+            sb.AppendLine(indent + "            return new " + rowTypeName + "();");
+            sb.AppendLine();
+            sb.AppendLine(indent + "        var copy = new " + rowTypeName + "();");
+            foreach (var c in columns)
+            {
+                var fieldName = LegalFieldName(c.Name);
+                sb.AppendLine(indent + "        copy." + fieldName + " = src." + fieldName + ";");
+            }
+
+            sb.AppendLine(indent + "        return copy;");
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    private static void CopyInto(" + rowTypeName + " dst, " + rowTypeName + " src)");
+            sb.AppendLine(indent + "    {");
+            sb.AppendLine(indent + "        if (dst == null || src == null)");
+            sb.AppendLine(indent + "            return;");
+            foreach (var c in columns)
+            {
+                var fieldName = LegalFieldName(c.Name);
+                sb.AppendLine(indent + "        dst." + fieldName + " = src." + fieldName + ";");
+            }
+
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine();
+            sb.AppendLine(indent + "    [Serializable]");
+            sb.AppendLine(indent + "    private sealed class " + rowTypeName);
+            sb.AppendLine(indent + "    {");
+            foreach (var c in columns)
+            {
+                var fieldName = LegalFieldName(c.Name);
+                sb.AppendLine(indent + "        [UserSaveColumn(\"" + EscapeCSharpString(c.Name) + "\")] public " + c.ClrType + " " + fieldName + ";");
+            }
+
+            sb.AppendLine(indent + "    }");
+            sb.AppendLine(indent + "}");
         }
 
         private static JToken FindTableSchemaToken(JObject root, string tableName)
@@ -369,6 +545,64 @@ namespace Truesoft.Supabase.Editor
             return IsCSharpKeyword(columnName) ? "@" + columnName : columnName;
         }
 
+        private static string StaticPropertyName(string columnName, HashSet<string> usedNames)
+        {
+            if (usedNames == null)
+                usedNames = new HashSet<string>(StringComparer.Ordinal);
+
+            var tokens = columnName.Split(new[] { '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var sb = new StringBuilder();
+            if (tokens.Length == 0)
+                tokens = new[] { columnName };
+
+            foreach (var token in tokens)
+            {
+                if (string.IsNullOrEmpty(token))
+                    continue;
+
+                var start = -1;
+                for (var i = 0; i < token.Length; i++)
+                {
+                    if (char.IsLetterOrDigit(token[i]) || token[i] == '_')
+                    {
+                        start = i;
+                        break;
+                    }
+                }
+
+                if (start < 0)
+                    continue;
+
+                var first = token[start];
+                sb.Append(char.ToUpperInvariant(first));
+                for (var i = start + 1; i < token.Length; i++)
+                {
+                    var ch = token[i];
+                    if (char.IsLetterOrDigit(ch) || ch == '_')
+                        sb.Append(ch);
+                }
+            }
+
+            var name = sb.ToString();
+            if (string.IsNullOrWhiteSpace(name))
+                name = "Value";
+            if (char.IsDigit(name[0]))
+                name = "_" + name;
+            if (IsCSharpKeyword(name))
+                name = "@" + name;
+
+            var unique = name;
+            var suffix = 2;
+            while (usedNames.Contains(unique))
+            {
+                unique = name + suffix.ToString();
+                suffix++;
+            }
+
+            usedNames.Add(unique);
+            return unique;
+        }
+
         private static bool IsCSharpKeyword(string s)
         {
             switch (s)
@@ -461,6 +695,14 @@ namespace Truesoft.Supabase.Editor
             if (string.IsNullOrEmpty(s))
                 return "";
             return s.Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal);
+        }
+
+        private static string EscapeCSharpString(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return string.Empty;
+
+            return s.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
         }
     }
 

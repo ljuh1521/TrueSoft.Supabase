@@ -545,6 +545,58 @@ namespace Truesoft.Supabase.Unity
             return LogAndReturn(ApiLogTags.UserDataPatchDiff, r);
         }
 
+        /// <summary>정적 세이브 자동 동기화 쿨타임(초)을 설정합니다.</summary>
+        public static void ConfigureUserSaveAutoSyncCooldown(float seconds)
+        {
+            UserSaveStaticSyncRegistry.ConfigureCooldown(seconds);
+        }
+
+        /// <summary>생성된 정적 세이브 타입을 자동 동기화 레지스트리에 등록합니다.</summary>
+        public static void RegisterUserSaveStaticSync(
+            string key,
+            Func<bool> hasDirty,
+            Func<Task<bool>> flushAsync,
+            Action resetLocalState = null)
+        {
+            UserSaveStaticSyncRegistry.Register(key, hasDirty, flushAsync, resetLocalState);
+        }
+
+        /// <summary>정적 세이브에 변경이 생겼음을 알립니다(쿨타임 스케줄).</summary>
+        public static void MarkUserSaveStaticDirty(string key)
+        {
+            UserSaveStaticSyncRegistry.MarkDirty(key);
+        }
+
+        /// <summary>특정 정적 세이브를 즉시 전송 시도합니다. 전송 중이면 완료 후 1회 재시도됩니다.</summary>
+        public static bool RequestImmediateUserSaveStaticFlush(string key)
+        {
+            return UserSaveStaticSyncRegistry.RequestImmediateFlush(key);
+        }
+
+        /// <summary>특정 정적 세이브를 즉시 전송하고 완료까지 대기합니다. 전송 중이면 완료 후 1회까지 반영 대기합니다.</summary>
+        public static Task<bool> TryFlushUserSaveImmediateAsync(string key, int timeoutMs = 5000)
+        {
+            return UserSaveStaticSyncRegistry.RequestImmediateFlushAsync(key, timeoutMs);
+        }
+
+        /// <summary>등록된 모든 정적 세이브에 즉시 전송을 요청합니다.</summary>
+        public static void RequestImmediateUserSaveStaticFlushAll()
+        {
+            UserSaveStaticSyncRegistry.RequestImmediateFlushAll();
+        }
+
+        /// <summary>등록된 모든 정적 세이브를 즉시 전송하고 완료까지 대기합니다.</summary>
+        public static Task<bool> TryFlushAllUserSaveImmediateAsync(int timeoutMs = 5000)
+        {
+            return UserSaveStaticSyncRegistry.RequestImmediateFlushAllAsync(timeoutMs);
+        }
+
+        /// <summary>정적 세이브 자동 동기화 타이머를 진행합니다. (보통 SupabaseRuntime.Update에서 호출)</summary>
+        internal static void TickUserSaveAutoSync(float realtimeNow)
+        {
+            UserSaveStaticSyncRegistry.Tick(realtimeNow);
+        }
+
         /// <summary><see cref="InvokeFunctionAsync{TResponse}(string, object)"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
         public static async Task<TResponse> TryInvokeFunctionAsync<TResponse>(
             string functionName,
@@ -1772,6 +1824,8 @@ namespace Truesoft.Supabase.Unity
             }
             _chatChannels.Clear();
 
+            UserSaveStaticSyncRegistry.ResetAll();
+
             _currentSession = null;
             SetAutoLoginBlocked(true);
             if (clearStorage)
@@ -1897,6 +1951,9 @@ namespace Truesoft.Supabase.Unity
             _remoteConfig = null;
             _functions = null;
             _chatChannels.Clear();
+
+            if (!preserveSession)
+                UserSaveStaticSyncRegistry.ResetAll();
 
             if (preserveSession && IsLoggedIn)
                 SupabaseDuplicateSessionCoordinator.ScheduleSyncAfterSessionChange(SupabaseSessionChangeKind.RestoredOrRefreshed);

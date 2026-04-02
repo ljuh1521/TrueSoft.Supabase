@@ -194,6 +194,38 @@ namespace Truesoft.Supabase.Unity
             bool setUpdatedAtIsoUtc = true) =>
             SupabaseSDK.TryPatchUserSaveDiffAsync(previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
 
+        /// <summary>정적 세이브 자동 동기화 쿨타임(초)을 설정합니다.</summary>
+        public static void ConfigureUserSaveAutoSyncCooldown(float seconds) =>
+            SupabaseSDK.ConfigureUserSaveAutoSyncCooldown(seconds);
+
+        /// <summary>생성된 정적 세이브 타입을 자동 동기화 레지스트리에 등록합니다.</summary>
+        public static void RegisterUserSaveStaticSync(
+            string key,
+            Func<bool> hasDirty,
+            Func<Task<bool>> flushAsync,
+            Action resetLocalState = null) =>
+            SupabaseSDK.RegisterUserSaveStaticSync(key, hasDirty, flushAsync, resetLocalState);
+
+        /// <summary>정적 세이브 값이 바뀌었음을 알립니다(쿨타임 스케줄).</summary>
+        public static void MarkUserSaveStaticDirty(string key) =>
+            SupabaseSDK.MarkUserSaveStaticDirty(key);
+
+        /// <summary>특정 정적 세이브의 즉시 전송을 요청합니다. 전송 중이면 완료 후 1회 재시도됩니다.</summary>
+        public static bool RequestImmediateUserSaveStaticFlush(string key) =>
+            SupabaseSDK.RequestImmediateUserSaveStaticFlush(key);
+
+        /// <summary>특정 정적 세이브를 즉시 전송하고 완료까지 대기합니다.</summary>
+        public static Task<bool> TryFlushUserSaveImmediateAsync(string key, int timeoutMs = 5000) =>
+            SupabaseSDK.TryFlushUserSaveImmediateAsync(key, timeoutMs);
+
+        /// <summary>등록된 모든 정적 세이브에 즉시 전송을 요청합니다.</summary>
+        public static void RequestImmediateUserSaveStaticFlushAll() =>
+            SupabaseSDK.RequestImmediateUserSaveStaticFlushAll();
+
+        /// <summary>등록된 모든 정적 세이브를 즉시 전송하고 완료까지 대기합니다.</summary>
+        public static Task<bool> TryFlushAllUserSaveImmediateAsync(int timeoutMs = 5000) =>
+            SupabaseSDK.TryFlushAllUserSaveImmediateAsync(timeoutMs);
+
         /// <summary>다른 사용자 공개 displayName 조회 (내부 Result API).</summary>
         internal static Task<SupabaseResult<string>> GetPublicDisplayNameAsync(string userId) =>
             SupabaseSDK.GetPublicDisplayNameAsync(userId);

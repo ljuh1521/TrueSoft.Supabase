@@ -36,6 +36,13 @@ namespace Truesoft.Supabase.Unity.Config
         [Tooltip("폴링 주기(초). 0 이하면 폴링 안 함.")]
         [SerializeField] private float pollIntervalSeconds = 10f;
 
+        [Header("UserSave 자동 저장")]
+        [Tooltip("정적 세이브 자동 동기화 사용.")]
+        [SerializeField] private bool enableUserSaveAutoSync = true;
+
+        [Tooltip("자동 저장 쿨타임(초).")]
+        [SerializeField] private float userSaveAutoSyncCooldownSeconds = 1f;
+
         private Coroutine _lifecycleRoutine;
 
         private void Awake()
@@ -65,6 +72,8 @@ namespace Truesoft.Supabase.Unity.Config
             var bootstrap = new SupabaseUnityBootstrap();
             bootstrap.Initialize(settings);
 
+            Supabase.ConfigureUserSaveAutoSyncCooldown(userSaveAutoSyncCooldownSeconds);
+
             if (dontDestroyOnLoad)
                 DontDestroyOnLoad(gameObject);
 
@@ -90,6 +99,33 @@ namespace Truesoft.Supabase.Unity.Config
         {
             if (_instance == this)
                 _instance = null;
+        }
+
+        private void Update()
+        {
+            if (!enableUserSaveAutoSync)
+                return;
+
+            if (!Supabase.IsInitialized)
+                return;
+
+            SupabaseSDK.TickUserSaveAutoSync(Time.realtimeSinceStartup);
+        }
+
+        private void OnApplicationPause(bool pause)
+        {
+            if (!pause || !enableUserSaveAutoSync)
+                return;
+
+            Supabase.RequestImmediateUserSaveStaticFlushAll();
+        }
+
+        private void OnApplicationQuit()
+        {
+            if (!enableUserSaveAutoSync)
+                return;
+
+            Supabase.RequestImmediateUserSaveStaticFlushAll();
         }
 
         private IEnumerator RunLifecycle()
