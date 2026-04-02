@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
-using Truesoft.Supabase.Core.Data;
 using Truesoft.Supabase.Unity;
 
 using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
@@ -63,7 +62,7 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("공개 displayName")]
         [SerializeField] private KeyCode keySetDisplayName = KeyCode.E;
 
-        [Tooltip("세이브·로드")]
+        [Tooltip("세이브·로드 (정적 API·생성기 스타일)")]
         [SerializeField] private KeyCode keySaveLoad = KeyCode.R;
 
         [Tooltip("RemoteConfig 새로고침·조회")]
@@ -178,23 +177,6 @@ namespace Truesoft.SupabaseUnity.Samples
             }
         }
 
-        private async Task RunAsyncGuarded(Func<Task> body)
-        {
-            try
-            {
-                _keyboardBusy = true;
-                await body();
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[Sample] Keyboard test exception: " + e.Message);
-            }
-            finally
-            {
-                _keyboardBusy = false;
-            }
-        }
-
         [ContextMenu("Run All Examples")]
         public void RunAllExamples()
         {
@@ -219,7 +201,7 @@ namespace Truesoft.SupabaseUnity.Samples
             _ = RunGoogleLinkExampleAsync();
         }
 
-        [ContextMenu("Run Save/Load Example")]
+        [ContextMenu("Run Save/Load Example (static user save)")]
         public void RunSaveLoadExample()
         {
             _ = RunSaveLoadExampleAsync();
@@ -342,25 +324,28 @@ namespace Truesoft.SupabaseUnity.Samples
                 return false;
             }
 
-            // user_saves에 level/coins 등 명시 컬럼을 두고, [UserSaveColumn]으로 select·PATCH 키를 모델과 DB에 맞춥니다.
-            // 필요 컬럼 예: level int, coins int, updated_at timestamptz.
-            var previous = await SupabaseClient.TryLoadUserSaveAttributedAsync<SaveDataRow>(new SaveDataRow());
-            var current = new SaveDataRow { level = level, coins = coins };
+            // user_saves: level int, coins int, updated_at timestamptz — OpenAPI 생성기 static 출력과 동일 패턴은 SampleStaticUserSave 참고.
+            var initialLoadOk = await SampleStaticUserSave.TryLoadAsync();
+            if (!initialLoadOk)
+                Debug.Log("[Sample] static save: 첫 로드 실패·무응답(행 없음)일 수 있음. 이후 PATCH로 행이 생기면 정상입니다.");
 
-            if (!await SupabaseClient.TryPatchUserSaveDiffAsync(previous, current, ensureRowFirst: true, setUpdatedAtIsoUtc: true))
+            SampleStaticUserSave.Level = level;
+            SampleStaticUserSave.Coins = coins;
+
+            if (!await SampleStaticUserSave.TryFlushNowAsync())
             {
-                Debug.LogWarning("[Sample] save/load example failed at save.");
+                Debug.LogWarning("[Sample] save/load example failed at TryFlushNowAsync (정적 세이브 즉시 전송).");
                 return false;
             }
 
-            var loaded = await SupabaseClient.TryLoadUserSaveAttributedAsync<SaveDataRow>(defaultValue: null);
-            if (loaded == null)
+            if (!await SampleStaticUserSave.TryLoadAsync())
             {
-                Debug.LogWarning("[Sample] save/load example failed at load.");
+                Debug.LogWarning("[Sample] save/load example failed at reload after flush.");
                 return false;
             }
 
-            Debug.Log($"[Sample] save/load example success. level={loaded.level}, coins={loaded.coins}, updated_at={loaded.updated_at}");
+            Debug.Log(
+                $"[Sample] save/load (static) success. level={SampleStaticUserSave.Level}, coins={SampleStaticUserSave.Coins}, updated_at={SampleStaticUserSave.UpdatedAt}");
             return true;
         }
 
@@ -633,14 +618,6 @@ namespace Truesoft.SupabaseUnity.Samples
             await RunFunctionExampleAsync();
 
             Debug.Log("[Sample] all examples finished.");
-        }
-
-        [Serializable]
-        private sealed class SaveDataRow
-        {
-            [UserSaveColumn] public int level;
-            [UserSaveColumn] public int coins;
-            [UserSaveColumn] public string updated_at;
         }
     }
 }

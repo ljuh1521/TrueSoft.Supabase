@@ -5,7 +5,7 @@
 - 로그인 예시
 - 로그아웃 예시 (`TrySignOutFullyAsync` — Android면 Google 네이티브 로그아웃 시도 후 Supabase 로그아웃)
 - 중복 로그인 감지 예시 (`OnDuplicateLoginDetected` 구독 + 콘솔 안내)
-- 저장/불러오기 예시 (프로젝트별 명시 컬럼 + 변경분 PATCH)
+- 저장/불러오기 예시 (`SampleStaticUserSave` — OpenAPI 생성기와 같은 static + 내부 Row, `TryLoadAsync` / `TryFlushNowAsync`)
 - 공개 displayName(`display_names` + Edge Functions) 예시 — SQL 적용 + Edge Functions 배포 후 **Run Public DisplayName Example** 또는 전체 실행 시 포함
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
@@ -32,8 +32,8 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 5. (선택) 게스트 로그인 흐름을 쓰면 Supabase 대시보드에서 **Anonymous sign-ins** 활성화
 6. (선택) 중복 로그인·`user_sessions`를 쓰려면 `Sql/player/05_user_sessions.sql`을 적용하고, `SupabaseSettings`에서 **Enable Duplicate Session Monitor**를 켭니다.
 7. (선택) 서버 이주 샘플은 `Sql/player/01_game_servers.sql`·`08_transfer_server.sql`(및 선행 파일)로 `game_servers`·RPC(`ts_my_server_id`, `ts_transfer_my_server`)가 적용된 뒤, **로그인한 상태**에서 **Run Server Shard Example** 또는 키 **N**으로 실행합니다. 다른 월드로 옮기려면 DB에 목표 `server_code` 행을 추가하고 인스펙터에서 **Server Shard Attempt Transfer**를 켭니다.
-8. (선택) 저장/불러오기 샘플은 `user_saves`에 `level int`, `coins int`, `updated_at timestamptz` 같은 컬럼이 있어야 합니다. 이 샘플은 `TryPatchUserDataAsync`로 변경분만 PATCH하고, `TryLoadUserDataColumnsAsync(select)`로 필요한 컬럼만 로드합니다.
-9. (선택) OpenAPI 유저 데이터 생성기는 `SaveData.Gold = 10` 스타일(static + 내부 Row)을 생성하므로, 쿨타임 자동 저장 + `TryRequestImmediateSave()`/`TryFlushNowAsync()`를 함께 쓸 수 있습니다.
+8. (선택) 저장/불러오기 샘플은 `user_saves`에 `level int`, `coins int`, `updated_at timestamptz` 같은 컬럼이 있어야 합니다. **Run Save/Load Example (static user save)** 또는 키 **R**은 `SampleStaticUserSave`로 로드 → 인스펙터 값 반영 → `TryFlushNowAsync`로 즉시 PATCH 후 재로드합니다. 쿨타임 자동 저장을 함께 쓰려면 씬에 **Supabase 런타임**(`SupabaseRuntime`)을 두는 것이 좋습니다.
+9. 실제 프로젝트에서는 OpenAPI **유저 데이터 클래스 생성** 메뉴로 동일 패턴의 코드를 생성할 수 있습니다.
 
 ## 3. 씬에서 실행
 
@@ -43,7 +43,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
    - 전체 실행: `Run All On Start` 체크 후 Play, 또는 우클릭 **Run All Examples**
    - 개별 실행: 우클릭으로 각 함수 실행
      - **Run Login Example**
-     - **Run Save/Load Example**
+     - **Run Save/Load Example (static user save)** — 키 **R**
      - **Run RemoteConfig Example**
      - **Run Function Example**
      - **Run Logout Example** — 로그인된 상태에서만 의미 있음
