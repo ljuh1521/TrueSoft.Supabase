@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Core.Data;
@@ -94,20 +96,49 @@ namespace Truesoft.SupabaseUnity.Samples
 
         /// <summary>
         /// 마지막 서버 스냅샷 대비 변경된 컬럼만 PATCH합니다. 변경이 없으면 네트워크 요청을 보내지 않습니다.
+        /// 콘솔에 변경 여부·전송 생략/완료를 로그로 남깁니다.
         /// </summary>
         public static async Task<bool> TrySaveIfChangedAsync()
         {
             EnsureRegistered();
+
+            Dictionary<string, object> patch;
+            try
+            {
+                patch = UserSaveSchema.BuildPatch(LastSynced, Current);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("[SampleStaticUserSave] 저장: BuildPatch 실패 — " + e.Message);
+                return false;
+            }
+
+            var hasDiff = patch != null && patch.Count > 0;
+            var keys = hasDiff ? string.Join(", ", patch.Keys.OrderBy(k => k, StringComparer.Ordinal)) : "(없음)";
+            Debug.Log($"[SampleStaticUserSave] 저장 시도 — 서버 스냅샷 대비 변경 있음: {hasDiff}, diff 컬럼: {keys}");
+
+            if (!hasDiff)
+            {
+                LastSynced = CloneRow(Current);
+                IsDirty = false;
+                Debug.Log("[SampleStaticUserSave] PATCH 전송 생략 (변경된 유저 컬럼 없음, updated_at만 쓰는 갱신도 없음).");
+                return true;
+            }
+
             var ok = await SupabaseSdk.TryPatchUserSaveDiffAsync(
                 LastSynced,
                 Current,
                 ensureRowFirst: true,
                 setUpdatedAtIsoUtc: true);
             if (!ok)
+            {
+                Debug.LogWarning("[SampleStaticUserSave] PATCH 전송 실패(TryPatchUserSaveDiffAsync false).");
                 return false;
+            }
 
             LastSynced = CloneRow(Current);
             IsDirty = false;
+            Debug.Log("[SampleStaticUserSave] PATCH 전송 완료(HTTP 성공).");
             return true;
         }
 

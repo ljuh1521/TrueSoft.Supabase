@@ -366,13 +366,11 @@ namespace Truesoft.SupabaseUnity.Samples
 
             if (!await SampleStaticUserSave.TrySaveIfChangedAsync())
             {
-                Debug.LogWarning("[Sample] save user save: TrySaveIfChangedAsync failed.");
+                Debug.LogWarning("[Sample] save user save: TrySaveIfChangedAsync failed (상세는 [SampleStaticUserSave] 로그).");
                 return false;
             }
 
-            Debug.Log(
-                "[Sample] save user save ok. 서버 스냅샷과 비교해 바뀐 컬럼만 PATCH했고, "
-                + "인스펙터 값이 이미 서버와 같으면 네트워크 PATCH는 생략됩니다.");
+            Debug.Log("[Sample] save user save finished. 변경·전송 여부는 위쪽 [SampleStaticUserSave] 로그를 보세요.");
             return true;
         }
 
