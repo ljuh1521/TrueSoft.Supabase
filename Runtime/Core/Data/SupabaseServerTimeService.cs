@@ -8,7 +8,7 @@ using Truesoft.Supabase.Core.Http;
 namespace Truesoft.Supabase.Core.Data
 {
     /// <summary>
-    /// Postgres RPC <c>ts_server_now</c>로 서버 기준 시각을 조회합니다. 로그인 없이 anon 키로 호출 가능합니다.
+    /// Postgres RPC <c>ts_server_now</c>로 서버 기준 시각을 조회합니다. 로그인 없이 Publishable 키로 호출 가능합니다.
     /// </summary>
     public sealed class SupabaseServerTimeService
     {
@@ -39,7 +39,7 @@ namespace Truesoft.Supabase.Core.Data
                 method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateAnonHeaders());
+                headers: CreatePublishableKeyHeaders());
 
             if (response == null)
                 return SupabaseResult<DateTime>.Fail("http_response_null");
@@ -75,7 +75,7 @@ namespace Truesoft.Supabase.Core.Data
             }
         }
 
-        private Dictionary<string, string> CreateAnonHeaders()
+        private Dictionary<string, string> CreatePublishableKeyHeaders()
         {
             return new Dictionary<string, string>
             {

@@ -57,6 +57,29 @@ namespace Truesoft.Supabase.Editor
             return baseUrl.TrimEnd('/') + "/rest/v1/";
         }
 
+        /// <summary>
+        /// 레거시 대시보드 JWT 키(예: <c>eyJ…</c>)는 PostgREST에서 <c>Authorization: Bearer</c>에 동일 값을 두는 패턴이 흔합니다.
+        /// 새 Publishable/Secret 키(<c>sb_publishable_</c>, <c>sb_secret_</c>)는 JWT가 아니며,
+        /// <c>apikey</c>와 같은 값을 Bearer에 넣으면 게이트웨이 뒤에서 거절될 수 있습니다.
+        /// (<see href="https://supabase.com/docs/guides/api/api-keys">Supabase API keys</see>)
+        /// </summary>
+        private static bool IsLegacyJwtStyleApiKey(string key)
+        {
+            if (string.IsNullOrEmpty(key) || key.Length < 20)
+                return false;
+            if (!key.StartsWith("eyJ", StringComparison.Ordinal))
+                return false;
+            return key.IndexOf('.', StringComparison.Ordinal) > 0;
+        }
+
+        private static void SetOpenApiFetchHeaders(UnityWebRequest req, string apiKey)
+        {
+            req.SetRequestHeader("apikey", apiKey);
+            if (IsLegacyJwtStyleApiKey(apiKey))
+                req.SetRequestHeader("Authorization", "Bearer " + apiKey);
+            req.SetRequestHeader("Accept", "application/openapi+json");
+        }
+
         public static string FetchOpenApiJson(string restRootUrl, string apiKey, int timeoutSeconds)
         {
             var key = NormalizeApiKey(apiKey);
@@ -65,9 +88,7 @@ namespace Truesoft.Supabase.Editor
 
             using var req = UnityWebRequest.Get(restRootUrl);
             req.timeout = Math.Max(5, timeoutSeconds);
-            req.SetRequestHeader("apikey", key);
-            req.SetRequestHeader("Authorization", "Bearer " + key);
-            req.SetRequestHeader("Accept", "application/openapi+json");
+            SetOpenApiFetchHeaders(req, key);
 
             var op = req.SendWebRequest();
             while (op.isDone == false)
@@ -100,7 +121,7 @@ namespace Truesoft.Supabase.Editor
             {
                 return ParseTableResult.Fail(
                     $"OpenAPI에서 테이블 스키마를 찾지 못했습니다: '{tableName}'. "
-                    + "anon에서 안 보이면 Service Role 키(에디터 전용) 또는 openapi.json 임포트를 사용하세요.");
+                    + "Publishable 키만으로 안 보이면 Secret 키(에디터 전용) 또는 openapi.json 임포트를 사용하세요.");
             }
 
             var schemaObj = ResolveSchema(root, schemaToken as JObject);

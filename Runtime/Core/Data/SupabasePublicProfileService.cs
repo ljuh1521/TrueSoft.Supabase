@@ -576,15 +576,6 @@ namespace Truesoft.Supabase.Core.Data
             return displayName == null ? string.Empty : displayName.Trim();
         }
 
-        private Dictionary<string, string> CreateAnonHeaders()
-        {
-            return new Dictionary<string, string>
-            {
-                { "apikey", _publishableKey },
-                { "Content-Type", "application/json" }
-            };
-        }
-
         private Dictionary<string, string> CreateUserHeaders(string accessToken, string prefer)
         {
             var headers = new Dictionary<string, string>

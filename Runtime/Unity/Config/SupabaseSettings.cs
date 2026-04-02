@@ -18,7 +18,7 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("Supabase 프로젝트 URL (https://xxx.supabase.co 형태).")]
         public string projectUrl;
 
-        [Tooltip("Supabase Publishable(anon) API 키.")]
+        [Tooltip("Supabase Publishable API 키.")]
         public string publishableKey;
 
         [Tooltip("Google Cloud OAuth 2.0 Web Client ID. Android 네이티브 Google 로그인(SignInWithGoogleAsync 무인자)에 사용합니다.")]

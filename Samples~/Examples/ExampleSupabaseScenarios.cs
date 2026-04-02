@@ -422,7 +422,7 @@ namespace Truesoft.SupabaseUnity.Samples
         /// <summary>
         /// 로컬 <see cref="SupabaseClient.GetCurrentServerCode"/>와 RPC <c>ts_my_server_id</c> 결과를 비교하고,
         /// 인스펙터에서 허용한 경우 <c>ts_transfer_my_server</c>(<see cref="SupabaseClient.TryTransferMyServerAsync"/>)를 호출합니다.
-        /// Retool·service_role 이주는 README의 <c>ts_admin_transfer_user_server</c>를 참고하세요.
+        /// Retool·Secret 키 이주는 README의 <c>ts_admin_transfer_user_server</c>를 참고하세요.
         /// </summary>
         private async Task<bool> RunServerShardExampleAsync()
         {

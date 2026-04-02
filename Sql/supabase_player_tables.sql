@@ -1336,7 +1336,7 @@ end;
 $$;
 
 comment on function public.ts_admin_transfer_user_server(uuid, text, text) is
-  '운영 전용: 임의 계정 서버 이주. PostgREST는 service_role 키로만 호출할 것.';
+  '운영 전용: 임의 계정 서버 이주. PostgREST는 Secret 키로만 호출할 것.';
 
 grant execute on function public.auth_user_server_id() to authenticated;
 grant execute on function public.ts_my_server_id() to authenticated;

@@ -124,7 +124,7 @@
 ## 5) `displayname-get` (공개 displayName 조회)
 
 - 입력(JSON): `{ "user_id": "<profiles.user_id>" }`
-- JWT 불필요 (anon key만으로 호출)
+- JWT 불필요 (Publishable 키만으로 호출)
 - **대시보드**: JWT 강제 옵션 OFF 권장
 - 동작: `display_names` 테이블에서 `user_id`로 조회
 - 출력: `{ "ok": true, "display_name": "..." }`
@@ -138,6 +138,6 @@
 - **대시보드**: JWT 강제 옵션 OFF 권장 (함수 내부에서 `auth.getUser()`로 검증)
 - 동작:
   - `display_names` 테이블에 `account_id` 기준 upsert (유니크 인덱스 `lower(trim(display_name))`)
-  - `auth.user_metadata.displayName` 동기화는 **service role** `admin.updateUserById`로 수행한다. (`supabase-js`의 `auth.updateUser()`는 Edge 런타임에 세션이 없어 `Auth session missing!`로 실패할 수 있음)
+  - `auth.user_metadata.displayName` 동기화는 **Secret 키**로 `admin.updateUserById`를 호출해 수행한다. (`supabase-js`의 `auth.updateUser()`는 Edge 런타임에 세션이 없어 `Auth session missing!`로 실패할 수 있음)
 - 출력: `{ "ok": true }` 또는 `{ "ok": false, "reason": "display_name_taken" }`
 

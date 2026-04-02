@@ -658,7 +658,7 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// Postgres RPC <c>ts_server_now</c>로 서버 시각(UTC)을 가져옵니다. 로그인 세션 없이 anon 키로 호출합니다.
+        /// Postgres RPC <c>ts_server_now</c>로 서버 시각(UTC)을 가져옵니다. 로그인 세션 없이 Publishable 키로 호출합니다.
         /// </summary>
         public static async Task<SupabaseResult<DateTime>> GetServerUtcNowAsync()
         {

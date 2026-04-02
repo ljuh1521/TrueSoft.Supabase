@@ -5,6 +5,7 @@ using System.Text;
 using Truesoft.Supabase.Unity;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Truesoft.Supabase.Editor
 {
@@ -17,9 +18,12 @@ namespace Truesoft.Supabase.Editor
 
         [SerializeField] private SupabaseSettings settings;
         [SerializeField] private string projectUrl = "";
-        [SerializeField] private string anonKey = "";
-        [SerializeField] private bool useServiceRoleKey;
-        [SerializeField] private string serviceRoleKey = "";
+        [FormerlySerializedAs("anonKey")]
+        [SerializeField] private string publishableKeyInput = "";
+        [FormerlySerializedAs("useServiceRoleKey")]
+        [SerializeField] private bool useSecretKey;
+        [FormerlySerializedAs("serviceRoleKey")]
+        [SerializeField] private string secretKeyInput = "";
         [SerializeField] private string tableName = "user_saves";
         [SerializeField] private string skipColumnsCsv = "";
         [SerializeField] private string className = DefaultClassName;
@@ -49,7 +53,7 @@ namespace Truesoft.Supabase.Editor
         {
             EditorGUILayout.HelpBox(
                 "OpenAPI에서 세이브 테이블을 읽어 POCO를 만듭니다. "
-                + "테이블이 anon 스펙에 없으면 에디터 전용 Service Role 키 또는 openapi.json 임포트를 사용하세요.",
+                + "Publishable 키만으로 스펙에 테이블이 없으면 Secret 키(에디터 전용) 또는 openapi.json을 사용하세요.",
                 MessageType.Info);
 
             EditorGUI.BeginChangeCheck();
@@ -58,13 +62,13 @@ namespace Truesoft.Supabase.Editor
                 PullFromSettings();
 
             projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
-            anonKey = EditorGUILayout.PasswordField("Publishable(anon) 키", anonKey);
+            publishableKeyInput = EditorGUILayout.PasswordField("Publishable 키", publishableKeyInput);
 
-            useServiceRoleKey = EditorGUILayout.ToggleLeft(
-                "Service Role 키로 가져오기 (에디터 전용)",
-                useServiceRoleKey);
-            if (useServiceRoleKey)
-                serviceRoleKey = EditorGUILayout.PasswordField("Service Role 키", serviceRoleKey);
+            useSecretKey = EditorGUILayout.ToggleLeft(
+                "Secret 키로 가져오기 (에디터 전용)",
+                useSecretKey);
+            if (useSecretKey)
+                secretKeyInput = EditorGUILayout.PasswordField("Secret 키", secretKeyInput);
 
             tableName = EditorGUILayout.TextField("테이블 이름", tableName);
             skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼 (CSV)", skipColumnsCsv);
@@ -102,7 +106,7 @@ namespace Truesoft.Supabase.Editor
         private void PullFromSettings()
         {
             projectUrl = settings.projectUrl ?? "";
-            anonKey = settings.publishableKey ?? "";
+            publishableKeyInput = settings.publishableKey ?? "";
             tableName = string.IsNullOrWhiteSpace(settings.userSavesTable) ? "user_saves" : settings.userSavesTable.Trim();
         }
 
@@ -128,7 +132,7 @@ namespace Truesoft.Supabase.Editor
 
             try
             {
-                var key = useServiceRoleKey ? serviceRoleKey : anonKey;
+                var key = useSecretKey ? secretKeyInput : publishableKeyInput;
                 if (string.IsNullOrWhiteSpace(key))
                 {
                     EditorUtility.DisplayDialog("Supabase POCO", "API 키가 비어 있습니다.", "확인");

@@ -13,7 +13,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 
 `SupabaseSettings`와 `SupabaseRuntime`의 역할은 다음처럼 구분합니다.
 
-- **SupabaseSettings (공통 설정값)**: 프로젝트 URL, publishable key, Google Web Client ID, 기본 로그/타임아웃 같은 정적 값을 정의합니다.
+- **SupabaseSettings (공통 설정값)**: 프로젝트 URL, Publishable 키, Google Web Client ID, 기본 로그/타임아웃 같은 정적 값을 정의합니다.
 - **SupabaseRuntime (씬 실행 정책)**: 시작 시 세션 복원 여부, RemoteConfig 첫 로드/폴링 주기 같은 런타임 동작 시점을 제어합니다.
 
 1. 메뉴 **TrueSoft > Supabase > 설정 에셋 만들기** 로 `SupabaseSettings` 를 만듭니다.
@@ -62,16 +62,17 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 **사용 순서 요약**
 
-1. (선택) `Resources/SupabaseSettings`를 창에 넣으면 URL·publishable key·`userSavesTable`이 채워집니다.
+1. (선택) `Resources/SupabaseSettings`를 창에 넣으면 URL·Publishable 키·`userSavesTable`이 채워집니다.
 2. **API에서 가져와 미리보기**로 가져오거나, 브라우저·CLI로 받은 스펙을 **OpenAPI JSON 가져오기…**로 엽니다.
 3. 테이블명·스킵할 컬럼(CSV)·클래스 이름·네임스페이스를 조정한 뒤 미리보기를 확인합니다.
 4. **프로젝트에 .cs 저장…**으로 `Assets` 아래에 저장합니다.
 
 **주의점**
 
-- **가져오기에서 HTTP 401** 이면 거의 항상 **키 또는 URL** 문제입니다. 대시보드 **Settings → API** 의 **anon `public` 키**(JWT 형태, `eyJ…` 시작)를 확인하세요. URL은 **`https://xxxx.supabase.co`** 프로젝트 루트만 쓰면 됩니다. 그래도 안 되면 **OpenAPI JSON 가져오기…**로 우회하세요.
-- OpenAPI에 **어떤 테이블이 보이는지**는 요청 시 사용하는 **DB 역할**에 따라 달라집니다. JWT 없이 **anon 키만** 쓰면, RLS·권한 때문에 `user_saves` 정의가 스펙에 **안 나올 수 있습니다.** 그때는 (1) 대시보드/API로 받은 OpenAPI JSON을 **파일로 임포트**하거나, (2) 에디터에서만 **Service Role 키**로 Fetch 하세요.
-- **Service Role 키는 절대 플레이어 빌드·저장소·버전 관리에 넣지 마세요.** 팀원 PC·CI 시크릿 등 **에디터/파이프라인 한정**으로만 쓰는 것을 전제로 합니다.
+- **가져오기에서 HTTP 401** 이면 거의 항상 **키 또는 URL** 문제입니다. 대시보드 **Settings → API** 의 **Publishable 키**를 확인하세요. URL은 **`https://xxxx.supabase.co`** 프로젝트 루트만 쓰면 됩니다. 그래도 안 되면 **OpenAPI JSON 가져오기…**로 우회하세요.
+- **키 형식별 REST 헤더:** 대시보드 **Legacy** JWT 키(`eyJ…`)와 새 **`sb_publishable_` / `sb_secret_` 키**는 Supabase 게이트웨이 처리가 다릅니다. 에디터 OpenAPI 가져오기는 새 키일 때 **`apikey`만** 보내고, 레거시 JWT일 때만 `Authorization: Bearer`에 동일 키를 추가합니다(공식 문서의 호환 차이 반영).
+- OpenAPI에 **어떤 테이블이 보이는지**는 요청에 넣은 **키 종류**에 따라 달라질 수 있습니다. **Publishable 키만** 쓰면 RLS·권한 때문에 `user_saves` 정의가 스펙에 **안 나올 수 있습니다.** 그때는 (1) OpenAPI JSON을 **파일로 임포트**하거나, (2) 에디터에서만 **Secret 키**로 가져오세요.
+- **Secret 키는 절대 플레이어 빌드·저장소·버전 관리에 넣지 마세요.** 팀원 PC·CI 시크릿 등 **에디터/파이프라인 한정**으로만 쓰는 것을 전제로 합니다.
 - 생성기는 타입을 완전히 추론하지 못하는 컬럼(배열·일부 `$ref`·jsonb 등)을 `string /* … refine */` 형태로 남깁니다. **실제 게임에 맞게 타입과 주석을 손으로 다듬어야** 합니다.
 - C# 식별자가 될 수 없는 컬럼명(하이픈 등)은 **JsonUtility와 맞지 않아 생성 시 건너뛰고** 경고를 냅니다. 그런 컬럼은 수동 매핑이 필요합니다.
 
@@ -107,7 +108,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 **탈퇴 표시**를 다른 클라이언트가 볼 필요가 있으면 `profiles`에 `withdrawn_at` 등을 두는 패턴이 흔합니다. **스키마·정책 전체**는 위 SQL 파일의 `profiles`와 동일합니다.
 
-- **SELECT:** anon 공개(닉네임 등). 탈퇴 후 `account_id` NULL 행을 숨길지는 정책 선택.
+- **SELECT:** 공개 읽기 정책(닉네임 등). 탈퇴 후 `account_id` NULL 행을 숨길지는 정책 선택.
 - **INSERT/UPDATE:** `account_id = auth.uid()`(게임은 **계정 기준**만).
 - **displayName 유니크:** SQL 파일 내 `display_names` 유니크 인덱스(`lower(trim(display_name))`, 빈 값 제외) 참고.
 
@@ -186,7 +187,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 **이 SDK:** REST 바디의 **`user_id` 컬럼에 Auth id**를 넣는 전제라, 위 스키마의 **`account_id`**와 맞추려면 **컬럼명/매핑** 또는 **서버·Edge Function에서 변환**이 필요합니다.
 
-**`user_saves`·`account_closures` 테이블 정의와 `user_saves` RLS**는 [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에만 적어 두었습니다. `account_closures`는 RLS만 켜고 정책 없음(일반 JWT 차단, service role 사용 전제).
+**`user_saves`·`account_closures` 테이블 정의와 `user_saves` RLS**는 [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에만 적어 두었습니다. `account_closures`는 RLS만 켜고 정책 없음(일반 JWT 차단, Secret 키 등 서버측 호출 전제).
 
 **앱 쪽**
 
@@ -198,7 +199,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 **서버 이주 (`server_id`)**
 
 - **유저 자가 이주**: 로그인된 앱 세션으로 `POST {SUPABASE_URL}/rest/v1/rpc/ts_transfer_my_server` (바디: `p_target_server_code`, 선택 `p_reason`) 또는 SDK `TryTransferMyServerAsync`. JWT의 `auth.uid()`에 해당하는 `profiles`·파생 테이블이 한 트랜잭션에서 같이 옮겨집니다. 대상 `game_servers.allow_transfers`가 false이면 거절되며, 이주 서버에 동일 닉이 이미 있으면 `display_name_taken_in_target_server`로 실패합니다.
-- **Retool·운영(임의 계정)**: **Project service_role 키만** 사용해 `POST {SUPABASE_URL}/rest/v1/rpc/ts_admin_transfer_user_server` 를 호출합니다. 헤더: `apikey: <service_role>`, `Authorization: Bearer <service_role>`, `Content-Type: application/json`. 바디 예: `{"p_account_id":"<auth.users의 uuid>","p_target_server_code":"KR1","p_reason":"support_ticket_123"}`. 응답은 `{ "ok", "reason", "target_server_id" }` 형태의 행 하나(배열)입니다. `forbidden_not_service_role`이면 JWT가 service_role이 아닙니다. **service_role 키는 클라이언트·버전관리에 넣지 말고** Retool 시크릿·백엔드에서만 쓰세요.
+- **Retool·운영(임의 계정)**: **Project Secret 키만** 사용해 `POST {SUPABASE_URL}/rest/v1/rpc/ts_admin_transfer_user_server` 를 호출합니다. 헤더: `apikey: <Secret 키>`, `Authorization: Bearer <Secret 키>`, `Content-Type: application/json`. 바디 예: `{"p_account_id":"<auth.users의 uuid>","p_target_server_code":"KR1","p_reason":"support_ticket_123"}`. 응답은 `{ "ok", "reason", "target_server_id" }` 형태의 행 하나(배열)입니다. `forbidden_not_service_role`이면 이 RPC에 필요한 권한의 JWT가 아닙니다. **Secret 키는 클라이언트·버전관리에 넣지 말고** Retool 시크릿·백엔드에서만 쓰세요.
 
 #### 6. 문서
 
@@ -208,7 +209,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 - **초기화/세션 준비**: `Supabase.TryStartAsync()`를 기본 진입점으로 사용합니다. 이 단계는 초기화/세션 복원만 담당하며 자동 익명 로그인은 수행하지 않습니다.
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
-- **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync`; 운영·Retool은 RPC `ts_admin_transfer_user_server` (service_role 전용, 위 「서버 이주 (`server_id`)」 절)
+- **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync`; 운영·Retool은 RPC `ts_admin_transfer_user_server` (Secret 키 전용, 위 「서버 이주 (`server_id`)」 절)
 - **로그아웃**: `TrySignOutFullyAsync` — Android에서는 네이티브 Google 로그아웃을 시도한 뒤 Supabase `SignOutAsync`와 동일 처리(익명이면 복구용 upsert 후 로컬 정리). `TrySignOutAsync`만 쓰면 Google 계정 선택기 상태는 그대로일 수 있습니다.
 - **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 클라이언트가 지문 행을 best-effort 삭제(`ts_anon_recovery_delete_by_fingerprint`)하며, DB에도 `auth.identities` 비익명 provider 추가·`auth.users.is_anonymous` 해제·계정 삭제 시 해당 `account_id` 토큰이 자동 삭제되도록 트리거가 있습니다(`Sql/supabase_player_tables.sql`). 탈퇴 요청 RPC(`ts_request_withdrawal`)는 `ts_delete_my_anon_recovery_tokens`로 본인 행을 정리합니다.
 - **사용자 데이터**: 프로젝트별 컬럼 기반이면 `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` 또는 **`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync` + `[UserSaveColumn]`** 를 사용하세요. (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
