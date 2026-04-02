@@ -48,51 +48,62 @@ namespace Truesoft.Supabase.Editor
 
         private void OnGUI()
         {
-            EditorGUILayout.HelpBox(
-                "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. API 가져오기는 Secret 키·에디터 전용, JSON은 키 없음.",
-                MessageType.Info);
-
-            EditorGUI.BeginChangeCheck();
-            settings = (SupabaseSettings)EditorGUILayout.ObjectField("설정", settings, typeof(SupabaseSettings), false);
-            if (EditorGUI.EndChangeCheck() && settings != null)
-                PullFromSettings();
-
-            projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
-            secretKeyInput = EditorGUILayout.PasswordField("Secret 키", secretKeyInput);
-
-            tableName = EditorGUILayout.TextField("테이블 이름", tableName);
-            skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼", skipColumnsCsv);
-            className = EditorGUILayout.TextField("클래스 이름", className);
-            namespaceName = EditorGUILayout.TextField("네임스페이스", namespaceName);
-
-            EditorGUILayout.Space(6);
-            using (new EditorGUILayout.HorizontalScope())
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
             {
-                using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(secretKeyInput)))
+                EditorGUILayout.HelpBox(
+                    "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. API 가져오기는 Secret 키·에디터 전용, JSON은 키 없음.",
+                    MessageType.Info);
+
+                EditorGUI.BeginChangeCheck();
+                settings = (SupabaseSettings)EditorGUILayout.ObjectField("설정", settings, typeof(SupabaseSettings), false);
+                if (EditorGUI.EndChangeCheck() && settings != null)
+                    PullFromSettings();
+
+                projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
+                secretKeyInput = EditorGUILayout.PasswordField("Secret 키", secretKeyInput);
+
+                tableName = EditorGUILayout.TextField("테이블 이름", tableName);
+                skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼", skipColumnsCsv);
+                className = EditorGUILayout.TextField("클래스 이름", className);
+                namespaceName = EditorGUILayout.TextField("네임스페이스", namespaceName);
+
+                EditorGUILayout.Space(6);
+                using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("API에서 가져와 미리보기", GUILayout.Height(28)))
-                        FetchFromApi();
+                    using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(secretKeyInput)))
+                    {
+                        if (GUILayout.Button("API에서 가져와 미리보기", GUILayout.Height(28)))
+                            FetchFromApi();
+                    }
+
+                    if (GUILayout.Button("OpenAPI JSON 가져오기…", GUILayout.Height(28)))
+                        ImportJsonFile();
                 }
 
-                if (GUILayout.Button("OpenAPI JSON 가져오기…", GUILayout.Height(28)))
-                    ImportJsonFile();
-            }
+                foreach (var w in _lastWarnings)
+                    EditorGUILayout.HelpBox(w, MessageType.Warning);
 
-            foreach (var w in _lastWarnings)
-                EditorGUILayout.HelpBox(w, MessageType.Warning);
+                EditorGUILayout.LabelField("미리보기", EditorStyles.boldLabel);
 
-            EditorGUILayout.LabelField("미리보기", EditorStyles.boldLabel);
-            scroll = EditorGUILayout.BeginScrollView(scroll, GUILayout.ExpandHeight(true));
-            var ro = GUI.enabled;
-            GUI.enabled = false;
-            EditorGUILayout.TextArea(string.IsNullOrEmpty(previewText) ? "(비어 있음)" : previewText, GUILayout.MinHeight(220));
-            GUI.enabled = ro;
-            EditorGUILayout.EndScrollView();
+                var previewStyle = EditorStyles.textArea;
+                var body = string.IsNullOrEmpty(previewText) ? "(비어 있음)" : previewText;
+                var scrollWidth = position.width - 24f;
+                if (scrollWidth < 80f)
+                    scrollWidth = 80f;
+                var contentHeight = previewStyle.CalcHeight(new GUIContent(body), scrollWidth);
+                contentHeight = Mathf.Max(contentHeight + 8f, 48f);
 
-            using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(previewText)))
-            {
-                if (GUILayout.Button("프로젝트에 .cs 저장…", GUILayout.Height(26)))
-                    SaveToProject();
+                using (var scrollScope = new EditorGUILayout.ScrollViewScope(scroll, GUILayout.ExpandHeight(true)))
+                {
+                    scroll = scrollScope.scrollPosition;
+                    EditorGUILayout.SelectableLabel(body, previewStyle, GUILayout.Width(scrollWidth), GUILayout.Height(contentHeight));
+                }
+
+                using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(previewText)))
+                {
+                    if (GUILayout.Button("프로젝트에 .cs 저장…", GUILayout.Height(26)))
+                        SaveToProject();
+                }
             }
         }
 
