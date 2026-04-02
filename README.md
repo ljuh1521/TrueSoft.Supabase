@@ -37,9 +37,9 @@ PostgREST로 접근하는 **테이블 이름**은 프로젝트마다 다를 수 
 
 코드에서 `SupabaseOptions`의 `UserSavesTable`, `RemoteConfigTable`, `ChatMessagesTable`, `PublicProfilesTable`도 같은 역할을 합니다. Unity 에셋 경로로 쓸 때는 `SupabaseSettings.ToOptions()`가 비어 있는 테이블 필드를 기본 이름으로 채웁니다. `SupabaseOptions`만 직접 만들 때는 빈 문자열을 넣지 말고, 필드 기본값을 두거나 유효한 이름을 지정하세요. 스키마가 `public`이 아니면 `schema.table` 형식으로 지정할 수 있습니다. 잘못된 문자(`..`, `/`, `\` 등)는 초기화 시 검증되어 예외가 납니다.
 
-## 세이브 POCO: `[UserSaveColumn]` API와 에디터 OpenAPI 생성기
+## 세이브 데이터 클래스: `[UserSaveColumn]` API와 에디터 OpenAPI 생성기
 
-DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트 **select / PATCH**가 어긋나지 않도록, 필드에 어노테이션을 붙이거나 에디터에서 스키마를 받아 POCO를 생성할 수 있습니다.
+DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트 **select / PATCH**가 어긋나지 않도록, 필드에 어노테이션을 붙이거나 에디터에서 스키마를 받아 C# 클래스를 생성할 수 있습니다.
 
 ### 코드에서 쓰기 (`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync`)
 
@@ -54,25 +54,24 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 - **Unity `JsonUtility`로 역직렬화할 때**, PostgREST가 내려주는 **JSON 키(보통 DB 컬럼명과 동일)** 와 **C# 필드 이름이 같아야** 값이 채워집니다. 그래서 DB가 `snake_case`이면 필드도 `level`, `updated_at` 처럼 **컬럼명과 동일한 이름**을 쓰는 편이 안전합니다.
 - `[UserSaveColumn("other_name")]` 만으로 **JSON 키 이름이 바뀌지는 않습니다.** 컬럼명과 C# 이름이 다르게 두고 싶다면 Newtonsoft 등 **별도 역직렬화**가 필요합니다.
 - `updated_at` 은 스키마 도우미가 `select`에 넣을 수 있지만, **diff PATCH에는 자동으로 넣지 않습니다.** 서버/트리거가 갱신하거나, SDK 옵션 `setUpdatedAtIsoUtc` 등 기존 PATCH 경로와 같이 쓰입니다.
-- 복합 타입(jsonb 배열 등)은 POCO 한 필드에 담기 어렵습니다. 해당 컬럼은 수동 설계하거나 다른 API를 쓰세요.
+- 복합 타입(jsonb 배열 등)은 클래스 한 필드에 담기 어렵습니다. 해당 컬럼은 수동 설계하거나 다른 API를 쓰세요.
 
-### 에디터: OpenAPI로 POCO 자동 생성
+### 에디터: OpenAPI로 유저 데이터 클래스 자동 생성
 
-메뉴 **TrueSoft > Supabase > OpenAPI로 세이브 POCO 생성…** 을 열면 PostgREST OpenAPI(`GET …/rest/v1/`, `Accept: application/openapi+json`)를 바탕으로 **`[Serializable]` + `[UserSaveColumn]` 필드**가 들어간 `.cs` 초안을 만들 수 있습니다.
+메뉴 **TrueSoft > Supabase > 유저 데이터 클래스 생성** 을 열면 PostgREST OpenAPI(`GET …/rest/v1/`, `Accept: application/openapi+json`)를 바탕으로 **`[Serializable]` + `[UserSaveColumn]` 필드**가 들어간 `.cs` 초안을 만들 수 있습니다.
 
 **사용 순서 요약**
 
-1. (선택) `Resources/SupabaseSettings`를 창에 넣으면 URL·Publishable 키·`userSavesTable`이 채워집니다.
-2. **API에서 가져와 미리보기**로 가져오거나, 브라우저·CLI로 받은 스펙을 **OpenAPI JSON 가져오기…**로 엽니다.
-3. 테이블명·스킵할 컬럼(CSV)·클래스 이름·네임스페이스를 조정한 뒤 미리보기를 확인합니다.
+1. (선택) `Resources/SupabaseSettings`를 넣으면 URL·`userSavesTable`이 채워집니다. **Secret 키는 대시보드에서 복사해 창에 직접 입력합니다**(에셋에 넣지 마세요).
+2. **API에서 가져와 미리보기**는 **Secret 키가 있을 때만** 사용합니다. 키 없이 쓰려면 브라우저·CLI로 받은 스펙을 **OpenAPI JSON 가져오기…**로 엽니다.
+3. 테이블명·제외 컬럼·클래스 이름·네임스페이스를 조정한 뒤 미리보기를 확인합니다.
 4. **프로젝트에 .cs 저장…**으로 `Assets` 아래에 저장합니다.
 
 **주의점**
 
-- **가져오기에서 HTTP 401** 이면 거의 항상 **키 또는 URL** 문제입니다. 대시보드 **Settings → API** 의 **Publishable 키**를 확인하세요. URL은 **`https://xxxx.supabase.co`** 프로젝트 루트만 쓰면 됩니다. 그래도 안 되면 **OpenAPI JSON 가져오기…**로 우회하세요.
-- **키 형식별 REST 헤더:** 대시보드 **Legacy** JWT 키(`eyJ…`)와 새 **`sb_publishable_` / `sb_secret_` 키**는 Supabase 게이트웨이 처리가 다릅니다. 에디터 OpenAPI 가져오기는 새 키일 때 **`apikey`만** 보내고, 레거시 JWT일 때만 `Authorization: Bearer`에 동일 키를 추가합니다(공식 문서의 호환 차이 반영).
-- OpenAPI에 **어떤 테이블이 보이는지**는 요청에 넣은 **키 종류**에 따라 달라질 수 있습니다. **Publishable 키만** 쓰면 RLS·권한 때문에 `user_saves` 정의가 스펙에 **안 나올 수 있습니다.** 그때는 (1) OpenAPI JSON을 **파일로 임포트**하거나, (2) 에디터에서만 **Secret 키**로 가져오세요.
-- **Secret 키는 절대 플레이어 빌드·저장소·버전 관리에 넣지 마세요.** 팀원 PC·CI 시크릿 등 **에디터/파이프라인 한정**으로만 쓰는 것을 전제로 합니다.
+- **가져오기에서 HTTP 401** 이면 **Secret 키·URL**을 확인하세요. URL은 **`https://xxxx.supabase.co`** 프로젝트 루트만 쓰면 됩니다. 그래도 안 되면 **OpenAPI JSON 가져오기…**로 우회하세요.
+- **키 형식별 REST 헤더:** 대시보드 **Legacy** JWT Secret 키(`eyJ…`)와 새 **`sb_secret_…` 키**는 Supabase 게이트웨이 처리가 다릅니다. 에디터 OpenAPI 가져오기는 새 키일 때 **`apikey`만** 보내고, 레거시 JWT일 때만 `Authorization: Bearer`에 동일 키를 추가합니다.
+- **Secret 키는 절대 플레이어 빌드·저장소·버전 관리에 넣지 마세요.** 이 창에서는 **에디터에서만** 붙여 넣어 쓰는 것을 전제로 합니다.
 - 생성기는 타입을 완전히 추론하지 못하는 컬럼(배열·일부 `$ref`·jsonb 등)을 `string /* … refine */` 형태로 남깁니다. **실제 게임에 맞게 타입과 주석을 손으로 다듬어야** 합니다.
 - C# 식별자가 될 수 없는 컬럼명(하이픈 등)은 **JsonUtility와 맞지 않아 생성 시 건너뛰고** 경고를 냅니다. 그런 컬럼은 수동 매핑이 필요합니다.
 

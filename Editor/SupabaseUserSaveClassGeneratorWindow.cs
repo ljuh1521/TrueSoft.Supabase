@@ -10,18 +10,15 @@ using UnityEngine.Serialization;
 namespace Truesoft.Supabase.Editor
 {
     /// <summary>
-    /// PostgREST OpenAPI로 세이브 테이블 스키마를 가져와 <c>[Serializable]</c> + <c>[UserSaveColumn]</c> POCO를 생성합니다.
+    /// PostgREST OpenAPI로 세이브 테이블 스키마를 가져와 <c>[Serializable]</c> + <c>[UserSaveColumn]</c> C# 클래스 소스를 생성합니다.
     /// </summary>
-    public sealed class SupabaseUserSavePocoGeneratorWindow : EditorWindow
+    public sealed class SupabaseUserSaveClassGeneratorWindow : EditorWindow
     {
         private const string DefaultClassName = "UserSaveRow";
+        private const string DialogTitle = "유저 데이터 클래스";
 
         [SerializeField] private SupabaseSettings settings;
         [SerializeField] private string projectUrl = "";
-        [FormerlySerializedAs("anonKey")]
-        [SerializeField] private string publishableKeyInput = "";
-        [FormerlySerializedAs("useServiceRoleKey")]
-        [SerializeField] private bool useSecretKey;
         [FormerlySerializedAs("serviceRoleKey")]
         [SerializeField] private string secretKeyInput = "";
         [SerializeField] private string tableName = "user_saves";
@@ -33,10 +30,10 @@ namespace Truesoft.Supabase.Editor
 
         private List<string> _lastWarnings = new List<string>();
 
-        [MenuItem("TrueSoft/Supabase/OpenAPI로 세이브 POCO 생성…")]
+        [MenuItem("TrueSoft/Supabase/유저 데이터 클래스 생성")]
         private static void Open()
         {
-            var w = GetWindow<SupabaseUserSavePocoGeneratorWindow>(true, "세이브 POCO (OpenAPI)", true);
+            var w = GetWindow<SupabaseUserSaveClassGeneratorWindow>(true, "유저 데이터 클래스 생성", true);
             w.minSize = new Vector2(520, 420);
         }
 
@@ -52,34 +49,31 @@ namespace Truesoft.Supabase.Editor
         private void OnGUI()
         {
             EditorGUILayout.HelpBox(
-                "OpenAPI에서 세이브 테이블을 읽어 POCO를 만듭니다. "
-                + "Publishable 키만으로 스펙에 테이블이 없으면 Secret 키(에디터 전용) 또는 openapi.json을 사용하세요.",
+                "OpenAPI에서 세이브 테이블 스키마를 읽어 C# 클래스 초안을 만듭니다. "
+                + "API에서 가져오기에는 Secret 키(에디터 전용)가 필요합니다. OpenAPI JSON 파일만 쓸 때는 키가 필요 없습니다.",
                 MessageType.Info);
 
             EditorGUI.BeginChangeCheck();
-            settings = (SupabaseSettings)EditorGUILayout.ObjectField("Settings (선택)", settings, typeof(SupabaseSettings), false);
+            settings = (SupabaseSettings)EditorGUILayout.ObjectField("Settings", settings, typeof(SupabaseSettings), false);
             if (EditorGUI.EndChangeCheck() && settings != null)
                 PullFromSettings();
 
             projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
-            publishableKeyInput = EditorGUILayout.PasswordField("Publishable 키", publishableKeyInput);
-
-            useSecretKey = EditorGUILayout.ToggleLeft(
-                "Secret 키로 가져오기 (에디터 전용)",
-                useSecretKey);
-            if (useSecretKey)
-                secretKeyInput = EditorGUILayout.PasswordField("Secret 키", secretKeyInput);
+            secretKeyInput = EditorGUILayout.PasswordField("Secret 키 (API 가져오기 필수)", secretKeyInput);
 
             tableName = EditorGUILayout.TextField("테이블 이름", tableName);
-            skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼 (CSV)", skipColumnsCsv);
+            skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼", skipColumnsCsv);
             className = EditorGUILayout.TextField("클래스 이름", className);
             namespaceName = EditorGUILayout.TextField("네임스페이스 (선택)", namespaceName);
 
             EditorGUILayout.Space(6);
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("API에서 가져와 미리보기", GUILayout.Height(28)))
-                    FetchFromApi();
+                using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(secretKeyInput)))
+                {
+                    if (GUILayout.Button("API에서 가져와 미리보기", GUILayout.Height(28)))
+                        FetchFromApi();
+                }
 
                 if (GUILayout.Button("OpenAPI JSON 가져오기…", GUILayout.Height(28)))
                     ImportJsonFile();
@@ -106,7 +100,6 @@ namespace Truesoft.Supabase.Editor
         private void PullFromSettings()
         {
             projectUrl = settings.projectUrl ?? "";
-            publishableKeyInput = settings.publishableKey ?? "";
             tableName = string.IsNullOrWhiteSpace(settings.userSavesTable) ? "user_saves" : settings.userSavesTable.Trim();
         }
 
@@ -132,21 +125,21 @@ namespace Truesoft.Supabase.Editor
 
             try
             {
-                var key = useSecretKey ? secretKeyInput : publishableKeyInput;
+                var key = secretKeyInput;
                 if (string.IsNullOrWhiteSpace(key))
                 {
-                    EditorUtility.DisplayDialog("Supabase POCO", "API 키가 비어 있습니다.", "확인");
+                    EditorUtility.DisplayDialog(DialogTitle, "Secret 키를 입력하세요.", "확인");
                     return;
                 }
 
-                var url = PostgrestOpenApiUserSavePoco.BuildRestRootUrl(projectUrl);
+                var url = PostgrestOpenApiUserSaveClass.BuildRestRootUrl(projectUrl);
                 var timeout = settings != null ? settings.timeoutSeconds : 30;
-                var json = PostgrestOpenApiUserSavePoco.FetchOpenApiJson(url, key, timeout);
+                var json = PostgrestOpenApiUserSaveClass.FetchOpenApiJson(url, key, timeout);
                 BuildPreviewFromOpenApi(json);
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "가져오기에 실패했습니다.\n" + e.Message, "확인");
+                EditorUtility.DisplayDialog(DialogTitle, "가져오기에 실패했습니다.\n" + e.Message, "확인");
             }
         }
 
@@ -164,7 +157,7 @@ namespace Truesoft.Supabase.Editor
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "가져오기에 실패했습니다.\n" + e.Message, "확인");
+                EditorUtility.DisplayDialog(DialogTitle, "가져오기에 실패했습니다.\n" + e.Message, "확인");
             }
         }
 
@@ -173,15 +166,15 @@ namespace Truesoft.Supabase.Editor
             var cn = string.IsNullOrWhiteSpace(className) ? DefaultClassName : className.Trim();
             if (IsValidTypeName(cn) == false)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "클래스 이름이 C# 식별자 규칙에 맞지 않습니다.", "확인");
+                EditorUtility.DisplayDialog(DialogTitle, "클래스 이름이 C# 식별자 규칙에 맞지 않습니다.", "확인");
                 return;
             }
 
             var skip = ParseSkipCsv(skipColumnsCsv);
-            var parsed = PostgrestOpenApiUserSavePoco.ParseTableColumns(openApiJson, tableName, skip);
+            var parsed = PostgrestOpenApiUserSaveClass.ParseTableColumns(openApiJson, tableName, skip);
             if (!parsed.IsSuccess)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", parsed.ErrorMessage, "확인");
+                EditorUtility.DisplayDialog(DialogTitle, parsed.ErrorMessage, "확인");
                 return;
             }
 
@@ -189,11 +182,11 @@ namespace Truesoft.Supabase.Editor
 
             if (parsed.Columns == null || parsed.Columns.Count == 0)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", "생성할 컬럼이 없습니다. (모두 제외되었거나 스키마가 비어 있습니다.)", "확인");
+                EditorUtility.DisplayDialog(DialogTitle, "생성할 컬럼이 없습니다. (모두 제외되었거나 스키마가 비어 있습니다.)", "확인");
                 return;
             }
 
-            previewText = PostgrestOpenApiUserSavePoco.GenerateSource(
+            previewText = PostgrestOpenApiUserSaveClass.GenerateSource(
                 parsed.Columns,
                 cn,
                 namespaceName,
@@ -224,7 +217,7 @@ namespace Truesoft.Supabase.Editor
             if (name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) == false)
                 name += ".cs";
 
-            var path = EditorUtility.SaveFilePanelInProject("세이브 POCO 저장", name, "cs", "");
+            var path = EditorUtility.SaveFilePanelInProject("유저 데이터 클래스 저장", name, "cs", "");
             if (string.IsNullOrEmpty(path))
                 return;
 
@@ -238,7 +231,7 @@ namespace Truesoft.Supabase.Editor
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Supabase POCO", e.Message, "확인");
+                EditorUtility.DisplayDialog(DialogTitle, e.Message, "확인");
             }
         }
     }
