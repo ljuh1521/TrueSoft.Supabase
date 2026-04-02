@@ -9,11 +9,10 @@ namespace Truesoft.Supabase.Unity
     {
         /// <summary>콘솔에 그대로 붙여 넣을 수 있는 최소 체크리스트(한국어).</summary>
         public const string InitializationChecklistKo =
-            "[Supabase 초기화 점검]\n" +
-            "1) 메뉴 TrueSoft > Supabase > 설정 에셋 만들기 로 SupabaseSettings 생성\n" +
-            "2) projectUrl, publishableKey 입력\n" +
-            "3) 에셋을 Assets/Resources/SupabaseSettings.asset 경로·파일명으로 저장 (Resources.Load 이름은 'SupabaseSettings')\n" +
-            "4) 씬에 SupabaseRuntime이 없으면 샘플이 자동 생성합니다. 수동 배치: TrueSoft > Supabase > 씬에 런타임 오브젝트 만들기";
+            "[Supabase 초기화]\n" +
+            "1) TrueSoft > Supabase > 설정 에셋 만들기\n" +
+            "2) URL·Publishable 키 입력 후 Assets/Resources/SupabaseSettings.asset 저장\n" +
+            "3) 씬에 SupabaseRuntime (메뉴로 추가 가능)";
 
         /// <summary>
         /// <paramref name="context"/>는 로그 태그로 사용됩니다 (예: BasicSetup, FullSDKUsage).
@@ -25,6 +24,6 @@ namespace Truesoft.Supabase.Unity
         }
 
         private const string timeoutMessageKo =
-            "SDK 초기화가 제한 시간 내에 완료되지 않았습니다. 아래를 순서대로 확인하세요.";
+            "SDK 초기화 시간 초과. 아래를 확인하세요.";
     }
 }

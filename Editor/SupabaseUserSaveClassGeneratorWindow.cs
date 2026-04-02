@@ -49,22 +49,21 @@ namespace Truesoft.Supabase.Editor
         private void OnGUI()
         {
             EditorGUILayout.HelpBox(
-                "OpenAPI에서 세이브 테이블 스키마를 읽어 C# 클래스 초안을 만듭니다. "
-                + "API에서 가져오기에는 Secret 키(에디터 전용)가 필요합니다. OpenAPI JSON 파일만 쓸 때는 키가 필요 없습니다.",
+                "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. API 가져오기는 Secret 키·에디터 전용, JSON은 키 없음.",
                 MessageType.Info);
 
             EditorGUI.BeginChangeCheck();
-            settings = (SupabaseSettings)EditorGUILayout.ObjectField("Settings", settings, typeof(SupabaseSettings), false);
+            settings = (SupabaseSettings)EditorGUILayout.ObjectField("설정", settings, typeof(SupabaseSettings), false);
             if (EditorGUI.EndChangeCheck() && settings != null)
                 PullFromSettings();
 
             projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
-            secretKeyInput = EditorGUILayout.PasswordField("Secret 키 (API 가져오기 필수)", secretKeyInput);
+            secretKeyInput = EditorGUILayout.PasswordField("Secret 키", secretKeyInput);
 
             tableName = EditorGUILayout.TextField("테이블 이름", tableName);
             skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼", skipColumnsCsv);
             className = EditorGUILayout.TextField("클래스 이름", className);
-            namespaceName = EditorGUILayout.TextField("네임스페이스 (선택)", namespaceName);
+            namespaceName = EditorGUILayout.TextField("네임스페이스", namespaceName);
 
             EditorGUILayout.Space(6);
             using (new EditorGUILayout.HorizontalScope())
@@ -182,7 +181,7 @@ namespace Truesoft.Supabase.Editor
 
             if (parsed.Columns == null || parsed.Columns.Count == 0)
             {
-                EditorUtility.DisplayDialog(DialogTitle, "생성할 컬럼이 없습니다. (모두 제외되었거나 스키마가 비어 있습니다.)", "확인");
+                EditorUtility.DisplayDialog(DialogTitle, "생성할 컬럼이 없습니다. 제외 목록·스키마를 확인하세요.", "확인");
                 return;
             }
 

@@ -119,15 +119,13 @@ namespace Truesoft.Supabase.Editor
             var schemaToken = FindTableSchemaToken(root, tableName);
             if (schemaToken == null)
             {
-                return ParseTableResult.Fail(
-                    $"OpenAPI에서 테이블 스키마를 찾지 못했습니다: '{tableName}'. "
-                    + "테이블 이름·OpenAPI 내용을 확인하거나 openapi.json 파일을 임포트하세요.");
+                return ParseTableResult.Fail($"테이블 '{tableName}' 스키마를 OpenAPI에서 찾지 못했습니다.");
             }
 
             var schemaObj = ResolveSchema(root, schemaToken as JObject);
             if (schemaObj == null)
             {
-                return ParseTableResult.Fail("스키마를 해석할 수 없습니다 ($ref 등).");
+                return ParseTableResult.Fail("스키마를 해석할 수 없습니다.");
             }
 
             var props = schemaObj["properties"] as JObject;
@@ -144,7 +142,7 @@ namespace Truesoft.Supabase.Editor
                 if (IsValidCSharpIdentifierChars(colName) == false)
                 {
                     warnings.Add(
-                        $"컬럼 '{colName}' 건너뜀: C# 식별자가 아닙니다. 수동 매핑이 필요합니다.");
+                        $"컬럼 '{colName}' 건너뜀: C# 식별자가 아닙니다.");
                     continue;
                 }
 
@@ -199,7 +197,7 @@ namespace Truesoft.Supabase.Editor
             }
 
             sb.AppendLine(indent + "/// <summary>");
-            sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 행 모델입니다. 생성 후 타입은 프로젝트에 맞게 조정하세요.");
+            sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 행 모델.");
             sb.AppendLine(indent + "/// </summary>");
             sb.AppendLine(indent + "[Serializable]");
             sb.AppendLine(indent + "public sealed class " + className.Trim());

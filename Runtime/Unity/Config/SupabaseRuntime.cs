@@ -18,22 +18,22 @@ namespace Truesoft.Supabase.Unity.Config
     {
         private static SupabaseRuntime _instance;
 
-        [Header("Configuration Source (설정값 소스)")]
-        [Tooltip("프로젝트 공통 설정값 에셋. 비워두면 Resources/SupabaseSettings를 자동으로 찾습니다.")]
+        [Header("설정")]
+        [Tooltip("SupabaseSettings. 비우면 Resources에서 로드.")]
         [SerializeField] private SupabaseSettings settings;
 
-        [Header("Scene Lifecycle Policy (씬 실행 정책)")]
-        [Tooltip("체크 시 이 런타임 오브젝트를 DontDestroyOnLoad로 유지합니다.")]
+        [Header("씬")]
+        [Tooltip("DontDestroyOnLoad로 유지.")]
         [SerializeField] private bool dontDestroyOnLoad = true;
 
-        [Header("RemoteConfig Runtime Policy (런타임 정책)")]
-        [Tooltip("RemoteConfig 런타임 동기화 루틴 사용 여부입니다.")]
+        [Header("RemoteConfig")]
+        [Tooltip("런타임 동기화 사용.")]
         [SerializeField] private bool enableRemoteConfig = true;
 
-        [Tooltip("체크 시 시작 시점에 RemoteConfig 전체를 1회 새로고침합니다.")]
+        [Tooltip("시작 시 전체 1회 새로고침.")]
         [SerializeField] private bool refreshAllOnStart = true;
 
-        [Tooltip("RemoteConfig 폴링 주기(초). 0 이하이면 주기 폴링을 하지 않습니다.")]
+        [Tooltip("폴링 주기(초). 0 이하면 폴링 안 함.")]
         [SerializeField] private float pollIntervalSeconds = 10f;
 
         private Coroutine _lifecycleRoutine;

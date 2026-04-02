@@ -14,83 +14,83 @@ namespace Truesoft.SupabaseUnity.Samples
     /// </summary>
     public sealed class ExampleSupabaseScenarios : MonoBehaviour
     {
-        [Header("Run")]
+        [Header("실행")]
         [SerializeField] private bool runAllOnStart = false;
 
-        [Header("Save Data")]
+        [Header("세이브 데모")]
         [SerializeField] private int level = 1;
         [SerializeField] private int coins = 100;
 
-        [Header("Remote Config")]
+        [Header("RemoteConfig")]
         [SerializeField] private string remoteConfigKey = "game_balance";
 
-        [Header("Edge Function")]
+        [Header("Edge")]
         [SerializeField] private string functionName = "gacha";
 
-        [Header("Public displayName (display_names 테이블 + Edge Functions 필요)")]
+        [Header("표시 이름")]
         [SerializeField] private string demoDisplayName = "SamplePlayer";
 
-        [Header("Server shard (game_servers, ts_my_server_id, ts_transfer_my_server)")]
-        [Tooltip("이주 시도 시 목표 server_code. DB game_servers에 행이 있어야 하고 allow_transfers=true 권장.")]
+        [Header("서버 샤드")]
+        [Tooltip("이주 목표 server_code.")]
         [SerializeField] private string serverShardTransferTargetCode = "GLOBAL";
 
-        [Tooltip("체크 시 TryTransferMyServerAsync(serverShardTransferTargetCode)까지 호출합니다. 닉 충돌 시 실패합니다.")]
+        [Tooltip("시작 시 이주까지 시도.")]
         [SerializeField] private bool serverShardAttemptTransfer = false;
 
-        [Tooltip("데모 시작 시 로컬 선호 서버를 덮어씁니다(비우면 유지). 로그인 동기화 흐름 테스트용.")]
+        [Tooltip("시작 시 로컬 서버 코드 덮어쓰기. 비우면 유지.")]
         [SerializeField] private string serverShardOptionalSetLocalCode = "";
 
-        [Header("Duplicate login / Logout (user_sessions + Sql 참고)")]
-        [Tooltip("켜면 OnEnable에서 OnDuplicateLoginDetected를 구독합니다. 다른 기기에서 같은 계정으로 로그인했을 때(이미 ClearSession 후) 호출됩니다.")]
+        [Header("중복 로그인")]
+        [Tooltip("OnDuplicateLoginDetected 구독.")]
         [SerializeField] private bool subscribeDuplicateLoginOnEnable = true;
 
-        [Header("Keyboard Test (간단 키보드로 Try API 호출)")]
-        [Tooltip("켜면 Update에서 키보드 입력(Q/W/E/R/T/Y 등)을 감지해 샘플 함수를 실행합니다.")]
+        [Header("키보드 테스트")]
+        [Tooltip("키 입력으로 샘플 API 호출.")]
         [SerializeField] private bool enableKeyboardTest = true;
 
-        [Tooltip("Q: 익명 로그인 시도")]
+        [Tooltip("익명 로그인")]
         [SerializeField] private KeyCode keyLoginAnonymous = KeyCode.Q;
 
-        [Tooltip("I: 구글 로그인(중복 로그인 테스트용)")]
+        [Tooltip("구글 로그인")]
         [SerializeField] private KeyCode keyLoginGoogle = KeyCode.I;
 
-        [Tooltip("P: 익명 세션에 Google 연동(별도 버튼 흐름)")]
+        [Tooltip("구글 연동")]
         [SerializeField] private KeyCode keyLinkGoogle = KeyCode.P;
 
-        [Tooltip("W: 통합 로그아웃(TrySignOutFullyAsync: Android면 Google 네이티브 시도 후 Supabase SignOut)")]
+        [Tooltip("통합 로그아웃")]
         [SerializeField] private KeyCode keyLogout = KeyCode.W;
 
-        [Tooltip("E: 공개 displayName 설정")]
+        [Tooltip("공개 displayName")]
         [SerializeField] private KeyCode keySetDisplayName = KeyCode.E;
 
-        [Tooltip("R: 세이브/불러오기")]
+        [Tooltip("세이브·로드")]
         [SerializeField] private KeyCode keySaveLoad = KeyCode.R;
 
-        [Tooltip("T: RemoteConfig refresh + 조회")]
+        [Tooltip("RemoteConfig 새로고침·조회")]
         [SerializeField] private KeyCode keyRemoteConfig = KeyCode.T;
 
-        [Tooltip("U: RemoteConfig on-demand 동기화(즉시 갱신 + 캐시 반영)")]
+        [Tooltip("RemoteConfig 즉시 동기화")]
         [SerializeField] private KeyCode keyRemoteConfigOnDemand = KeyCode.U;
 
-        [Tooltip("Y: Edge function 호출")]
+        [Tooltip("Edge 함수 호출")]
         [SerializeField] private KeyCode keyInvokeFunction = KeyCode.Y;
 
-        [Tooltip("L: 중복 로그인 테스트 방법 안내 출력")]
+        [Tooltip("중복 로그인 안내 로그")]
         [SerializeField] private KeyCode keyDuplicateLoginInfo = KeyCode.L;
 
-        [Tooltip("H: 서버 시각(ts_server_now, Sql/supabase_server_time.sql). 로그인 불필요.")]
+        [Tooltip("서버 시각")]
         [SerializeField] private KeyCode keyServerTime = KeyCode.H;
 
-        [Tooltip("J: 탈퇴 요청(설정 유예일, 서버 계산)")]
+        [Tooltip("탈퇴 요청")]
         [SerializeField] private KeyCode keyRequestWithdrawal = KeyCode.J;
 
-        [Tooltip("K: 내 탈퇴 게이트 상태 조회(닉네임/예약/남은 시간)")]
+        [Tooltip("탈퇴 상태 조회")]
         [SerializeField] private KeyCode keyWithdrawalStatus = KeyCode.K;
 
-        [Tooltip("C: 저장된(또는 로그인 시 발급한) 철회 토큰으로 탈퇴 예약 해제")]
+        [Tooltip("탈퇴 예약 취소")]
         [SerializeField] private KeyCode keyWithdrawalCancel = KeyCode.C;
 
-        [Tooltip("N: 서버 샤드 — 로컬 서버 코드 + DB(ts_my_server_id) 조회, 선택 시 이주(ts_transfer_my_server)")]
+        [Tooltip("서버 샤드 조회·이주")]
         [SerializeField] private KeyCode keyServerShard = KeyCode.N;
 
         private bool _keyboardBusy;

@@ -14,67 +14,67 @@ namespace Truesoft.Supabase.Unity
     [CreateAssetMenu(fileName = "SupabaseSettings", menuName = "TrueSoft/Supabase/Supabase 설정")]
     public sealed class SupabaseSettings : ScriptableObject
     {
-        [Header("Project Values (공통 설정값)")]
-        [Tooltip("Supabase 프로젝트 URL (https://xxx.supabase.co 형태).")]
+        [Header("공통")]
+        [Tooltip("프로젝트 URL.")]
         public string projectUrl;
 
-        [Tooltip("Supabase Publishable API 키.")]
+        [Tooltip("Publishable API 키.")]
         public string publishableKey;
 
-        [Tooltip("Google Cloud OAuth 2.0 Web Client ID. Android 네이티브 Google 로그인(SignInWithGoogleAsync 무인자)에 사용합니다.")]
+        [Tooltip("Google OAuth Web Client ID. Android 네이티브 로그인.")]
         public string googleWebClientId;
 
-        [Header("Default SDK Options (기본 동작값)")]
-        [Tooltip("Try API 결과 로그 출력 여부. 켜면 API별 고정 태그(예: Supabase.UserData.Save)로 성공/실패가 Console에 출력됩니다.")]
+        [Header("기본 옵션")]
+        [Tooltip("Try API 결과를 콘솔에 로그합니다.")]
         public bool enableApiResultLogs = true;
 
-        [Tooltip("HTTP 요청 타임아웃(초).")]
+        [Tooltip("HTTP 타임아웃(초).")]
         public int timeoutSeconds = 30;
 
-        [Header("REST Table Names (테이블 이름)")]
-        [Tooltip("Save/Load 유저 데이터에 사용하는 테이블 이름. 스키마가 public이 아니면 schema.table 형식으로 지정할 수 있습니다.")]
+        [Header("테이블")]
+        [Tooltip("유저 세이브 테이블. 스키마는 schema.table.")]
         public string userSavesTable = "user_saves";
 
-        [Tooltip("유저 세이브 로드 시 기본 select 컬럼 CSV(예: level,coins,updated_at). 비우면 게임 코드가 select를 직접 넘겨야 합니다.")]
+        [Tooltip("기본 select CSV. 비우면 코드에서 지정.")]
         public string userSavesDefaultSelectColumnsCsv = "";
 
-        [Tooltip("Remote Config 행을 읽는 테이블 이름.")]
+        [Tooltip("RemoteConfig 테이블.")]
         public string remoteConfigTable = "remote_config";
 
-        [Tooltip("채팅 메시지를 저장·조회하는 테이블 이름.")]
+        [Tooltip("채팅 메시지 테이블.")]
         public string chatMessagesTable = "chat_messages";
 
-        [Tooltip("공개 프로필 테이블 (권장: id UUID PK, user_id text, account_id uuid, withdrawn_at timestamptz). RLS로 누구나 SELECT, 본인만 INSERT/UPDATE.")]
+        [Tooltip("공개 프로필 테이블.")]
         public string publicProfilesTable = "profiles";
 
-        [Header("Server Shard (서버 샤드)")]
-        [Tooltip("로그인 후 기본으로 묶을 서버 코드(예: GLOBAL, KR1). Sql/supabase_player_tables.sql의 game_servers.server_code와 동일해야 합니다.")]
+        [Header("서버 샤드")]
+        [Tooltip("기본 server_code. DB game_servers와 맞출 것.")]
         public string defaultServerCode = "GLOBAL";
 
-        [Header("Duplicate login (중복 로그인)")]
-        [Tooltip("켜면 user_sessions 테이블을 폴링해 다른 기기에서 같은 계정으로 로그인했을 때 이 기기에서 세션을 끊고 OnDuplicateLoginDetected를 호출합니다. Sql/supabase_player_tables.sql에 user_sessions가 있어야 합니다.")]
+        [Header("중복 로그인")]
+        [Tooltip("다른 기기 로그인 시 이쪽 세션 해제 및 이벤트.")]
         public bool enableDuplicateSessionMonitor = true;
 
-        [Tooltip("세션 토큰 폴링 주기(초). 0 이하면 등록 직후 비교만 하고 주기 폴링은 하지 않습니다.")]
+        [Tooltip("세션 폴링 주기(초). 0이면 1회만.")]
         public float duplicateSessionPollSeconds = 0f;
 
-        [Tooltip("행동 시점(저장/전송/함수호출 등) 중복 로그인 검사 최소 간격(초). 권장 5초.")]
+        [Tooltip("중복 로그인 검사 쿨다운(초).")]
         public float duplicateSessionActionCheckCooldownSeconds = 5f;
 
-        [Tooltip("중복 로그인 감지용 테이블 이름 (기본 user_sessions).")]
+        [Tooltip("중복 로그인 감지 테이블.")]
         public string userSessionsTable = "user_sessions";
 
-        [Header("Withdrawal Request (탈퇴 요청)")]
-        [Tooltip("탈퇴 요청 시 실제 탈퇴 시각(withdrawn_at)으로 예약할 유예 기간(일). 예: 7이면 요청 시점 + 7일.")]
+        [Header("탈퇴")]
+        [Tooltip("탈퇴 유예 일수.")]
         public float withdrawalRequestDelayDays = 7f;
 
-        [Tooltip("로그인 직후 탈퇴 만료 계정 즉시 삭제 가드 함수를 호출할지 여부입니다.")]
+        [Tooltip("로그인 시 탈퇴 가드 Edge 호출.")]
         public bool enableWithdrawalGuardOnLogin = true;
 
-        [Tooltip("로그인 직후 호출할 Edge Function 이름(기본 withdrawal-guard).")]
+        [Tooltip("탈퇴 가드 Edge 함수 이름.")]
         public string withdrawalGuardFunctionName = "withdrawal-guard";
 
-        [Tooltip("Google로 신규 가입으로 판단될 때만 Auth user_metadata.displayName을 Player_xxxxxxxx 형태로 덮어씁니다. 구글 실명 자동 반영을 막습니다.")]
+        [Tooltip("구글 신규 가입 시 익명형 displayName 적용.")]
         public bool applyAnonymousDisplayNameOnNewGoogleSignUp = true;
 
         public SupabaseOptions ToOptions()
