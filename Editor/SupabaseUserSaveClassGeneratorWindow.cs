@@ -16,6 +16,16 @@ namespace Truesoft.Supabase.Editor
     {
         private const string DefaultClassName = "UserSaveRow";
         private const string DialogTitle = "유저 데이터 클래스";
+        private const string PrefsPrefix = "Truesoft.Supabase.UserSaveClassGenerator.";
+
+        private static string PrefsKeyFormInitialized => PrefsPrefix + "FormInitialized";
+        private static string PrefsKeySettingsGuid => PrefsPrefix + "SettingsGuid";
+        private static string PrefsKeyProjectUrl => PrefsPrefix + "ProjectUrl";
+        private static string PrefsKeySecret => PrefsPrefix + "SecretKey";
+        private static string PrefsKeyTableName => PrefsPrefix + "TableName";
+        private static string PrefsKeySkipColumns => PrefsPrefix + "SkipColumnsCsv";
+        private static string PrefsKeyClassName => PrefsPrefix + "ClassName";
+        private static string PrefsKeyNamespace => PrefsPrefix + "NamespaceName";
 
         [SerializeField] private SupabaseSettings settings;
         [SerializeField] private string projectUrl = "";
@@ -39,11 +49,67 @@ namespace Truesoft.Supabase.Editor
 
         private void OnEnable()
         {
+            if (EditorPrefs.GetBool(PrefsKeyFormInitialized, false))
+                LoadFormFromPrefs();
+            else
+            {
+                if (settings == null)
+                    settings = Resources.Load<SupabaseSettings>("SupabaseSettings");
+                if (settings != null)
+                    PullFromSettings();
+            }
+        }
+
+        private void OnDisable()
+        {
+            SaveFormToPrefs();
+        }
+
+        private void LoadFormFromPrefs()
+        {
+            projectUrl = EditorPrefs.GetString(PrefsKeyProjectUrl, "");
+            secretKeyInput = EditorPrefs.GetString(PrefsKeySecret, "");
+            tableName = EditorPrefs.GetString(PrefsKeyTableName, "user_saves");
+            skipColumnsCsv = EditorPrefs.GetString(PrefsKeySkipColumns, "");
+            className = EditorPrefs.GetString(PrefsKeyClassName, DefaultClassName);
+            namespaceName = EditorPrefs.GetString(PrefsKeyNamespace, "");
+
+            var guid = EditorPrefs.GetString(PrefsKeySettingsGuid, "");
+            if (string.IsNullOrEmpty(guid) == false)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(path) == false)
+                    settings = AssetDatabase.LoadAssetAtPath<SupabaseSettings>(path);
+            }
+
             if (settings == null)
                 settings = Resources.Load<SupabaseSettings>("SupabaseSettings");
+        }
+
+        private void SaveFormToPrefs()
+        {
+            EditorPrefs.SetBool(PrefsKeyFormInitialized, true);
+            EditorPrefs.SetString(PrefsKeyProjectUrl, projectUrl ?? "");
+            EditorPrefs.SetString(PrefsKeySecret, secretKeyInput ?? "");
+            EditorPrefs.SetString(
+                PrefsKeyTableName,
+                string.IsNullOrWhiteSpace(tableName) ? "user_saves" : tableName);
+            EditorPrefs.SetString(PrefsKeySkipColumns, skipColumnsCsv ?? "");
+            EditorPrefs.SetString(
+                PrefsKeyClassName,
+                string.IsNullOrWhiteSpace(className) ? DefaultClassName : className.Trim());
+            EditorPrefs.SetString(PrefsKeyNamespace, namespaceName ?? "");
 
             if (settings != null)
-                PullFromSettings();
+            {
+                var path = AssetDatabase.GetAssetPath(settings);
+                if (string.IsNullOrEmpty(path) == false)
+                    EditorPrefs.SetString(PrefsKeySettingsGuid, AssetDatabase.AssetPathToGUID(path));
+                else
+                    EditorPrefs.DeleteKey(PrefsKeySettingsGuid);
+            }
+            else
+                EditorPrefs.DeleteKey(PrefsKeySettingsGuid);
         }
 
         private void OnGUI()
@@ -51,12 +117,13 @@ namespace Truesoft.Supabase.Editor
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandHeight(true)))
             {
                 EditorGUILayout.HelpBox(
-                    "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. static 클래스 + 내부 Row가 생성되며, 프로퍼티 변경은 쿨타임 자동 저장 대상입니다.",
+                    "OpenAPI로 세이브 테이블 C# 초안을 만듭니다. static 클래스 + 내부 Row가 생성되며, 프로퍼티 변경은 쿨타임 자동 저장 대상입니다. 아래 입력값은 이 머신의 EditorPrefs에 저장되어 창을 다시 열어도 유지됩니다.",
                     MessageType.Info);
 
+                var prevSettings = settings;
                 EditorGUI.BeginChangeCheck();
                 settings = (SupabaseSettings)EditorGUILayout.ObjectField("설정", settings, typeof(SupabaseSettings), false);
-                if (EditorGUI.EndChangeCheck() && settings != null)
+                if (settings != prevSettings && settings != null)
                     PullFromSettings();
 
                 projectUrl = EditorGUILayout.TextField("프로젝트 URL", projectUrl);
@@ -66,6 +133,9 @@ namespace Truesoft.Supabase.Editor
                 skipColumnsCsv = EditorGUILayout.TextField("제외 컬럼", skipColumnsCsv);
                 className = EditorGUILayout.TextField("클래스 이름", className);
                 namespaceName = EditorGUILayout.TextField("네임스페이스", namespaceName);
+
+                if (EditorGUI.EndChangeCheck())
+                    SaveFormToPrefs();
 
                 EditorGUILayout.Space(6);
                 using (new EditorGUILayout.HorizontalScope())
