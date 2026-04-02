@@ -62,8 +62,11 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("공개 displayName")]
         [SerializeField] private KeyCode keySetDisplayName = KeyCode.E;
 
-        [Tooltip("세이브·로드 (정적 API·생성기 스타일)")]
-        [SerializeField] private KeyCode keySaveLoad = KeyCode.R;
+        [Tooltip("유저 세이브 로드 (행 없으면 인스펙터 level/coins를 초기값으로)")]
+        [SerializeField] private KeyCode keyLoadUserSave = KeyCode.R;
+
+        [Tooltip("유저 세이브 저장 (서버 스냅샷 대비 변경분만 PATCH, 같으면 전송 안 함)")]
+        [SerializeField] private KeyCode keySaveUserSave = KeyCode.V;
 
         [Tooltip("RemoteConfig 새로고침·조회")]
         [SerializeField] private KeyCode keyRemoteConfig = KeyCode.T;
@@ -136,8 +139,10 @@ namespace Truesoft.SupabaseUnity.Samples
                 _ = RunAsyncGuarded(RunLogoutExampleAsync);
             else if (Input.GetKeyDown(keySetDisplayName))
                 _ = RunAsyncGuarded(RunPublicNicknameExampleAsync);
-            else if (Input.GetKeyDown(keySaveLoad))
-                _ = RunAsyncGuarded(RunSaveLoadExampleAsync);
+            else if (Input.GetKeyDown(keyLoadUserSave))
+                _ = RunAsyncGuarded(RunLoadUserSaveExampleAsync);
+            else if (Input.GetKeyDown(keySaveUserSave))
+                _ = RunAsyncGuarded(RunSaveUserSaveExampleAsync);
             else if (Input.GetKeyDown(keyRemoteConfig))
                 _ = RunAsyncGuarded(RunRemoteConfigExampleAsync);
             else if (Input.GetKeyDown(keyRemoteConfigOnDemand))
@@ -201,10 +206,16 @@ namespace Truesoft.SupabaseUnity.Samples
             _ = RunGoogleLinkExampleAsync();
         }
 
-        [ContextMenu("Run Save/Load Example (static user save)")]
-        public void RunSaveLoadExample()
+        [ContextMenu("Run Load User Save Example (static)")]
+        public void RunLoadUserSaveExample()
         {
-            _ = RunSaveLoadExampleAsync();
+            _ = RunLoadUserSaveExampleAsync();
+        }
+
+        [ContextMenu("Run Save User Save Example (static, diff only)")]
+        public void RunSaveUserSaveExample()
+        {
+            _ = RunSaveUserSaveExampleAsync();
         }
 
         [ContextMenu("Run RemoteConfig Example")]
@@ -316,36 +327,52 @@ namespace Truesoft.SupabaseUnity.Samples
             return sameId && converted;
         }
 
-        private async Task<bool> RunSaveLoadExampleAsync()
+        private async Task<bool> RunLoadUserSaveExampleAsync()
         {
             if (!SupabaseClient.IsLoggedIn)
             {
-                Debug.LogWarning("[Sample] save/load example skipped: sign in first.");
+                Debug.LogWarning("[Sample] load user save skipped: sign in first.");
                 return false;
             }
 
-            // user_saves: level int, coins int, updated_at timestamptz — OpenAPI 생성기 static 출력과 동일 패턴은 SampleStaticUserSave 참고.
-            var initialLoadOk = await SampleStaticUserSave.TryLoadAsync();
-            if (!initialLoadOk)
-                Debug.Log("[Sample] static save: 첫 로드 실패·무응답(행 없음)일 수 있음. 이후 PATCH로 행이 생기면 정상입니다.");
-
-            SampleStaticUserSave.Level = level;
-            SampleStaticUserSave.Coins = coins;
-
-            if (!await SampleStaticUserSave.TryFlushNowAsync())
+            if (!await SampleStaticUserSave.TryLoadFromServerAsync(level, coins))
             {
-                Debug.LogWarning("[Sample] save/load example failed at TryFlushNowAsync (정적 세이브 즉시 전송).");
-                return false;
-            }
-
-            if (!await SampleStaticUserSave.TryLoadAsync())
-            {
-                Debug.LogWarning("[Sample] save/load example failed at reload after flush.");
+                Debug.LogWarning("[Sample] load user save failed (네트워크·인증 등).");
                 return false;
             }
 
             Debug.Log(
-                $"[Sample] save/load (static) success. level={SampleStaticUserSave.Level}, coins={SampleStaticUserSave.Coins}, updated_at={SampleStaticUserSave.UpdatedAt}");
+                $"[Sample] load user save ok. level={SampleStaticUserSave.Level}, coins={SampleStaticUserSave.Coins}, updated_at={SampleStaticUserSave.UpdatedAt} "
+                + "(본인 행이 없었으면 인스펙터 level/coins가 초기값으로 채워졌습니다.)");
+            return true;
+        }
+
+        private async Task<bool> RunSaveUserSaveExampleAsync()
+        {
+            if (!SupabaseClient.IsLoggedIn)
+            {
+                Debug.LogWarning("[Sample] save user save skipped: sign in first.");
+                return false;
+            }
+
+            if (!await SampleStaticUserSave.TryLoadFromServerAsync(level, coins))
+            {
+                Debug.LogWarning("[Sample] save user save: load failed (스냅샷 맞추기 전 단계).");
+                return false;
+            }
+
+            SampleStaticUserSave.Level = level;
+            SampleStaticUserSave.Coins = coins;
+
+            if (!await SampleStaticUserSave.TrySaveIfChangedAsync())
+            {
+                Debug.LogWarning("[Sample] save user save: TrySaveIfChangedAsync failed.");
+                return false;
+            }
+
+            Debug.Log(
+                "[Sample] save user save ok. 서버 스냅샷과 비교해 바뀐 컬럼만 PATCH했고, "
+                + "인스펙터 값이 이미 서버와 같으면 네트워크 PATCH는 생략됩니다.");
             return true;
         }
 
@@ -610,7 +637,8 @@ namespace Truesoft.SupabaseUnity.Samples
 
             await RunServerTimeExampleAsync();
             await RunLoginExampleAsync();
-            await RunSaveLoadExampleAsync();
+            await RunLoadUserSaveExampleAsync();
+            await RunSaveUserSaveExampleAsync();
             await RunPublicNicknameExampleAsync();
             await RunWithdrawalRequestExampleAsync();
             await RunWithdrawalStatusExampleAsync();

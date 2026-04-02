@@ -49,17 +49,64 @@ namespace Truesoft.SupabaseUnity.Samples
             return SupabaseSdk.TryFlushUserSaveImmediateAsync(SyncKey, timeoutMs);
         }
 
+        /// <summary>
+        /// 서버에서 로드합니다. 본인 행이 없으면(<c>HasRow == false</c>) <paramref name="initialLevel"/>·<paramref name="initialCoins"/>로 채웁니다.
+        /// </summary>
+        public static async Task<bool> TryLoadFromServerAsync(int initialLevel, int initialCoins, bool includeUpdatedAt = true)
+        {
+            EnsureRegistered();
+            var (success, hasRow, row) = await SupabaseSdk.TryLoadUserSaveAttributedWithRowStateAsync<SampleStaticUserSaveRow>(
+                defaultWhenFailed: null,
+                includeUpdatedAt: includeUpdatedAt);
+            if (!success)
+                return false;
+
+            if (!hasRow)
+            {
+                row.level = initialLevel;
+                row.coins = initialCoins;
+                row.updated_at = null;
+            }
+
+            CopyInto(Current, row);
+            LastSynced = CloneRow(row);
+            IsDirty = false;
+            return true;
+        }
+
+        /// <summary>
+        /// 생성기 <c>TryLoadAsync</c>와 동일: 행이 없으면 타입 기본값 Row로 채웁니다. 게임 초기값은 이후 프로퍼티로 설정하세요.
+        /// </summary>
         public static async Task<bool> TryLoadAsync(bool includeUpdatedAt = true)
         {
             EnsureRegistered();
-            var loaded = await SupabaseSdk.TryLoadUserSaveAttributedAsync<SampleStaticUserSaveRow>(
-                defaultValue: null,
+            var (success, _, row) = await SupabaseSdk.TryLoadUserSaveAttributedWithRowStateAsync<SampleStaticUserSaveRow>(
+                defaultWhenFailed: null,
                 includeUpdatedAt: includeUpdatedAt);
-            if (loaded == null)
+            if (!success)
                 return false;
 
-            CopyInto(Current, loaded);
-            LastSynced = CloneRow(loaded);
+            CopyInto(Current, row);
+            LastSynced = CloneRow(row);
+            IsDirty = false;
+            return true;
+        }
+
+        /// <summary>
+        /// 마지막 서버 스냅샷 대비 변경된 컬럼만 PATCH합니다. 변경이 없으면 네트워크 요청을 보내지 않습니다.
+        /// </summary>
+        public static async Task<bool> TrySaveIfChangedAsync()
+        {
+            EnsureRegistered();
+            var ok = await SupabaseSdk.TryPatchUserSaveDiffAsync(
+                LastSynced,
+                Current,
+                ensureRowFirst: true,
+                setUpdatedAtIsoUtc: true);
+            if (!ok)
+                return false;
+
+            LastSynced = CloneRow(Current);
             IsDirty = false;
             return true;
         }

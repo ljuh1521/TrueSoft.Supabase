@@ -215,21 +215,35 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 프로젝트별 명시 컬럼을 select로 지정해 로드합니다.
+        /// 프로젝트별 명시 컬럼을 select로 지정해 로드합니다. 행 0건이면 <c>new T()</c>만 반환하고 <see cref="LoadColumnsWithRowStateAsync{T}"/>와 달리 구분 정보는 없습니다.
         /// </summary>
         public async Task<SupabaseResult<T>> LoadColumnsAsync<T>(
             string accessToken,
             string accountId,
             string selectColumnsCsv) where T : class, new()
         {
+            var r = await LoadColumnsWithRowStateAsync<T>(accessToken, accountId, selectColumnsCsv);
+            if (!r.IsSuccess)
+                return SupabaseResult<T>.Fail(r.ErrorMessage ?? "load_failed");
+            return SupabaseResult<T>.Success(r.Data.Row);
+        }
+
+        /// <summary>
+        /// 본인 <c>account_id</c>에 해당하는 행이 응답에 포함되었는지(<see cref="UserSaveColumnsLoadResult{T}.HasRow"/>)와 함께 로드합니다.
+        /// </summary>
+        public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(
+            string accessToken,
+            string accountId,
+            string selectColumnsCsv) where T : class, new()
+        {
             if (string.IsNullOrWhiteSpace(accessToken))
-                return SupabaseResult<T>.Fail("access_token_empty");
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("access_token_empty");
 
             if (string.IsNullOrWhiteSpace(accountId))
-                return SupabaseResult<T>.Fail("account_id_empty");
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("account_id_empty");
 
             if (string.IsNullOrWhiteSpace(selectColumnsCsv))
-                return SupabaseResult<T>.Fail("select_columns_empty");
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("select_columns_empty");
 
             var url =
                 $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}" +
@@ -244,21 +258,26 @@ namespace Truesoft.Supabase.Core.Data
                 headers: CreateAuthHeaders(accessToken, prefer: null));
 
             if (response == null)
-                return SupabaseResult<T>.Fail("http_response_null");
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-                return SupabaseResult<T>.Fail(response.ErrorMessage ?? response.Body ?? "load_failed");
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail(response.ErrorMessage ?? response.Body ?? "load_failed");
 
             try
             {
                 var rows = _jsonSerializer.FromJsonArray<T>(response.Body);
                 if (rows == null || rows.Length == 0 || rows[0] == null)
-                    return SupabaseResult<T>.Success(new T());
-                return SupabaseResult<T>.Success(rows[0]);
+                {
+                    return SupabaseResult<UserSaveColumnsLoadResult<T>>.Success(
+                        new UserSaveColumnsLoadResult<T>(hasRow: false, row: new T()));
+                }
+
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Success(
+                    new UserSaveColumnsLoadResult<T>(hasRow: true, row: rows[0]));
             }
             catch (Exception e)
             {
-                return SupabaseResult<T>.Fail("load_parse_exception:" + e.Message);
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("load_parse_exception:" + e.Message);
             }
         }
 
@@ -281,6 +300,25 @@ namespace Truesoft.Supabase.Core.Data
             }
 
             return await LoadColumnsAsync<T>(accessToken, accountId, csv);
+        }
+
+        /// <inheritdoc cref="LoadColumnsWithRowStateAsync{T}(string, string, string)"/>
+        public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadAttributedWithRowStateAsync<T>(
+            string accessToken,
+            string accountId,
+            bool includeUpdatedAt = true) where T : class, new()
+        {
+            string csv;
+            try
+            {
+                csv = UserSaveSchema.GetSelectColumnsCsv<T>(includeUpdatedAt);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("user_save_schema_invalid:" + e.Message);
+            }
+
+            return await LoadColumnsWithRowStateAsync<T>(accessToken, accountId, csv);
         }
 
         /// <summary>

@@ -150,6 +150,33 @@ namespace Truesoft.Supabase.Unity
                 selectColumnsCsv: selectColumnsCsv);
         }
 
+        /// <inheritdoc cref="SupabaseUserDataService.LoadColumnsWithRowStateAsync{T}(string, string, string)"/>
+        public Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(string selectColumnsCsv)
+            where T : class, new()
+        {
+            var session = _sessionGetter?.Invoke();
+            return LoadColumnsWithRowStateAsync<T>(session, selectColumnsCsv);
+        }
+
+        public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(
+            SupabaseSession session,
+            string selectColumnsCsv) where T : class, new()
+        {
+            if (session == null)
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("session_null");
+
+            var accessToken = session.AccessToken;
+            var userId = session.User?.Id;
+
+            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("auth_not_signed_in");
+
+            return await _userDataService.LoadColumnsWithRowStateAsync<T>(
+                accessToken: accessToken,
+                accountId: userId,
+                selectColumnsCsv: selectColumnsCsv);
+        }
+
         /// <summary>
         /// <see cref="UserSaveColumnAttribute"/>로 표시한 컬럼만 모아 로드합니다.
         /// </summary>
@@ -171,6 +198,33 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<T>.Fail("auth_not_signed_in");
 
             return await _userDataService.LoadAttributedAsync<T>(
+                accessToken: accessToken,
+                accountId: userId,
+                includeUpdatedAt: includeUpdatedAt);
+        }
+
+        /// <inheritdoc cref="SupabaseUserDataService.LoadAttributedWithRowStateAsync{T}(string, string, bool)"/>
+        public Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadAttributedWithRowStateAsync<T>(
+            bool includeUpdatedAt = true) where T : class, new()
+        {
+            var session = _sessionGetter?.Invoke();
+            return LoadAttributedWithRowStateAsync<T>(session, includeUpdatedAt);
+        }
+
+        public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadAttributedWithRowStateAsync<T>(
+            SupabaseSession session,
+            bool includeUpdatedAt = true) where T : class, new()
+        {
+            if (session == null)
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("session_null");
+
+            var accessToken = session.AccessToken;
+            var userId = session.User?.Id;
+
+            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("auth_not_signed_in");
+
+            return await _userDataService.LoadAttributedWithRowStateAsync<T>(
                 accessToken: accessToken,
                 accountId: userId,
                 includeUpdatedAt: includeUpdatedAt);

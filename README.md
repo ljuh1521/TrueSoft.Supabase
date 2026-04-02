@@ -44,15 +44,17 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 ### 코드에서 쓰기 (`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync`)
 
 1. 세이브 한 행을 담는 클래스에 `public` 필드(또는 프로퍼티)를 두고, DB에 올릴 컬럼마다 **`[UserSaveColumn("db_column")]`** 을 붙입니다. 인자를 생략하면 **멤버 이름이 곧 컬럼명**입니다.
-2. **로드:** `Supabase.TryLoadUserSaveAttributedAsync<MySaveRow>(defaultValue, includeUpdatedAt: true)` — 붙인 컬럼만 모아 `select` CSV를 만들고 기존 컬럼 로드 경로로 가져옵니다.
+2. **로드:** `Supabase.TryLoadUserSaveAttributedAsync<MySaveRow>(defaultValue, includeUpdatedAt: true)` — 붙인 컬럼만 모아 `select` CSV를 만들고 가져옵니다. **본인 `account_id`에 해당하는 행이 0건인지(신규 유저)와 1건인지 구분**하려면 `Supabase.TryLoadUserSaveAttributedWithRowStateAsync<MySaveRow>(...)` 를 쓰세요. 성공 시 `success == true`이고 `hasRow == false`이면 응답이 빈 배열(`[]`)인 경우입니다(값은 `new MySaveRow()`). 인증/HTTP 실패는 `success == false`입니다. 명시 `select` 경로도 동일하게 `TryLoadUserDataColumnsWithRowStateAsync<T>` / `LoadUserDataColumnsWithRowStateAsync<T>` 가 있습니다.
 3. **변경분만 저장:** 메모리에 **이전 스냅샷**과 **현재 스냅샷**을 둔 뒤 `Supabase.TryPatchUserSaveDiffAsync(previous, current, ensureRowFirst: true, setUpdatedAtIsoUtc: true)` — 값이 바뀐 컬럼만 PATCH합니다. 둘이 같으면 네트워크 PATCH는 생략됩니다.
 
-내부 `SupabaseResult`를 쓰려면 `Supabase.LoadUserSaveAttributedAsync` / `Supabase.PatchUserSaveDiffAsync` 를 사용할 수 있습니다. Try 계열 실패 로그 태그는 `Supabase.UserData.LoadAttributed`, `Supabase.UserData.PatchDiff` 입니다.
+내부 `SupabaseResult`를 쓰려면 `Supabase.LoadUserSaveAttributedAsync` / `Supabase.LoadUserSaveAttributedWithRowStateAsync` / `Supabase.PatchUserSaveDiffAsync` 를 사용할 수 있습니다. Try 계열 로그 태그는 `Supabase.UserData.LoadAttributed`, `Supabase.UserData.LoadAttributed.RowState`, `Supabase.UserData.LoadColumns.RowState`, `Supabase.UserData.PatchDiff` 입니다.
 
 ### OpenAPI 생성기 (`SaveData.Gold = 10` 스타일)
 
 생성기는 **항상** `public static class` + 내부 Row를 생성합니다. `SaveData.Gold = 10` 같은 프로퍼티 변경이 자동 저장 대상이 됩니다.
 
+- `TryLoadAsync`는 `TryLoadUserSaveAttributedWithRowStateAsync`를 사용합니다. 행이 없으면 Row는 타입 기본값이므로, 게임 초기값은 로드 후 프로퍼티로 채우면 됩니다.
+- `TrySaveIfChangedAsync`는 마지막 서버 스냅샷 대비 변경된 컬럼만 PATCH합니다(변경 없으면 전송 없음).
 - 변경은 즉시 매번 보내지 않고 **쿨타임 배치**로 묶입니다.
 - 중요한 타이밍에는 `TryRequestImmediateSave()`(요청) 또는 `TryFlushNowAsync()`(완료 대기)로 **즉시 전송**을 사용할 수 있습니다.
 - 이미 전송 중이면 즉시 전송은 중복 실행하지 않고, 완료 후 dirty를 다시 평가합니다.

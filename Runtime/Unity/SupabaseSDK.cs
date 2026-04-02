@@ -127,6 +127,8 @@ namespace Truesoft.Supabase.Unity
             public const string UserDataSave = "Supabase.UserData.Save";
             public const string UserDataLoad = "Supabase.UserData.Load";
             public const string UserDataLoadAttributed = "Supabase.UserData.LoadAttributed";
+            public const string UserDataLoadAttributedRowState = "Supabase.UserData.LoadAttributed.RowState";
+            public const string UserDataLoadColumnsRowState = "Supabase.UserData.LoadColumns.RowState";
             public const string UserDataPatchDiff = "Supabase.UserData.PatchDiff";
             public const string EdgeFunctionInvoke = "Supabase.EdgeFunction.Invoke";
             public const string RemoteConfigRefresh = "Supabase.RemoteConfig.Refresh";
@@ -532,6 +534,76 @@ namespace Truesoft.Supabase.Unity
         {
             var r = await LoadUserSaveAttributedAsync<T>(includeUpdatedAt);
             return LogAndReturnData(ApiLogTags.UserDataLoadAttributed, r, defaultValue);
+        }
+
+        /// <summary>
+        /// <see cref="UserSaveColumnAttribute"/> 기반 로드 결과에 <b>본인 행 존재 여부</b>(HTTP 200·빈 배열이면 <c>HasRow == false</c>)를 포함합니다.
+        /// 인증/HTTP/파싱 실패는 <see cref="SupabaseResult{T}.IsSuccess"/>가 <c>false</c>입니다.
+        /// </summary>
+        public static async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserSaveAttributedWithRowStateAsync<T>(
+            bool includeUpdatedAt = true) where T : class, new()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            return await UserSaves.LoadAttributedWithRowStateAsync<T>(includeUpdatedAt);
+        }
+
+        /// <summary>
+        /// <see cref="LoadUserSaveAttributedWithRowStateAsync{T}(bool)"/>의 Try 형태. 실패 시 <c>success == false</c>, <c>hasRow</c>는 의미 없음.
+        /// </summary>
+        public static async Task<(bool success, bool hasRow, T row)> TryLoadUserSaveAttributedWithRowStateAsync<T>(
+            T defaultWhenFailed = default,
+            bool includeUpdatedAt = true) where T : class, new()
+        {
+            var r = await LoadUserSaveAttributedWithRowStateAsync<T>(includeUpdatedAt);
+            var ok = r != null && r.IsSuccess;
+            LogApiResult(ApiLogTags.UserDataLoadAttributedRowState, ok, ok ? null : r?.ErrorMessage);
+            if (!ok)
+            {
+                var d = defaultWhenFailed ?? new T();
+                return (false, false, d);
+            }
+
+            return (true, r.Data.HasRow, r.Data.Row);
+        }
+
+        /// <summary>
+        /// 명시 <c>select</c> 컬럼 로드에 행 존재 여부를 포함합니다.
+        /// </summary>
+        public static async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserDataColumnsWithRowStateAsync<T>(
+            string selectColumnsCsv = null) where T : class, new()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            var select = string.IsNullOrWhiteSpace(selectColumnsCsv)
+                ? (_bootstrap?.UserSavesDefaultSelectColumnsCsv ?? "")
+                : selectColumnsCsv.Trim();
+
+            if (string.IsNullOrWhiteSpace(select))
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("select_columns_empty");
+
+            return await UserSaves.LoadColumnsWithRowStateAsync<T>(select);
+        }
+
+        /// <inheritdoc cref="LoadUserDataColumnsWithRowStateAsync{T}(string)"/>
+        public static async Task<(bool success, bool hasRow, T row)> TryLoadUserDataColumnsWithRowStateAsync<T>(
+            T defaultWhenFailed = default,
+            string selectColumnsCsv = null) where T : class, new()
+        {
+            var r = await LoadUserDataColumnsWithRowStateAsync<T>(selectColumnsCsv);
+            var ok = r != null && r.IsSuccess;
+            LogApiResult(ApiLogTags.UserDataLoadColumnsRowState, ok, ok ? null : r?.ErrorMessage);
+            if (!ok)
+            {
+                var d = defaultWhenFailed ?? new T();
+                return (false, false, d);
+            }
+
+            return (true, r.Data.HasRow, r.Data.Row);
         }
 
         /// <inheritdoc cref="PatchUserSaveDiffAsync{T}(T, T, bool, bool)"/>

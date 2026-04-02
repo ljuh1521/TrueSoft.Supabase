@@ -149,6 +149,11 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<T>> LoadUserSaveAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new() =>
             SupabaseSDK.LoadUserSaveAttributedAsync<T>(includeUpdatedAt);
 
+        /// <summary><see cref="SupabaseSDK.LoadUserSaveAttributedWithRowStateAsync{T}(bool)"/> (내부 Result API).</summary>
+        internal static Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserSaveAttributedWithRowStateAsync<T>(
+            bool includeUpdatedAt = true) where T : class, new() =>
+            SupabaseSDK.LoadUserSaveAttributedWithRowStateAsync<T>(includeUpdatedAt);
+
         /// <summary><see cref="SupabaseSDK.PatchUserSaveDiffAsync{T}(T, T, bool, bool)"/> (내부 Result API).</summary>
         internal static Task<SupabaseResult<bool>> PatchUserSaveDiffAsync<T>(
             T previous,
@@ -185,6 +190,28 @@ namespace Truesoft.Supabase.Unity
         /// <inheritdoc cref="SupabaseSDK.TryLoadUserSaveAttributedAsync{T}(T, bool)"/>
         public static Task<T> TryLoadUserSaveAttributedAsync<T>(T defaultValue = default, bool includeUpdatedAt = true) where T : class, new() =>
             SupabaseSDK.TryLoadUserSaveAttributedAsync(defaultValue, includeUpdatedAt);
+
+        /// <inheritdoc cref="SupabaseSDK.LoadUserSaveAttributedWithRowStateAsync{T}(bool)"/>
+        public static Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserSaveAttributedWithRowStateAsync<T>(
+            bool includeUpdatedAt = true) where T : class, new() =>
+            SupabaseSDK.LoadUserSaveAttributedWithRowStateAsync<T>(includeUpdatedAt);
+
+        /// <inheritdoc cref="SupabaseSDK.TryLoadUserSaveAttributedWithRowStateAsync{T}(T, bool)"/>
+        public static Task<(bool success, bool hasRow, T row)> TryLoadUserSaveAttributedWithRowStateAsync<T>(
+            T defaultWhenFailed = default,
+            bool includeUpdatedAt = true) where T : class, new() =>
+            SupabaseSDK.TryLoadUserSaveAttributedWithRowStateAsync(defaultWhenFailed, includeUpdatedAt);
+
+        /// <inheritdoc cref="SupabaseSDK.LoadUserDataColumnsWithRowStateAsync{T}(string)"/>
+        public static Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserDataColumnsWithRowStateAsync<T>(
+            string selectColumnsCsv = null) where T : class, new() =>
+            SupabaseSDK.LoadUserDataColumnsWithRowStateAsync<T>(selectColumnsCsv);
+
+        /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataColumnsWithRowStateAsync{T}(T, string)"/>
+        public static Task<(bool success, bool hasRow, T row)> TryLoadUserDataColumnsWithRowStateAsync<T>(
+            T defaultWhenFailed = default,
+            string selectColumnsCsv = null) where T : class, new() =>
+            SupabaseSDK.TryLoadUserDataColumnsWithRowStateAsync(defaultWhenFailed, selectColumnsCsv);
 
         /// <inheritdoc cref="SupabaseSDK.TryPatchUserSaveDiffAsync{T}(T, T, bool, bool)"/>
         public static Task<bool> TryPatchUserSaveDiffAsync<T>(
