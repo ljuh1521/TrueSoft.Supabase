@@ -169,8 +169,7 @@ namespace Truesoft.Supabase.Editor
             IReadOnlyList<OpenApiColumn> columns,
             string className,
             string namespaceName,
-            string tableLabel,
-            bool staticApi = false)
+            string tableLabel)
         {
             if (columns == null || columns.Count == 0)
                 throw new InvalidOperationException("생성할 컬럼이 없습니다.");
@@ -184,12 +183,10 @@ namespace Truesoft.Supabase.Editor
             sb.AppendLine("// </auto-generated>");
             sb.AppendLine();
             sb.AppendLine("using System;");
-            if (staticApi)
-                sb.AppendLine("using System.Threading.Tasks;");
+            sb.AppendLine("using System.Threading.Tasks;");
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using Truesoft.Supabase.Core.Data;");
-            if (staticApi)
-                sb.AppendLine("using Truesoft.Supabase.Unity;");
+            sb.AppendLine("using Truesoft.Supabase.Unity;");
             sb.AppendLine();
 
             var useNs = string.IsNullOrWhiteSpace(namespaceName) == false;
@@ -201,41 +198,12 @@ namespace Truesoft.Supabase.Editor
                 sb.AppendLine("{");
             }
 
-            if (staticApi)
-                AppendStaticApiClass(sb, indent, className.Trim(), namespaceName, tableLabel, columns);
-            else
-                AppendRowModelClass(sb, indent, className.Trim(), tableLabel, columns);
+            AppendStaticApiClass(sb, indent, className.Trim(), namespaceName, tableLabel, columns);
 
             if (useNs)
                 sb.AppendLine("}");
 
             return sb.ToString();
-        }
-
-        private static void AppendRowModelClass(
-            StringBuilder sb,
-            string indent,
-            string className,
-            string tableLabel,
-            IReadOnlyList<OpenApiColumn> columns)
-        {
-            sb.AppendLine(indent + "/// <summary>");
-            sb.AppendLine(indent + "/// <c>" + EscapeXml(tableLabel) + "</c> 행 모델.");
-            sb.AppendLine(indent + "/// </summary>");
-            sb.AppendLine(indent + "[Serializable]");
-            sb.AppendLine(indent + "public sealed class " + className);
-            sb.AppendLine(indent + "{");
-
-            foreach (var c in columns)
-            {
-                if (string.IsNullOrWhiteSpace(c.Comment) == false)
-                    sb.AppendLine(indent + "    /// <summary>" + EscapeXml(c.Comment.Trim()) + "</summary>");
-
-                var fieldName = LegalFieldName(c.Name);
-                sb.AppendLine(indent + "    [UserSaveColumn] public " + c.ClrType + " " + fieldName + ";");
-            }
-
-            sb.AppendLine(indent + "}");
         }
 
         private static void AppendStaticApiClass(
