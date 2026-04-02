@@ -149,11 +149,6 @@ namespace Truesoft.Supabase.Unity
         internal static Task<SupabaseResult<T>> LoadUserSaveAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new() =>
             SupabaseSDK.LoadUserSaveAttributedAsync<T>(includeUpdatedAt);
 
-        /// <summary><see cref="SupabaseSDK.LoadUserSaveAttributedWithRowStateAsync{T}(bool)"/> (내부 Result API).</summary>
-        internal static Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserSaveAttributedWithRowStateAsync<T>(
-            bool includeUpdatedAt = true) where T : class, new() =>
-            SupabaseSDK.LoadUserSaveAttributedWithRowStateAsync<T>(includeUpdatedAt);
-
         /// <summary><see cref="SupabaseSDK.PatchUserSaveDiffAsync{T}(T, T, bool, bool)"/> (내부 Result API).</summary>
         internal static Task<SupabaseResult<bool>> PatchUserSaveDiffAsync<T>(
             T previous,
