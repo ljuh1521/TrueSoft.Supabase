@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Core.Data;
-using Truesoft.Supabase.Unity;
+using SupabaseSdk = global::Truesoft.Supabase.Unity.Supabase;
 
 namespace Truesoft.SupabaseUnity.Samples
 {
@@ -28,31 +28,31 @@ namespace Truesoft.SupabaseUnity.Samples
             if (IsRegistered)
                 return;
 
-            Supabase.RegisterUserSaveStaticSync(SyncKey, HasDirty, FlushDirtyAsync, ResetLocalState);
+            SupabaseSdk.RegisterUserSaveStaticSync(SyncKey, HasDirty, FlushDirtyAsync, ResetLocalState);
             IsRegistered = true;
         }
 
         public static void ConfigureCooldown(float seconds)
         {
-            Supabase.ConfigureUserSaveAutoSyncCooldown(seconds);
+            SupabaseSdk.ConfigureUserSaveAutoSyncCooldown(seconds);
         }
 
         public static bool TryRequestImmediateSave()
         {
             EnsureRegistered();
-            return Supabase.RequestImmediateUserSaveStaticFlush(SyncKey);
+            return SupabaseSdk.RequestImmediateUserSaveStaticFlush(SyncKey);
         }
 
         public static Task<bool> TryFlushNowAsync(int timeoutMs = 5000)
         {
             EnsureRegistered();
-            return Supabase.TryFlushUserSaveImmediateAsync(SyncKey, timeoutMs);
+            return SupabaseSdk.TryFlushUserSaveImmediateAsync(SyncKey, timeoutMs);
         }
 
         public static async Task<bool> TryLoadAsync(bool includeUpdatedAt = true)
         {
             EnsureRegistered();
-            var loaded = await Supabase.TryLoadUserSaveAttributedAsync<SampleStaticUserSaveRow>(
+            var loaded = await SupabaseSdk.TryLoadUserSaveAttributedAsync<SampleStaticUserSaveRow>(
                 defaultValue: null,
                 includeUpdatedAt: includeUpdatedAt);
             if (loaded == null)
@@ -104,7 +104,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             EnsureRegistered();
             IsDirty = true;
-            Supabase.MarkUserSaveStaticDirty(SyncKey);
+            SupabaseSdk.MarkUserSaveStaticDirty(SyncKey);
         }
 
         private static bool HasDirty() => IsDirty;
@@ -114,7 +114,7 @@ namespace Truesoft.SupabaseUnity.Samples
             if (!IsDirty)
                 return true;
 
-            var ok = await Supabase.TryPatchUserSaveDiffAsync(
+            var ok = await SupabaseSdk.TryPatchUserSaveDiffAsync(
                 LastSynced,
                 Current,
                 ensureRowFirst: true,
