@@ -413,7 +413,7 @@ namespace Truesoft.SupabaseUnity.Samples
         private static void LogDuplicateLoginHowToTest()
         {
             Debug.Log(
-                "[Sample] 중복 로그인 테스트: Sql/supabase_player_tables.sql의 user_sessions 적용 후, "
+                "[Sample] 중복 로그인 테스트: Sql/player/05_user_sessions.sql 적용 후, "
                 + "SupabaseSettings에서 enableDuplicateSessionMonitor를 켠 뒤 "
                 + "기기 A·B(또는 에뮬+실기)에서 같은 계정(익명 또는 구글)으로 순서대로 로그인하면, "
                 + "먼저 켜 둔 쪽에서 OnDuplicateLoginDetected가 호출됩니다.");
@@ -450,7 +450,7 @@ namespace Truesoft.SupabaseUnity.Samples
             {
                 var hint = string.Equals(db?.ErrorMessage, "my_server_not_found", StringComparison.Ordinal)
                     ? "profiles에 account_id=본인 행이 없을 때 흔함. TryStartAsync(restoreSessionFirst:true)로 복원하면 SDK가 프로필 upsert를 수행합니다. Q로 익명 로그인해도 됩니다. Console의 [Supabase] ensure profile row failed 유무·RLS를 확인하세요."
-                    : "Sql/supabase_player_tables.sql(ts_my_server_id)·로그인·프로필 행 확인.";
+                    : "Sql/player/08_transfer_server.sql 등 적용·ts_my_server_id·로그인·프로필 행 확인.";
                 Debug.LogWarning("[Sample] server shard: ts_my_server_id failed — " + (db?.ErrorMessage ?? "null") + ". " + hint);
                 return false;
             }

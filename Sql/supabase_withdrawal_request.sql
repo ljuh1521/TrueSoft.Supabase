@@ -3,7 +3,7 @@
 -- 클라이언트는 "유예 기간(일)"만 전달하고, 실제 withdrawn_at은 서버에서 계산합니다.
 -- 마지막 SELECT(Result 탭)로 함수 반영·GRANT 여부를 확인한다.
 --
--- 선행: anonymous_recovery_tokens 정리를 위해 Sql/supabase_player_tables.sql 의
+-- 선행: anonymous_recovery_tokens 정리를 위해 Sql/player/06_anonymous_recovery_tokens.sql 의
 --       public.ts_delete_my_anon_recovery_tokens() 가 정의되어 있어야 합니다(해당 파일을 먼저 실행).
 --
 -- 재실행: CREATE OR REPLACE 로 정의가 항상 이 파일의 최종본으로 맞춰진다. GRANT·COMMENT 도 재실행해도 동일.

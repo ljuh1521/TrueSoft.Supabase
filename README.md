@@ -85,7 +85,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 | **User Saves** | 권장: **게임 조회·수정은 `account_id`만**. **`user_id`**는 동일인 식별·운영용(동일 Google이면 재가입 후에도 **같은 `user_id` 가능**). 행은 **서로게이트 PK**로 두어 재가입 시 **새 `account_id` 행 INSERT**, 옛 행은 `account_id` NULL. SDK 기본 컬럼명 `user_id`에 Auth id → 매핑·확장 필요 |
 | **Remote Config** | 조회 컬럼 `key`, `value_json`, `updated_at`, `version` |
 | **채팅** | 컬럼 `id`, `channel_id`, `user_id`(보낸 이 식별 — 정책에 따라 `account_id` 또는 플레이어 `user_id`), `display_name`, `content`, `created_at` |
-| **공개 프로필** | 권장: **`id`**(PK) + **`user_id`** + **`account_id`**. DDL은 [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql) |
+| **공개 프로필** | 권장: **`id`**(PK) + **`user_id`** + **`account_id`**. DDL은 [`Sql/player/`](Sql/player/) (`01`…`09` 순, [순서 안내](Sql/supabase_player_tables.sql)) |
 
 즉, **REST 대상 테이블명**은 유연하고, **각 기능이 쓰는 컬럼·쿼리 형태**는 아직 코드에 박혀 있습니다. 다른 스키마를 쓰려면 해당 서비스를 감싼 별도 레이어나 포크가 필요합니다.
 
@@ -101,7 +101,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 별도 `app_users` 테이블은 두지 않고, **`profiles`·`user_saves` 행 안에 `user_id` + `account_id`를 같이 둡니다.**
 
-**통합 SQL:** [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql) — `profiles`·`user_saves`·`account_closures` 생성, 인덱스, RLS(`DROP POLICY IF EXISTS` 포함). Supabase SQL Editor에 통째로 실행하면 됩니다.
+**플레이어 DDL:** [`Sql/player/`](Sql/player/) — 테이블·기능별로 분리. Supabase SQL Editor에서는 `01_game_servers.sql`부터 `09_account_closures.sql`까지 번호 순 실행([`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에 목록·합치기 예시).
 
 ### 공개 프로필·닉네임·탈퇴 표시 (`profiles`)
 
@@ -109,7 +109,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 - **SELECT:** 공개 읽기 정책(닉네임 등). 탈퇴 후 `account_id` NULL 행을 숨길지는 정책 선택.
 - **INSERT/UPDATE:** `account_id = auth.uid()`(게임은 **계정 기준**만).
-- **displayName 유니크:** SQL 파일 내 `display_names` 유니크 인덱스(`lower(trim(display_name))`, 빈 값 제외) 참고.
+- **displayName 유니크:** [`Sql/player/03_display_names.sql`](Sql/player/03_display_names.sql) 유니크 인덱스(`lower(trim(display_name))`, 빈 값 제외) 참고.
 
 **`user_id` / 재가입 / RLS**에 대한 공통 설명은 위 **「플레이어 데이터 테이블 구조 (요약)」** 와 아래 **5번 절**(`user_id`·`account_id` — 동작·재가입·SDK)을 봅니다.
 
@@ -186,7 +186,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 **이 SDK:** REST 바디의 **`user_id` 컬럼에 Auth id**를 넣는 전제라, 위 스키마의 **`account_id`**와 맞추려면 **컬럼명/매핑** 또는 **서버·Edge Function에서 변환**이 필요합니다.
 
-**`user_saves`·`account_closures` 테이블 정의와 `user_saves` RLS**는 [`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에만 적어 두었습니다. `account_closures`는 RLS만 켜고 정책 없음(일반 JWT 차단, Secret 키 등 서버측 호출 전제).
+**`user_saves`·`account_closures` 테이블 정의와 `user_saves` RLS**는 [`Sql/player/04_user_saves.sql`](Sql/player/04_user_saves.sql), [`Sql/player/09_account_closures.sql`](Sql/player/09_account_closures.sql)에 있습니다. `account_closures`는 RLS만 켜고 정책 없음(일반 JWT 차단, Secret 키 등 서버측 호출 전제).
 
 **앱 쪽**
 
@@ -210,9 +210,9 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **인증**: `TrySignInAnonymouslyAsync`, `TrySignInWithGoogleAsync`, `TrySignInWithGoogleIdTokenAsync`, `TryRestoreSessionAsync`
 - **서버 샤드**: `SetCurrentServerCode`, `GetCurrentServerCode`, `TryTransferMyServerAsync`; 운영·Retool은 RPC `ts_admin_transfer_user_server` (Secret 키 전용, 위 「서버 이주 (`server_id`)」 절)
 - **로그아웃**: `TrySignOutFullyAsync` — Android에서는 네이티브 Google 로그아웃을 시도한 뒤 Supabase `SignOutAsync`와 동일 처리(익명이면 복구용 upsert 후 로컬 정리). `TrySignOutAsync`만 쓰면 Google 계정 선택기 상태는 그대로일 수 있습니다.
-- **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 클라이언트가 지문 행을 best-effort 삭제(`ts_anon_recovery_delete_by_fingerprint`)하며, DB에도 `auth.identities` 비익명 provider 추가·`auth.users.is_anonymous` 해제·계정 삭제 시 해당 `account_id` 토큰이 자동 삭제되도록 트리거가 있습니다(`Sql/supabase_player_tables.sql`). 탈퇴 요청 RPC(`ts_request_withdrawal`)는 `ts_delete_my_anon_recovery_tokens`로 본인 행을 정리합니다.
-- **사용자 데이터**: 프로젝트별 컬럼 기반이면 `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` 또는 **`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync` + `[UserSaveColumn]`** 를 사용하세요. (`user_saves` 스키마는 `Sql/supabase_player_tables.sql`와 맞출 것)
-- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` (`Sql/supabase_player_tables.sql` 스키마와 맞출 것)
+- **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 클라이언트가 지문 행을 best-effort 삭제(`ts_anon_recovery_delete_by_fingerprint`)하며, DB 트리거는 [`Sql/player/06_anonymous_recovery_tokens.sql`](Sql/player/06_anonymous_recovery_tokens.sql)을 참고하세요. 탈퇴 요청 RPC(`ts_request_withdrawal`)는 `ts_delete_my_anon_recovery_tokens`로 본인 행을 정리합니다.
+- **사용자 데이터**: 프로젝트별 컬럼 기반이면 `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` 또는 **`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync` + `[UserSaveColumn]`** 를 사용하세요. (`user_saves` 스키마는 [`Sql/player/04_user_saves.sql`](Sql/player/04_user_saves.sql)와 맞출 것)
+- **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` ([`Sql/player/02_profiles.sql`](Sql/player/02_profiles.sql)·[`Sql/player/03_display_names.sql`](Sql/player/03_display_names.sql) 스키마와 맞출 것)
 - **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
 - **원격 설정(하이브리드 추천)**: `SupabaseRuntime`의 **주기 폴링은 유지**하되, RemoteConfig의 성공 로그는 **실제 변경이 적용된 경우에만** 출력됩니다. 또한 중요한 화면/행동 전에는 `Supabase.RefreshRemoteConfigOnDemandAsync()`로 **온디맨드 즉시 동기화**를 수행한 뒤, 다음 주기 폴링 타이밍을 미뤄 의도치 않은 잦은 호출을 방지합니다.
 - **Edge Functions**: `TryInvokeFunctionAsync`

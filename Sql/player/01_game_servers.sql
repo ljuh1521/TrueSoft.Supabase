@@ -1,0 +1,75 @@
+﻿-- =============================================================================
+-- 플레이어 스키마 — game_servers + ts_default_server_id()
+-- 선행: 없음
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- game_servers (서버/월드 마스터)
+-- ---------------------------------------------------------------------------
+create table if not exists public.game_servers (
+  id uuid primary key default gen_random_uuid(),
+  server_code text not null,
+  display_name text not null,
+  allow_new_signups boolean not null default true,
+  allow_transfers boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.game_servers add column if not exists id uuid;
+alter table public.game_servers add column if not exists server_code text;
+alter table public.game_servers add column if not exists display_name text;
+alter table public.game_servers add column if not exists allow_new_signups boolean not null default true;
+alter table public.game_servers add column if not exists allow_transfers boolean not null default true;
+alter table public.game_servers add column if not exists created_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint c
+    join pg_class t on c.conrelid = t.oid
+    join pg_namespace n on t.relnamespace = n.oid
+    where n.nspname = 'public'
+      and t.relname = 'game_servers'
+      and c.conname = 'game_servers_server_code_key'
+  ) then
+    alter table public.game_servers
+      add constraint game_servers_server_code_key unique (server_code);
+  end if;
+end $$;
+
+insert into public.game_servers (server_code, display_name)
+select 'GLOBAL', 'Global'
+where not exists (
+  select 1 from public.game_servers where server_code = 'GLOBAL'
+);
+
+create or replace function public.ts_default_server_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select gs.id
+  from public.game_servers gs
+  order by
+    case when gs.server_code = 'GLOBAL' then 0 else 1 end,
+    gs.created_at,
+    gs.id
+  limit 1;
+$$;
+
+comment on function public.ts_default_server_id() is
+  '기본 game_servers 행 id. 클라이언트 프로필 upsert 시 server_id 채움·RLS 호환용으로 authenticated 에서 호출 가능.';
+
+grant execute on function public.ts_default_server_id() to anon, authenticated;
+
+comment on table public.game_servers is '게임 서버(월드) 마스터.';
+comment on column public.game_servers.server_code is '클라이언트에서 선택/표시하는 고유 코드(예: GLOBAL, KR1).';
+
+alter table public.game_servers enable row level security;
+drop policy if exists "game_servers_select_public" on public.game_servers;
+create policy "game_servers_select_public"
+on public.game_servers for select
+using (true);

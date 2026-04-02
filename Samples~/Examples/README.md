@@ -30,8 +30,8 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 3. Android 네이티브 Google 로그인을 쓸 경우 `googleWebClientId` 입력
 4. 에셋을 **`Assets/Resources/SupabaseSettings.asset`** 으로 저장
 5. (선택) 게스트 로그인 흐름을 쓰면 Supabase 대시보드에서 **Anonymous sign-ins** 활성화
-6. (선택) 중복 로그인·`user_sessions`를 쓰려면 패키지 루트 `Sql/supabase_player_tables.sql`의 `user_sessions` 블록을 적용하고, `SupabaseSettings`에서 **Enable Duplicate Session Monitor**를 켭니다.
-7. (선택) 서버 이주 샘플은 `Sql/supabase_player_tables.sql`의 `game_servers`·RPC(`ts_my_server_id`, `ts_transfer_my_server`)가 적용된 뒤, **로그인한 상태**에서 **Run Server Shard Example** 또는 키 **N**으로 실행합니다. 다른 월드로 옮기려면 DB에 목표 `server_code` 행을 추가하고 인스펙터에서 **Server Shard Attempt Transfer**를 켭니다.
+6. (선택) 중복 로그인·`user_sessions`를 쓰려면 `Sql/player/05_user_sessions.sql`을 적용하고, `SupabaseSettings`에서 **Enable Duplicate Session Monitor**를 켭니다.
+7. (선택) 서버 이주 샘플은 `Sql/player/01_game_servers.sql`·`08_transfer_server.sql`(및 선행 파일)로 `game_servers`·RPC(`ts_my_server_id`, `ts_transfer_my_server`)가 적용된 뒤, **로그인한 상태**에서 **Run Server Shard Example** 또는 키 **N**으로 실행합니다. 다른 월드로 옮기려면 DB에 목표 `server_code` 행을 추가하고 인스펙터에서 **Server Shard Attempt Transfer**를 켭니다.
 8. (선택) 저장/불러오기 샘플은 `user_saves`에 `level int`, `coins int`, `updated_at timestamptz` 같은 컬럼이 있어야 합니다. 이 샘플은 `TryPatchUserDataAsync`로 변경분만 PATCH하고, `TryLoadUserDataColumnsAsync(select)`로 필요한 컬럼만 로드합니다.
 
 ## 3. 씬에서 실행
