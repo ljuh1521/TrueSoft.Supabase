@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Auth;
 using Truesoft.Supabase.Core.Common;
@@ -375,17 +376,17 @@ namespace Truesoft.Supabase.Unity
         public static T GetRemoteConfig<T>(string key, T defaultValue = default) =>
             SupabaseSDK.GetRemoteConfig(key, defaultValue);
 
-        /// <summary>RemoteConfig를 한 번 갱신/폴링 후 key 값을 읽는 내부 API.</summary>
-        internal static Task<T> GetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false) =>
-            SupabaseSDK.GetRemoteConfigAsync(key, defaultValue, pollOnly);
+        /// <inheritdoc cref="SupabaseSDK.GetRemoteConfigAsync{T}(string)"/>
+        public static Task<SupabaseResult<T>> GetRemoteConfigAsync<T>(string key) where T : class, new() =>
+            SupabaseSDK.GetRemoteConfigAsync<T>(key);
 
         /// <inheritdoc cref="SupabaseSDK.TryRefreshRemoteConfigAsync"/>
         public static Task<bool> TryRefreshRemoteConfigAsync() =>
             SupabaseSDK.TryRefreshRemoteConfigAsync();
 
         /// <inheritdoc cref="SupabaseSDK.TryPollRemoteConfigAsync"/>
-        public static Task<bool> TryPollRemoteConfigAsync() =>
-            SupabaseSDK.TryPollRemoteConfigAsync();
+        public static Task<bool> TryPollRemoteConfigAsync(IReadOnlyList<string> categories = null) =>
+            SupabaseSDK.TryPollRemoteConfigAsync(categories);
 
         /// <summary>
         /// RemoteConfig를 온디맨드 방식으로 즉시 동기화합니다(서버에서 다시 가져와 캐시 갱신).
@@ -394,9 +395,9 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> RefreshRemoteConfigOnDemandAsync() =>
             SupabaseSDK.RefreshRemoteConfigOnDemandAsync();
 
-        /// <inheritdoc cref="SupabaseSDK.TryGetRemoteConfigAsync{T}(string, T, bool)"/>
-        public static Task<T> TryGetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false) =>
-            SupabaseSDK.TryGetRemoteConfigAsync(key, defaultValue, pollOnly);
+        /// <inheritdoc cref="SupabaseSDK.TryGetRemoteConfigAsync{T}(string)"/>
+        public static Task<(bool success, T value)> TryGetRemoteConfigAsync<T>(string key) where T : class, new() =>
+            SupabaseSDK.TryGetRemoteConfigAsync<T>(key);
 
         public static bool TryGetRemoteConfigRaw(string key, out string valueJson) =>
             SupabaseSDK.TryGetRemoteConfigRaw(key, out valueJson);

@@ -11,6 +11,7 @@
 --   Sql/player/07_sync_server_id_triggers.sql
 --   Sql/player/08_transfer_server.sql
 --   Sql/player/09_account_closures.sql
+--   Sql/player/10_remote_config.sql
 --   Sql/player/99_verify_player_schema.sql   -- 선택: 반영 확인용 SELECT
 --
 -- 한 번에 합쳐 실행하려면(로컬 PowerShell 예, 저장소 루트에서):

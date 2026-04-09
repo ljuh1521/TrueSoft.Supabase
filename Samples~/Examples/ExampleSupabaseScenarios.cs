@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using Truesoft.Supabase.Unity;
+using Truesoft.Supabase.Unity.RemoteConfig;
 
 using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 
@@ -587,16 +588,17 @@ namespace Truesoft.SupabaseUnity.Samples
 
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
-            if (!await SupabaseClient.TryRefreshRemoteConfigAsync())
+            // Cold Start: 첫 조회에서 키 단위 fetch. 캐시 유효 시간은 DB max_stale_seconds.
+            var result = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey);
+            if (result.IsSuccess == false)
             {
-                Debug.LogWarning("[Sample] remote config example failed at refresh.");
+                Debug.LogWarning("[Sample] remote config failed: " + result.ErrorMessage);
                 return false;
             }
 
-            _ = await SupabaseClient.TryGetRemoteConfigAsync<object>(remoteConfigKey, defaultValue: null);
             SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
             Debug.Log("[Sample] remote config raw: " + raw);
-            return true;
+            return string.IsNullOrEmpty(raw) == false;
         }
 
         private async Task<bool> RunRemoteConfigOnDemandExampleAsync()
@@ -614,6 +616,68 @@ namespace Truesoft.SupabaseUnity.Samples
                 : "[Sample] remote config on-demand raw: (null)");
             return has;
         }
+
+        // ========== Source Generator 예제 (선택) ==========
+        // 아래 [RemoteConfig] 선언은 Unity 컴파일 시 Truesoft.Supabase.RemoteConfig.SourceGenerator.dll이
+        // 자동 구현을 생성합니다.
+        // JSON 클러스터링: 관련 설정을 하나의 키에 묶어 value_json으로 관리합니다.
+        // DB 예시: key="gameplay_v1", value_json={"stamina":{"maxEnergy":100,"regenSeconds":300},"battle":{"dmgMultiplier":1.5}}
+
+        [Serializable]
+        public sealed class GameplayClusterDto
+        {
+            public StaminaSubConfig stamina;
+            public BattleSubConfig battle;
+        }
+
+        [Serializable]
+        public sealed class StaminaSubConfig
+        {
+            public int maxEnergy;
+            public int regenSeconds;
+        }
+
+        [Serializable]
+        public sealed class BattleSubConfig
+        {
+            public float dmgMultiplier;
+        }
+
+        // 선언만 해두면 컴파일 후 구현이 자동 생성됩니다.
+        // [RemoteConfig]
+        // public static partial class DemoRemoteConfig
+        // {
+        //     // JSON 클러스터링: 하나의 키에 stamina + battle 설정 묶음
+        //     [RemoteConfigKey("gameplay_v1")]
+        //     public static partial RemoteConfigEntry<GameplayClusterDto> Gameplay();
+        //
+        //     // 단독 설정: 이벤트 ON/OFF 등 개별 관리가 필요한 경우
+        //     [RemoteConfigKey("event_christmas_v1")]
+        //     public static partial RemoteConfigEntry<EventFlagDto> ChristmasEvent();
+        // }
+
+        // /// <summary>
+        // /// JSON 클러스터링을 사용한 RemoteConfig 예제입니다.
+        // /// 한 번의 fetch로 stamina와 battle 설정을 모두 가져옵니다.
+        // /// </summary>
+        // private async Task<bool> RunRemoteConfigSourceGeneratorExampleAsync()
+        // {
+        //     var result = await DemoRemoteConfig.Gameplay().FetchAsync();
+        //     if (result.IsSuccess == false)
+        //     {
+        //         Debug.LogWarning("[Sample] SG remote config failed: " + result.ErrorMessage);
+        //         return false;
+        //     }
+        //
+        //     // 클러스터링된 데이터 사용
+        //     Debug.Log($"[Sample] SG stamina: maxEnergy={result.Data.stamina.maxEnergy}, " +
+        //               $"regenSeconds={result.Data.stamina.regenSeconds}");
+        //     Debug.Log($"[Sample] SG battle: dmgMultiplier={result.Data.battle.dmgMultiplier}");
+        //     return true;
+        // }
+        //
+        // [Serializable]
+        // public sealed class EventFlagDto { public bool enabled; public string bannerUrl; }
 
         private async Task<bool> RunFunctionExampleAsync()
         {

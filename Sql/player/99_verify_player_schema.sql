@@ -30,7 +30,8 @@ from (
       ('display_names'),
       ('user_sessions'),
       ('anonymous_recovery_tokens'),
-      ('account_closures')
+      ('account_closures'),
+      ('remote_config')
   ) as exp(name)
   left join lateral (
     select c.oid, c.relrowsecurity

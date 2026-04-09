@@ -49,6 +49,7 @@ namespace Truesoft.Supabase.Unity
 
         private static float _remoteConfigPollIntervalSeconds = 0f;
         private static float _remoteConfigNextPollAtRealtime = 0f;
+        private static Task _remoteConfigCategoryPollTickTask;
 
         private static bool _duplicateSessionMonitorEnabled = true;
         private static float _duplicateSessionPollSeconds = 15f;
@@ -171,12 +172,47 @@ namespace Truesoft.Supabase.Unity
 
         private static void RequestRemoteConfigPollingReset()
         {
-            if (_remoteConfigPollIntervalSeconds <= 0f)
+            if (!IsInitialized)
                 return;
 
-            // 의도치 않게 더 자주 호출되지 않도록, "현재 스케줄보다 더 늦게"만 확장합니다.
-            var target = Time.realtimeSinceStartup + _remoteConfigPollIntervalSeconds;
-            ScheduleRemoteConfigNextPollAt(target);
+            var delay = _remoteConfigPollIntervalSeconds <= 0f ? 60f : _remoteConfigPollIntervalSeconds;
+            RemoteConfig.PushBackAllCategoryPolls(Time.realtimeSinceStartup, delay);
+
+            // 하위 호환: 레거시 스케줄 필드가 참조되는 경우를 위해 유지합니다.
+            if (_remoteConfigPollIntervalSeconds > 0f)
+                ScheduleRemoteConfigNextPollAt(Time.realtimeSinceStartup + _remoteConfigPollIntervalSeconds);
+        }
+
+        /// <summary>
+        /// 카테고리별 RemoteConfig 폴링 주기를 인스펙터에서 덮어씁니다. <see cref="SupabaseRuntime"/>에서 한 번 호출하면 됩니다.
+        /// </summary>
+        public static void ApplyRemoteConfigCategoryPollOverrides(IReadOnlyList<RemoteConfigCategoryPollOverrideEntry> entries)
+        {
+            RemoteConfig.ClearCategoryPollIntervalOverrides();
+            if (entries == null)
+                return;
+
+            foreach (var e in entries)
+            {
+                if (e == null || string.IsNullOrWhiteSpace(e.category))
+                    continue;
+
+                RemoteConfig.SetCategoryPollIntervalOverride(e.category.Trim(), e.overrideIntervalSeconds);
+            }
+        }
+
+        /// <summary>
+        /// DB의 <c>poll_interval_seconds</c>에 따라 만기된 카테고리만 폴링합니다. <see cref="SupabaseRuntime.Update"/> 등에서 호출하세요.
+        /// </summary>
+        public static void TickRemoteConfigCategoryPolls(float realtimeSinceStartup)
+        {
+            if (!IsInitialized)
+                return;
+
+            if (_remoteConfigCategoryPollTickTask != null && !_remoteConfigCategoryPollTickTask.IsCompleted)
+                return;
+
+            _remoteConfigCategoryPollTickTask = RemoteConfig.TickCategoryPollsAsync(realtimeSinceStartup);
         }
 
         /// <summary><see cref="EnsureInitializedAsync"/> 기본 대기 시간(ms). 씬의 <c>SupabaseRuntime</c> Awake를 기다립니다.</summary>
@@ -697,9 +733,9 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary><see cref="PollRemoteConfigAsync"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TryPollRemoteConfigAsync()
+        public static async Task<bool> TryPollRemoteConfigAsync(IReadOnlyList<string> categories = null)
         {
-            var ok = await PollRemoteConfigAsync();
+            var ok = await PollRemoteConfigAsync(categories);
             if (ok == false)
             {
                 LogApiResult(ApiLogTags.RemoteConfigPoll, ok, "remote_config_poll_failed");
@@ -725,13 +761,16 @@ namespace Truesoft.Supabase.Unity
             return ok;
         }
 
-        /// <summary><see cref="GetRemoteConfigAsync{T}"/>를 호출하고 반환값 유무를 로그로 남깁니다.</summary>
-        public static async Task<T> TryGetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false)
+        /// <summary>
+        /// <see cref="GetRemoteConfigAsync{T}(string)"/>를 호출하고 성공 여부를 로그로 남깁니다.
+        /// 실패 시 <c>value</c>는 null입니다.
+        /// </summary>
+        public static async Task<(bool success, T value)> TryGetRemoteConfigAsync<T>(string key) where T : class, new()
         {
-            var value = await GetRemoteConfigAsync(key, defaultValue, pollOnly);
-            var hasValue = EqualityComparer<T>.Default.Equals(value, defaultValue) == false;
-            LogApiResult(ApiLogTags.RemoteConfigGet, hasValue, hasValue ? null : "remote_config_default_returned");
-            return value;
+            var r = await GetRemoteConfigAsync<T>(key);
+            var ok = r.IsSuccess;
+            LogApiResult(ApiLogTags.RemoteConfigGet, ok, ok ? null : r.ErrorMessage ?? "remote_config_get_failed");
+            return (ok, ok ? r.Data : null);
         }
 
         /// <summary><see cref="SendChatMessageAsync(string, string, string)"/>를 bool 기반으로 호출합니다.</summary>
@@ -1587,18 +1626,21 @@ namespace Truesoft.Supabase.Unity
             return await RemoteConfig.RefreshAllAsync();
         }
 
-        /// <summary>마지막 동기 시각 이후 변경분만 가져와 캐시에 머지합니다(주기적 폴링용).</summary>
-        public static async Task<bool> PollRemoteConfigAsync()
+        /// <summary>
+        /// 마지막 동기 시각 이후 변경분만 가져와 캐시에 머지합니다.
+        /// <paramref name="categories"/>가 null이거나 비어 있으면 전체 테이블 기준(레거시)으로 한 번에 폴링합니다.
+        /// </summary>
+        public static async Task<bool> PollRemoteConfigAsync(IReadOnlyList<string> categories = null)
         {
             if (!await EnsureInitializedAsync())
                 return false;
 
-            return await RemoteConfig.PollAsync();
+            return await RemoteConfig.PollAsync(categories);
         }
 
         /// <summary>로컬 캐시에서 key에 해당하는 값을 읽습니다(네트워크 호출 없음).</summary>
         /// <remarks>
-        /// 최신 값이 필요하면 먼저 <see cref="RefreshRemoteConfigAsync"/> 또는 <see cref="GetRemoteConfigAsync{T}"/>를 호출합니다.
+        /// 최신 값이 필요하면 먼저 <see cref="RefreshRemoteConfigAsync"/> 또는 <see cref="GetRemoteConfigAsync{T}(string)"/>를 호출합니다.
         /// </remarks>
         public static T GetRemoteConfig<T>(string key, T defaultValue = default)
         {
@@ -1606,20 +1648,14 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// Remote Config를 한 번 서버와 맞춘 뒤 특정 key 값을 반환합니다(원라인 조회).
-        /// 기본은 전체 새로고침이며, pollOnly=true면 변경분 폴링 후 조회합니다.
+        /// Remote Config를 서버와 맞춘 뒤 역직렬화합니다. 캐시 유효 시간은 DB <c>max_stale_seconds</c>를 사용합니다.
         /// </summary>
-        public static async Task<T> GetRemoteConfigAsync<T>(string key, T defaultValue = default, bool pollOnly = false)
+        public static async Task<SupabaseResult<T>> GetRemoteConfigAsync<T>(string key) where T : class, new()
         {
             if (!await EnsureInitializedAsync())
-                return defaultValue;
+                return SupabaseResult<T>.Fail("supabase_not_initialized");
 
-            if (pollOnly)
-                _ = await PollRemoteConfigAsync();
-            else
-                _ = await RefreshRemoteConfigAsync();
-
-            return GetRemoteConfig(key, defaultValue);
+            return await RemoteConfig.GetTypedAsync<T>(key);
         }
 
         public static bool TryGetRemoteConfigRaw(string key, out string valueJson)

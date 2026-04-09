@@ -14,7 +14,7 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 `SupabaseSettings`와 `SupabaseRuntime`의 역할은 다음처럼 구분합니다.
 
 - **SupabaseSettings (공통 설정값)**: 프로젝트 URL, Publishable 키, Google Web Client ID, 기본 로그/타임아웃 같은 정적 값을 정의합니다.
-- **SupabaseRuntime (씬 실행 정책)**: 시작 시 세션 복원 여부, RemoteConfig 첫 로드/폴링 주기 같은 런타임 동작 시점을 제어합니다.
+- **SupabaseRuntime (씬 실행 정책)**: 시작 시 세션 복원 여부, RemoteConfig **Cold Start**(시작 시 fetch 없음)·카테고리별 백그라운드 폴링·온디맨드 푸시백 같은 런타임 동작을 제어합니다.
 
 1. 메뉴 **TrueSoft > Supabase > 설정 에셋 만들기** 로 `SupabaseSettings` 를 만듭니다.
 2. `projectUrl`, `publishableKey` 를 입력합니다. (Android 네이티브 Google 로그인을 쓰면 `googleWebClientId` 도 입력)<br/>
@@ -95,7 +95,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 |------|-------------------|
 | **URL 경로** | `…/auth/v1/…`, `…/rest/v1/{테이블}`, `…/functions/v1/{함수명}` — Supabase API 규격 (프로젝트 URL·함수 이름은 설정/인자로 바뀜) |
 | **User Saves** | 권장: **게임 조회·수정은 `account_id`만**. **`user_id`**는 동일인 식별·운영용(동일 Google이면 재가입 후에도 **같은 `user_id` 가능**). 행은 **서로게이트 PK**로 두어 재가입 시 **새 `account_id` 행 INSERT**, 옛 행은 `account_id` NULL. SDK 기본 컬럼명 `user_id`에 Auth id → 매핑·확장 필요 |
-| **Remote Config** | 조회 컬럼 `key`, `value_json`, `updated_at`, `version` |
+| **Remote Config** | 조회 컬럼 `key`, `value_json`, `updated_at`, `version`, `enabled`, `category`, `description`, `poll_interval_seconds`, `max_stale_seconds`, `requires_auth`, `client_version_min`, `client_version_max` — DDL [`Sql/player/10_remote_config.sql`](Sql/player/10_remote_config.sql). **권장: JSON 클러스터링** — 관련 설정을 하나의 키에 `{stamina:{...},battle:{...}}` 형태로 묶어 `category`/`poll_interval_seconds`를 공유 |
 | **채팅** | 컬럼 `id`, `channel_id`, `user_id`(보낸 이 식별 — 정책에 따라 `account_id` 또는 플레이어 `user_id`), `display_name`, `content`, `created_at` |
 | **공개 프로필** | 권장: **`id`**(PK) + **`user_id`** + **`account_id`**. DDL은 [`Sql/player/`](Sql/player/) (`01`…`09` 순, [순서 안내](Sql/supabase_player_tables.sql)) |
 
@@ -113,7 +113,7 @@ DB `user_saves`(또는 `userSavesTable`)의 **컬럼 이름**과 클라이언트
 
 별도 `app_users` 테이블은 두지 않고, **`profiles`·`user_saves` 행 안에 `user_id` + `account_id`를 같이 둡니다.**
 
-**플레이어 DDL:** [`Sql/player/`](Sql/player/) — 테이블·기능별로 분리. Supabase SQL Editor에서는 `01_game_servers.sql`부터 `09_account_closures.sql`까지 번호 순 실행([`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에 목록·합치기 예시).
+**플레이어 DDL:** [`Sql/player/`](Sql/player/) — 테이블·기능별로 분리. Supabase SQL Editor에서는 `01_game_servers.sql`부터 `10_remote_config.sql`, `99_verify_player_schema.sql`(선택)까지 번호 순 실행([`Sql/supabase_player_tables.sql`](Sql/supabase_player_tables.sql)에 목록·합치기 예시).
 
 ### 공개 프로필·닉네임·탈퇴 표시 (`profiles`)
 
@@ -225,8 +225,8 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **익명→Google 연동(별도 버튼 권장)**: `TryLinkGoogleToCurrentAnonymousAsync` (Android 네이티브), `TryLinkGoogleToCurrentAnonymousWithIdTokenAsync` (ID 토큰 직접 전달). 성공 시 클라이언트가 지문 행을 best-effort 삭제(`ts_anon_recovery_delete_by_fingerprint`)하며, DB 트리거는 [`Sql/player/06_anonymous_recovery_tokens.sql`](Sql/player/06_anonymous_recovery_tokens.sql)을 참고하세요. 탈퇴 요청 RPC(`ts_request_withdrawal`)는 `ts_delete_my_anon_recovery_tokens`로 본인 행을 정리합니다.
 - **사용자 데이터**: 프로젝트별 컬럼 기반이면 `TryPatchUserDataAsync` / `TryLoadUserDataColumnsAsync(select)` 또는 **`TryLoadUserSaveAttributedAsync` / `TryPatchUserSaveDiffAsync` + `[UserSaveColumn]`** 를 사용하세요. (`user_saves` 스키마는 [`Sql/player/04_user_saves.sql`](Sql/player/04_user_saves.sql)와 맞출 것)
 - **공개 프로필**: `TryGetPublicProfileAsync`, `TryIsDisplayNameAvailableAsync`, `TrySetMyDisplayNameAsync` / `TryUpdateMyDisplayNameAsync`, `TryMarkMyWithdrawnAsync`, `TryClearMyWithdrawalAsync` ([`Sql/player/02_profiles.sql`](Sql/player/02_profiles.sql)·[`Sql/player/03_display_names.sql`](Sql/player/03_display_names.sql) 스키마와 맞출 것)
-- **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`, `TryPollRemoteConfigAsync`, `TryGetRemoteConfigAsync`, 캐시 조회
-- **원격 설정(하이브리드 추천)**: `SupabaseRuntime`의 **주기 폴링은 유지**하되, RemoteConfig의 성공 로그는 **실제 변경이 적용된 경우에만** 출력됩니다. 또한 중요한 화면/행동 전에는 `Supabase.RefreshRemoteConfigOnDemandAsync()`로 **온디맨드 즉시 동기화**를 수행한 뒤, 다음 주기 폴링 타이밍을 미뤄 의도치 않은 잦은 호출을 방지합니다.
+- **원격 설정**: 구독, `TryRefreshRemoteConfigAsync`(전체 갱신), `TryPollRemoteConfigAsync`(전체 또는 `categories` 지정), `GetRemoteConfigAsync<T>(key)` → `SupabaseResult<T>`, `TryGetRemoteConfigAsync<T>(key)` → `(bool, T)`, `GetRemoteConfig` 캐시 조회(동기)
+- **원격 설정(Cold Start + 카테고리 폴링)**: 앱 시작 시 RemoteConfig를 **자동으로 가져오지 않습니다**. 첫 `GetRemoteConfigAsync` 등으로 키를 읽을 때 해당 키만 서버에서 조회합니다. **캐시 유효 시간**은 DB `max_stale_seconds`(0 이하면 SDK에서 300초로 처리)를 사용합니다. DB `poll_interval_seconds`가 0보다 큰 카테고리는 `SupabaseRuntime`이 `Update`에서 **카테고리별**로 만기 시 폴링합니다. fetch 실패·키 없음·역직렬화 실패 시 `SupabaseResult<T>.Fail` 또는 `Try*`의 `success == false`입니다. 전체 즉시 동기화는 `Supabase.RefreshRemoteConfigOnDemandAsync()` 후 `GetRemoteConfig`로 읽고, 다음 카테고리 폴링 시각은 `remoteConfigOnDemandPushbackSeconds`만큼 미뤄집니다.
 - **Edge Functions**: `TryInvokeFunctionAsync`
 - **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈
 
@@ -234,19 +234,68 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 
 Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해 사용합니다.
 
-### 원격 설정 하이브리드(폴링 + 온디맨드)
+### 원격 설정(Cold Start + DB `max_stale_seconds` + 카테고리 폴링)
 
-- **주기적 폴링(기본)**: `SupabaseRuntime`이 씬/앱 라이프사이클에 따라 `TryPollRemoteConfigAsync()`를 호출해 캐시를 갱신합니다.
-- **로그 줄이기**: RemoteConfig는 캐시/구독자에 실제 변경이 있을 때만 성공 로그가 출력되도록 동작합니다(값이 그대로면 success 로그가 줄어듭니다).
-- **온디맨드(권장)**: 게임 로딩 화면, 상점 오픈, 이벤트 시작 등 “그 시점에 최신값이 꼭 필요”할 때는 `Supabase.RefreshRemoteConfigOnDemandAsync()`를 호출해 즉시 최신값을 동기화합니다.
-- **온디맨드 직후 주기 폴링 방지**: 온디맨드 호출 직후에는 다음 폴링 타이밍을 뒤로 미뤄, 의도치 않게 추가 네트워크 호출이 자주 발생하는 것을 줄입니다.
+- **Cold Start**: 시작 시 RemoteConfig HTTP 호출 없음. `GetRemoteConfigAsync<T>(key)`로 필요한 키만 서버 조회.
+- **Stale-While-Revalidate**: DB `max_stale_seconds`를 넘긴 캐시는 **즉시 반환**한 뒤 해당 키의 **카테고리**를 백그라운드에서 갱신합니다.
+- **카테고리 폴링**: `poll_interval_seconds`(0=폴링 안 함)와 `category`는 Retool에서 조절. `SupabaseRuntime`이 `TickRemoteConfigCategoryPolls`로 만기 카테고리만 폴링합니다.
+- **온디맨드 전체 갱신**: `RefreshRemoteConfigOnDemandAsync()` 후 캐시에서 읽기.
+- **Source Generator**(선택): 패키지 루트 `RoslynAnalyzers/Truesoft.Supabase.RemoteConfig.SourceGenerator.dll`이 프로젝트에 포함됩니다. `static partial` 클래스에 `[RemoteConfig]`와 `[RemoteConfigKey("키")]`가 붙은 `RemoteConfigEntry<T>` 반환 partial 메서드를 선언하면 구현이 자동 생성됩니다. DLL을 갱신하려면 [`Generators/README.md`](Generators/README.md)를 참고하세요.
 
-예시:
+예시 (JSON 클러스터링 권장):
+
+관련 설정은 하나의 키에 JSON 객체로 묶어 관리합니다:
 
 ```csharp
-await Supabase.RefreshRemoteConfigOnDemandAsync();
-var balance = Supabase.GetRemoteConfig<int>(\"game_balance\", 0);
+[Serializable]
+public class GameplayConfig
+{
+    public StaminaConfig stamina;
+    public BattleConfig battle;
+}
+
+[Serializable]
+public class StaminaConfig { public int maxEnergy; public int regenSeconds; }
+
+// 사용
+var result = await Supabase.GetRemoteConfigAsync<GameplayConfig>("gameplay_v1");
+if (result.IsSuccess)
+{
+    ApplyStamina(result.Data.stamina);
+    ApplyBattle(result.Data.battle);
+}
+else
+    Debug.LogError(result.ErrorMessage);
 ```
+
+Source Generator로 묶으면 더 깔끔합니다:
+
+```csharp
+[RemoteConfig]
+public static partial class GameRemoteConfig
+{
+    [RemoteConfigKey("gameplay_v1")]
+    public static partial RemoteConfigEntry<GameplayConfig> Gameplay();
+}
+
+// 사용
+var result = await GameRemoteConfig.Gameplay().FetchAsync();
+```
+
+단독 설정이 필요한 경우 (이벤트 ON/OFF 등):
+
+```csharp
+[RemoteConfigKey("event_christmas")]
+public static partial RemoteConfigEntry<EventConfig> ChristmasEvent();
+```
+
+```
+Retool 예시:
+- key: "gameplay_v1"
+- value_json: {"stamina":{"maxEnergy":100,"regenSeconds":300},"battle":{"playerDmg":1.5}}
+- category: "gameplay"
+- poll_interval_seconds: 60 (카테고리 단위 폴링)
+- max_stale_seconds: 300
 
 | 샘플 | 내용 |
 |------|------|
