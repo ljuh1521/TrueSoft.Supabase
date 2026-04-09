@@ -48,8 +48,7 @@ namespace Truesoft.Supabase.Unity
         private static bool _enableApiResultLogs = true;
 
         private static float _remoteConfigPollIntervalSeconds = 0f;
-        private static float _remoteConfigNextPollAtRealtime = 0f;
-        private static Task _remoteConfigCategoryPollTickTask;
+        private static Task _remoteConfigKeyPollTickTask;
 
         private static bool _duplicateSessionMonitorEnabled = true;
         private static float _duplicateSessionPollSeconds = 15f;
@@ -152,22 +151,9 @@ namespace Truesoft.Supabase.Unity
             public const string ServerTime = "Supabase.Server.Time";
         }
 
-        internal static float RemoteConfigNextPollAtRealtime => _remoteConfigNextPollAtRealtime;
-
-        internal static void ForceRemoteConfigNextPollAt(float realtimeAt)
-        {
-            _remoteConfigNextPollAtRealtime = realtimeAt;
-        }
-
         internal static void UpdateRemoteConfigPollIntervalSeconds(float intervalSeconds)
         {
             _remoteConfigPollIntervalSeconds = intervalSeconds <= 0f ? 0f : intervalSeconds;
-        }
-
-        internal static void ScheduleRemoteConfigNextPollAt(float realtimeAt)
-        {
-            if (realtimeAt > _remoteConfigNextPollAtRealtime)
-                _remoteConfigNextPollAtRealtime = realtimeAt;
         }
 
         private static void RequestRemoteConfigPollingReset()
@@ -176,43 +162,40 @@ namespace Truesoft.Supabase.Unity
                 return;
 
             var delay = _remoteConfigPollIntervalSeconds <= 0f ? 60f : _remoteConfigPollIntervalSeconds;
-            RemoteConfig.PushBackAllCategoryPolls(Time.realtimeSinceStartup, delay);
-
-            // 하위 호환: 레거시 스케줄 필드가 참조되는 경우를 위해 유지합니다.
-            if (_remoteConfigPollIntervalSeconds > 0f)
-                ScheduleRemoteConfigNextPollAt(Time.realtimeSinceStartup + _remoteConfigPollIntervalSeconds);
+            RemoteConfig.PushBackAllKeyPolls(Time.realtimeSinceStartup, delay);
         }
 
         /// <summary>
-        /// 카테고리별 RemoteConfig 폴링 주기를 인스펙터에서 덮어씁니다. <see cref="SupabaseRuntime"/>에서 한 번 호출하면 됩니다.
+        /// 키별 RemoteConfig 폴링 주기를 인스펙터에서 덮어씁니다. <see cref="SupabaseRuntime"/>에서 한 번 호출하면 됩니다.
+        /// 설계: 1키 = 1설정묶음(JSON) = 1폴링주기 (category 없음)
         /// </summary>
-        public static void ApplyRemoteConfigCategoryPollOverrides(IReadOnlyList<RemoteConfigCategoryPollOverrideEntry> entries)
+        public static void ApplyRemoteConfigKeyPollOverrides(IReadOnlyList<RemoteConfigKeyPollOverrideEntry> entries)
         {
-            RemoteConfig.ClearCategoryPollIntervalOverrides();
+            RemoteConfig.ClearKeyPollIntervalOverrides();
             if (entries == null)
                 return;
 
             foreach (var e in entries)
             {
-                if (e == null || string.IsNullOrWhiteSpace(e.category))
+                if (e == null || string.IsNullOrWhiteSpace(e.key))
                     continue;
 
-                RemoteConfig.SetCategoryPollIntervalOverride(e.category.Trim(), e.overrideIntervalSeconds);
+                RemoteConfig.SetKeyPollIntervalOverride(e.key.Trim(), e.overrideIntervalSeconds);
             }
         }
 
         /// <summary>
-        /// DB의 <c>poll_interval_seconds</c>에 따라 만기된 카테고리만 폴링합니다. <see cref="SupabaseRuntime.Update"/> 등에서 호출하세요.
+        /// DB의 <c>poll_interval_seconds</c>에 따라 만기된 키만 폴링합니다. <see cref="SupabaseRuntime.Update"/> 등에서 호출하세요.
         /// </summary>
-        public static void TickRemoteConfigCategoryPolls(float realtimeSinceStartup)
+        public static void TickRemoteConfigKeyPolls(float realtimeSinceStartup)
         {
             if (!IsInitialized)
                 return;
 
-            if (_remoteConfigCategoryPollTickTask != null && !_remoteConfigCategoryPollTickTask.IsCompleted)
+            if (_remoteConfigKeyPollTickTask != null && !_remoteConfigKeyPollTickTask.IsCompleted)
                 return;
 
-            _remoteConfigCategoryPollTickTask = RemoteConfig.TickCategoryPollsAsync(realtimeSinceStartup);
+            _remoteConfigKeyPollTickTask = RemoteConfig.TickKeyPollsAsync(realtimeSinceStartup);
         }
 
         /// <summary><see cref="EnsureInitializedAsync"/> 기본 대기 시간(ms). 씬의 <c>SupabaseRuntime</c> Awake를 기다립니다.</summary>
@@ -551,20 +534,6 @@ namespace Truesoft.Supabase.Unity
             return LogAndReturn(ApiLogTags.AuthRefreshSession, r);
         }
 
-        /// <summary><see cref="SaveUserDataAsync{T}(T)"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TrySaveUserDataAsync<T>(T data)
-        {
-            var r = await SaveUserDataAsync(data);
-            return LogAndReturn(ApiLogTags.UserDataSave, r);
-        }
-
-        /// <summary><see cref="LoadUserDataAsync{T}()"/>를 호출하고 성공 시 데이터를 반환, 실패 시 default를 반환합니다.</summary>
-        public static async Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new()
-        {
-            var r = await LoadUserDataAsync<T>();
-            return LogAndReturnData(ApiLogTags.UserDataLoad, r, defaultValue);
-        }
-
         /// <inheritdoc cref="LoadUserSaveAttributedAsync{T}(bool)"/>
         public static async Task<T> TryLoadUserSaveAttributedAsync<T>(T defaultValue = default, bool includeUpdatedAt = true) where T : class, new()
         {
@@ -733,9 +702,9 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary><see cref="PollRemoteConfigAsync"/>를 bool 기반으로 호출합니다.</summary>
-        public static async Task<bool> TryPollRemoteConfigAsync(IReadOnlyList<string> categories = null)
+        public static async Task<bool> TryPollRemoteConfigAsync()
         {
-            var ok = await PollRemoteConfigAsync(categories);
+            var ok = await PollRemoteConfigAsync();
             if (ok == false)
             {
                 LogApiResult(ApiLogTags.RemoteConfigPoll, ok, "remote_config_poll_failed");
@@ -1106,16 +1075,6 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
-        /// <summary>현재 세션으로 유저 데이터 저장.</summary>
-        public static async Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data)
-        {
-            var ready = await EnsureReadySessionAsync();
-            if (!ready.IsSuccess)
-                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
-
-            return await UserSaves.SaveAsync(data);
-        }
-
         /// <summary>
         /// 로그인 직후 본인 <c>user_saves</c> 행이 존재하도록 보장합니다.
         /// DB RPC: <c>ts_ensure_my_user_save_row</c>.
@@ -1142,16 +1101,6 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
             return await UserSaves.PatchAsync(patch, ensureRowFirst, setUpdatedAtIsoUtc);
-        }
-
-        /// <summary>현재 세션으로 유저 데이터 로드.</summary>
-        public static async Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new()
-        {
-            var ready = await EnsureReadySessionAsync();
-            if (!ready.IsSuccess)
-                return SupabaseResult<T>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
-
-            return await UserSaves.LoadAsync<T>();
         }
 
         /// <summary>
@@ -1628,14 +1577,13 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>
         /// 마지막 동기 시각 이후 변경분만 가져와 캐시에 머지합니다.
-        /// <paramref name="categories"/>가 null이거나 비어 있으면 전체 테이블 기준(레거시)으로 한 번에 폴링합니다.
         /// </summary>
-        public static async Task<bool> PollRemoteConfigAsync(IReadOnlyList<string> categories = null)
+        public static async Task<bool> PollRemoteConfigAsync()
         {
             if (!await EnsureInitializedAsync())
                 return false;
 
-            return await RemoteConfig.PollAsync(categories);
+            return await RemoteConfig.PollAsync();
         }
 
         /// <summary>로컬 캐시에서 key에 해당하는 값을 읽습니다(네트워크 호출 없음).</summary>
@@ -1854,7 +1802,7 @@ namespace Truesoft.Supabase.Unity
             }
         }
 
-        /// <summary>로그인 성공 시 세션을 SDK에 설정하세요. 이후 SaveAsync/LoadAsync/Events는 세션 없이 호출 가능.</summary>
+        /// <summary>로그인 성공 시 세션을 SDK에 설정하세요. 이후 PatchAsync/LoadColumnsAsync/Events는 세션 없이 호출 가능.</summary>
         public static void SetSession(SupabaseSession session)
         {
             SetSession(session, SupabaseSessionChangeKind.RestoredOrRefreshed);

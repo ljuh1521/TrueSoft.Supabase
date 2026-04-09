@@ -10,11 +10,12 @@ namespace Truesoft.Supabase.Core.Data
     /// <summary>
     /// Supabase remote_config 테이블을 통해 원격 설정을 조회합니다.
     /// 스키마: <c>Sql/player/10_remote_config.sql</c> (key, value_json, updated_at, version, 메타데이터 컬럼).
+    /// 설계: 1키 = 1설정묶음(JSON) = 1폴링주기 (category 없음)
     /// </summary>
     public sealed class SupabaseRemoteConfigService
     {
         private const string SelectColumns =
-            "key,value_json,updated_at,version,enabled,category,description,poll_interval_seconds,requires_auth,client_version_min,client_version_max,max_stale_seconds";
+            "key,value_json,updated_at,version,enabled,description,poll_interval_seconds,requires_auth,client_version_min,client_version_max,max_stale_seconds";
 
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
@@ -36,32 +37,25 @@ namespace Truesoft.Supabase.Core.Data
             _remoteConfigTable = SupabaseRestTableRef.Normalize(remoteConfigTable, nameof(remoteConfigTable));
         }
 
-        /// <summary>전체 행 조회. <paramref name="categories"/>가 null이거나 비어 있으면 필터 없음.</summary>
-        public async Task<SupabaseResult<RemoteConfigRow[]>> GetAllAsync(
-            IReadOnlyList<string> categories = null,
-            string accessToken = null)
+        /// <summary>전체 행 조회.</summary>
+        public async Task<SupabaseResult<RemoteConfigRow[]>> GetAllAsync(string accessToken = null)
         {
-            var url = BuildBaseUrl() + AppendCategoryFilter(categories);
+            var url = BuildBaseUrl();
             var response = await _httpClient.SendAsync("GET", url, null, CreateHeaders(accessToken));
             return ParseRows(response);
         }
 
         /// <summary>
-        /// 마지막 동기 이후 변경분. <paramref name="categories"/>가 null이거나 비어 있으면 카테고리 필터 없음.
-        /// <paramref name="updatedAfterIso"/>가 비어 있으면 <see cref="GetAllAsync"/>와 동일하게 전체 조회합니다.
+        /// 마지막 동기 이후 변경분. <paramref name="updatedAfterIso"/>가 비어 있으면 <see cref="GetAllAsync"/>와 동일하게 전체 조회합니다.
         /// </summary>
-        public async Task<SupabaseResult<RemoteConfigRow[]>> GetChangedSinceAsync(
-            string updatedAfterIso,
-            IReadOnlyList<string> categories = null,
-            string accessToken = null)
+        public async Task<SupabaseResult<RemoteConfigRow[]>> GetChangedSinceAsync(string updatedAfterIso, string accessToken = null)
         {
             if (string.IsNullOrWhiteSpace(updatedAfterIso))
-                return await GetAllAsync(categories, accessToken);
+                return await GetAllAsync(accessToken);
 
             var url =
                 $"{BuildBaseUrl()}" +
-                $"&updated_at=gt.{Uri.EscapeDataString(updatedAfterIso)}" +
-                AppendCategoryFilter(categories);
+                $"&updated_at=gt.{Uri.EscapeDataString(updatedAfterIso)}";
 
             var response = await _httpClient.SendAsync("GET", url, null, CreateHeaders(accessToken));
             return ParseRows(response);
@@ -80,33 +74,9 @@ namespace Truesoft.Supabase.Core.Data
             return ParseRows(response);
         }
 
-        /// <summary>단일 카테고리의 모든 행 조회.</summary>
-        public async Task<SupabaseResult<RemoteConfigRow[]>> GetByCategoryAsync(
-            string category,
-            string accessToken = null)
-        {
-            if (string.IsNullOrWhiteSpace(category))
-                return SupabaseResult<RemoteConfigRow[]>.Fail("remote_config_category_empty");
-
-            var url =
-                $"{BuildBaseUrl()}" +
-                $"&category=eq.{Uri.EscapeDataString(category.Trim())}";
-
-            var response = await _httpClient.SendAsync("GET", url, null, CreateHeaders(accessToken));
-            return ParseRows(response);
-        }
-
         private string BuildBaseUrl()
         {
             return $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _remoteConfigTable)}?select={SelectColumns}";
-        }
-
-        private static string AppendCategoryFilter(IReadOnlyList<string> categories)
-        {
-            if (categories == null || categories.Count == 0)
-                return string.Empty;
-
-            return AppendInFilter("category", categories);
         }
 
         private static string AppendInFilter(string column, IReadOnlyList<string> values)
@@ -176,7 +146,6 @@ namespace Truesoft.Supabase.Core.Data
             public string updated_at;
             public int version;
             public bool enabled;
-            public string category;
             public string description;
             public int poll_interval_seconds;
             public bool requires_auth;

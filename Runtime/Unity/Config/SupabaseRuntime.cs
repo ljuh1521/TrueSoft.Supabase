@@ -12,7 +12,8 @@ namespace Truesoft.Supabase.Unity.Config
     /// Supabase SDK의 "씬 실행 정책"을 제어하는 런타임 컴포넌트입니다.
     /// - 초기화 시점
     /// - 앱 시작 자동 로그인 시도
-    /// - RemoteConfig: Cold Start(시작 시 fetch 없음), 카테고리별 백그라운드 폴링
+    /// - RemoteConfig: Cold Start(시작 시 fetch 없음), 키 단위 백그라운드 폴링
+    /// 설계: 1키 = 1설정묶음(JSON) = 1폴링주기 (category 없음)
     /// </summary>
     [DefaultExecutionOrder(-100)]
     [AddComponentMenu("TrueSoft/Supabase/Supabase 런타임")]
@@ -36,8 +37,8 @@ namespace Truesoft.Supabase.Unity.Config
         [Tooltip("TryRefreshRemoteConfigAsync / RefreshRemoteConfigOnDemandAsync 호출 후 카테고리 폴링 시각을 이 시간(초)만큼 뒤로 미룹니다. 0 이하면 SDK에서 60초로 처리합니다.")]
         [SerializeField] private float remoteConfigOnDemandPushbackSeconds = 60f;
 
-        [Tooltip("카테고리별 폴링 주기 오버라이드. 비우면 DB remote_config.poll_interval_seconds만 사용.")]
-        [SerializeField] private List<RemoteConfigCategoryPollOverrideEntry> remoteConfigCategoryPollOverrides = new List<RemoteConfigCategoryPollOverrideEntry>();
+        [Tooltip("키별 폴링 주기 오버라이드. 비우면 DB remote_config.poll_interval_seconds만 사용.")]
+        [SerializeField] private List<RemoteConfigKeyPollOverrideEntry> remoteConfigKeyPollOverrides = new List<RemoteConfigKeyPollOverrideEntry>();
 
         [Header("UserSave 자동 저장")]
         [Tooltip("정적 세이브 자동 동기화 사용.")]
@@ -114,7 +115,7 @@ namespace Truesoft.Supabase.Unity.Config
                 return;
 
             EnsureRemoteConfigPollSettingsApplied();
-            SupabaseSDK.TickRemoteConfigCategoryPolls(Time.realtimeSinceStartup);
+            SupabaseSDK.TickRemoteConfigKeyPolls(Time.realtimeSinceStartup);
         }
 
         private void EnsureRemoteConfigPollSettingsApplied()
@@ -125,7 +126,7 @@ namespace Truesoft.Supabase.Unity.Config
             _remoteConfigPollSettingsApplied = true;
             var pushback = remoteConfigOnDemandPushbackSeconds <= 0f ? 60f : remoteConfigOnDemandPushbackSeconds;
             SupabaseSDK.UpdateRemoteConfigPollIntervalSeconds(pushback);
-            SupabaseSDK.ApplyRemoteConfigCategoryPollOverrides(remoteConfigCategoryPollOverrides);
+            SupabaseSDK.ApplyRemoteConfigKeyPollOverrides(remoteConfigKeyPollOverrides);
         }
 
         private void OnApplicationPause(bool pause)
@@ -152,7 +153,7 @@ namespace Truesoft.Supabase.Unity.Config
             var autoLoginTask = Supabase.TryAutoLoginOnStartAsync();
             yield return new WaitUntil(() => autoLoginTask.IsCompleted);
 
-            // RemoteConfig: Cold Start — 시작 시 fetch 없음. 폴링은 Update에서 TickRemoteConfigCategoryPolls.
+            // RemoteConfig: Cold Start — 시작 시 fetch 없음. 폴링은 Update에서 TickRemoteConfigKeyPolls.
         }
 
         private void EnsureGoogleLoginBridge()

@@ -123,14 +123,6 @@ namespace Truesoft.Supabase.Unity
             bool saveSessionToStorage = true) =>
             SupabaseSDK.RefreshSessionAsync(refreshToken, saveSessionToStorage);
 
-        /// <summary>현재 세션으로 유저 데이터 저장 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> SaveUserDataAsync<T>(T data) =>
-            SupabaseSDK.SaveUserDataAsync(data);
-
-        /// <summary>현재 세션으로 유저 데이터 로드 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<T>> LoadUserDataAsync<T>() where T : class, new() =>
-            SupabaseSDK.LoadUserDataAsync<T>();
-
         /// <summary>로그인 직후 본인 user_saves 행 보장 (내부 Result API).</summary>
         internal static Task<SupabaseResult<bool>> EnsureMyUserSaveRowAsync() =>
             SupabaseSDK.EnsureMyUserSaveRowAsync();
@@ -157,14 +149,6 @@ namespace Truesoft.Supabase.Unity
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true) =>
             SupabaseSDK.PatchUserSaveDiffAsync(previous, current, ensureRowFirst, setUpdatedAtIsoUtc);
-
-        /// <inheritdoc cref="SupabaseSDK.TrySaveUserDataAsync{T}(T)"/>
-        public static Task<bool> TrySaveUserDataAsync<T>(T data) =>
-            SupabaseSDK.TrySaveUserDataAsync(data);
-
-        /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataAsync{T}(T)"/>
-        public static Task<T> TryLoadUserDataAsync<T>(T defaultValue = default) where T : class, new() =>
-            SupabaseSDK.TryLoadUserDataAsync(defaultValue);
 
         /// <inheritdoc cref="SupabaseSDK.PatchUserDataAsync"/>
         public static async Task<bool> TryPatchUserDataAsync(
@@ -385,8 +369,8 @@ namespace Truesoft.Supabase.Unity
             SupabaseSDK.TryRefreshRemoteConfigAsync();
 
         /// <inheritdoc cref="SupabaseSDK.TryPollRemoteConfigAsync"/>
-        public static Task<bool> TryPollRemoteConfigAsync(IReadOnlyList<string> categories = null) =>
-            SupabaseSDK.TryPollRemoteConfigAsync(categories);
+        public static Task<bool> TryPollRemoteConfigAsync() =>
+            SupabaseSDK.TryPollRemoteConfigAsync();
 
         /// <summary>
         /// RemoteConfig를 온디맨드 방식으로 즉시 동기화합니다(서버에서 다시 가져와 캐시 갱신).
@@ -487,7 +471,7 @@ namespace Truesoft.Supabase.Unity
             TResponse defaultValue = default) =>
             SupabaseSDK.TryInvokeFunctionAsync(functionName, requestBody, defaultValue);
 
-        /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Save/Load API는 세션 인자 없이 사용 가능.</summary>
+        /// <summary>로그인 성공 시 세션을 SDK에 설정. 이후 Patch/LoadColumns API는 세션 인자 없이 사용 가능.</summary>
         public static void SetSession(SupabaseSession session) => SupabaseSDK.SetSession(session);
 
         /// <inheritdoc cref="SupabaseSDK.SetSession(SupabaseSession, SupabaseSessionChangeKind)"/>

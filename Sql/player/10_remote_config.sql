@@ -3,13 +3,13 @@
 -- 선행: 없음 (독립 테이블)
 -- =============================================================================
 -- 
--- 설계 권장사항: JSON 클러스터링
+-- 설계: 1키 = 1설정묶음(JSON 클러스터링) = 1폴링주기
 -- 관련 설정은 하나의 키에 JSON 객체로 묶어 관리합니다.
 -- 예: key="gameplay_v1", value_json={"stamina":{...},"battle":{...}}
---   - category별로 poll_interval_seconds를 공유 (행마다 중복 없음)
---   - 한 번 fetch로 여러 설정 동시 갱신
---   - 단독 ON/OFF가 필요한 설정만 별도 키로 분리 (이벤트 플래그 등)
---
+-- poll_interval_seconds는 키 단위로 설정됩니다.
+
+-- 기존 테이블/컬럼 마이그레이션용 (category 제거)
+alter table if exists public.remote_config drop column if exists category;
 
 create table if not exists public.remote_config (
   key text primary key,
@@ -17,9 +17,8 @@ create table if not exists public.remote_config (
   updated_at timestamptz not null default now(),
   version int not null default 1,
   enabled boolean not null default true,
-  category text not null default 'default',  -- 폴링 그룹 단위
   description text,
-  poll_interval_seconds int not null default 300,  -- category 단위로 일관되게 권장
+  poll_interval_seconds int not null default 300,  -- 키 단위 폴링 주기 (초, 0=폴링 안함)
   requires_auth boolean not null default false,
   client_version_min text,
   client_version_max text,
@@ -30,7 +29,7 @@ alter table public.remote_config add column if not exists value_json text;
 alter table public.remote_config add column if not exists updated_at timestamptz not null default now();
 alter table public.remote_config add column if not exists version int not null default 1;
 alter table public.remote_config add column if not exists enabled boolean not null default true;
-alter table public.remote_config add column if not exists category text not null default 'default';
+-- category 컬럼 제거됨
 alter table public.remote_config add column if not exists description text;
 alter table public.remote_config add column if not exists poll_interval_seconds int not null default 300;
 alter table public.remote_config add column if not exists requires_auth boolean not null default false;

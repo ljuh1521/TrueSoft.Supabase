@@ -76,54 +76,6 @@ namespace Truesoft.Supabase.Unity
                 setUpdatedAtIsoUtc: setUpdatedAtIsoUtc);
         }
 
-        /// <summary>현재 SDK 세션으로 저장. 로그인 후 SetSession 되어 있으면 세션 인자 없이 호출 가능.</summary>
-        public Task<SupabaseResult<bool>> SaveAsync<T>(T data)
-        {
-            var session = _sessionGetter?.Invoke();
-            return SaveAsync(session, data);
-        }
-
-        public async Task<SupabaseResult<bool>> SaveAsync<T>(SupabaseSession session, T data)
-        {
-            if (session == null)
-                return SupabaseResult<bool>.Fail("session_null");
-
-            var accessToken = session.AccessToken;
-            var userId = session.User?.Id;
-
-            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<bool>.Fail("auth_not_signed_in");
-
-            return await _userDataService.SaveAsync(
-                accessToken: accessToken,
-                accountId: userId,
-                playerUserId: session.User.PlayerUserId,
-                data: data);
-        }
-
-        /// <summary>현재 SDK 세션으로 로드. 로그인 후 SetSession 되어 있으면 세션 인자 없이 호출 가능.</summary>
-        public Task<SupabaseResult<T>> LoadAsync<T>() where T : class, new()
-        {
-            var session = _sessionGetter?.Invoke();
-            return LoadAsync<T>(session);
-        }
-
-        public async Task<SupabaseResult<T>> LoadAsync<T>(SupabaseSession session) where T : class, new()
-        {
-            if (session == null)
-                return SupabaseResult<T>.Fail("session_null");
-
-            var accessToken = session.AccessToken;
-            var userId = session.User?.Id;
-
-            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(userId))
-                return SupabaseResult<T>.Fail("auth_not_signed_in");
-
-            return await _userDataService.LoadAsync<T>(
-                accessToken: accessToken,
-                accountId: userId);
-        }
-
         /// <summary>
         /// 프로젝트별 명시 컬럼을 select로 지정해 로드합니다.
         /// </summary>

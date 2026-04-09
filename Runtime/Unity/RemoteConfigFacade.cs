@@ -8,7 +8,8 @@ using UnityEngine;
 namespace Truesoft.Supabase.Unity
 {
     /// <summary>
-    /// RemoteConfig 캐시 + 조회 API. Cold Start(시작 시 fetch 없음), 카테고리별 폴링, Stale-While-Revalidate 조회를 지원합니다.
+    /// RemoteConfig 캐시 + 조회 API. Cold Start(시작 시 fetch 없음), 키 단위 폴링, Stale-While-Revalidate 조회를 지원합니다.
+    /// 설계: 1키 = 1설정묶음(JSON) = 1폴링주기 (category 없음)
     /// </summary>
     public sealed class RemoteConfigFacade
     {
@@ -17,18 +18,18 @@ namespace Truesoft.Supabase.Unity
         private readonly Func<string> _applicationVersionProvider;
         private readonly Dictionary<string, string> _cache = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, CachedKeyMeta> _keyMeta = new Dictionary<string, CachedKeyMeta>(StringComparer.Ordinal);
-        private readonly Dictionary<string, CategoryPollState> _categoryStates = new Dictionary<string, CategoryPollState>(StringComparer.Ordinal);
+        private readonly Dictionary<string, KeyPollState> _keyPollStates = new Dictionary<string, KeyPollState>(StringComparer.Ordinal);
         private readonly Dictionary<string, List<Action<string>>> _keySubscribers = new Dictionary<string, List<Action<string>>>(StringComparer.Ordinal);
-        private readonly Dictionary<string, float> _pollIntervalOverrideByCategory = new Dictionary<string, float>(StringComparer.Ordinal);
+        private readonly Dictionary<string, float> _pollIntervalOverrideByKey = new Dictionary<string, float>(StringComparer.Ordinal);
 
         /// <summary>Remote config가 변경되어 캐시가 갱신되면 호출됩니다. 인자는 변경된 key 목록.</summary>
         public event Action<IReadOnlyList<string>> OnChanged;
 
-        /// <summary>모든 카테고리에 대해 가장 최근으로 관측된 <c>updated_at</c> 중 최댓값(ISO 문자열). 하위 호환용.</summary>
+        /// <summary>마지막 동기 시각(ISO). 키 단위 polling용.</summary>
         public string LastUpdatedAtIso { get; private set; }
 
         /// <summary>
-        /// 최근 <c>RefreshAllAsync</c>/<c>PollAsync</c>/<c>TickCategoryPollsAsync</c>에서 캐시에 실제 변경이 있었는지 여부입니다.
+        /// 최근 <c>RefreshAllAsync</c>/<c>PollAsync</c>/<c>TickKeyPollsAsync</c>에서 캐시에 실제 변경이 있었는지 여부입니다.
         /// </summary>
         public bool LastApplyHadChanges { get; private set; }
 
@@ -43,22 +44,22 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 카테고리별 폴링 주기(초)를 인스펙터에서 덮어씁니다.
-        /// <paramref name="overrideSeconds"/>: &lt; 0이면 DB의 <c>poll_interval_seconds</c> 사용, 0이면 해당 카테고리 백그라운드 폴링 비활성, &gt; 0이면 해당 초 간격.
+        /// 키별 폴링 주기(초)를 인스펙터에서 덮어씁니다.
+        /// <paramref name="overrideSeconds"/>: &lt; 0이면 DB의 <c>poll_interval_seconds</c> 사용, 0이면 해당 키 백그라운드 폴링 비활성, &gt; 0이면 해당 초 간격.
         /// </summary>
-        public void SetCategoryPollIntervalOverride(string category, float overrideSeconds)
+        public void SetKeyPollIntervalOverride(string key, float overrideSeconds)
         {
-            if (string.IsNullOrWhiteSpace(category))
+            if (string.IsNullOrWhiteSpace(key))
                 return;
 
-            var c = category.Trim();
+            var k = key.Trim();
             if (overrideSeconds < 0f)
-                _pollIntervalOverrideByCategory.Remove(c);
+                _pollIntervalOverrideByKey.Remove(k);
             else
-                _pollIntervalOverrideByCategory[c] = overrideSeconds;
+                _pollIntervalOverrideByKey[k] = overrideSeconds;
         }
 
-        public void ClearCategoryPollIntervalOverrides() => _pollIntervalOverrideByCategory.Clear();
+        public void ClearKeyPollIntervalOverrides() => _pollIntervalOverrideByKey.Clear();
 
         /// <summary>특정 key가 서버에서 갱신될 때마다 콜백을 호출합니다.</summary>
         public void Subscribe(string key, Action<string> onValueChanged, bool invokeIfCached = true)
@@ -144,9 +145,7 @@ namespace Truesoft.Supabase.Unity
                 var maxStale = TimeSpan.FromSeconds(NormalizeMaxStaleSeconds(metaStale.MaxStaleSeconds));
                 if (DateTime.UtcNow - metaStale.FetchedAtUtc > maxStale)
                 {
-                    var cat = metaStale.Category;
-                    if (string.IsNullOrWhiteSpace(cat) == false)
-                        _ = RefreshCategoryInBackgroundAsync(cat);
+                    _ = RefreshKeyInBackgroundAsync(trimmedKey);
                 }
             }
 
@@ -175,7 +174,7 @@ namespace Truesoft.Supabase.Unity
         {
             LastApplyHadChanges = false;
             var accessToken = _accessTokenGetter?.Invoke();
-            var result = await _service.GetAllAsync(null, accessToken).ConfigureAwait(true);
+            var result = await _service.GetAllAsync(accessToken).ConfigureAwait(true);
             if (result.IsSuccess == false || result.Data == null)
                 return false;
 
@@ -183,101 +182,78 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 마지막 동기 이후 변경분만 머지합니다. <paramref name="categories"/>가 null이거나 비어 있으면 전체 테이블 기준(하위 호환).
+        /// 마지막 동기 이후 변경분만 머지합니다.
         /// </summary>
-        public async Task<bool> PollAsync(IReadOnlyList<string> categories = null)
+        public async Task<bool> PollAsync()
         {
             LastApplyHadChanges = false;
             var accessToken = _accessTokenGetter?.Invoke();
 
-            if (categories == null || categories.Count == 0)
-            {
-                var result = await _service.GetChangedSinceAsync(LastUpdatedAtIso, null, accessToken).ConfigureAwait(true);
-                if (result.IsSuccess == false || result.Data == null)
-                    return false;
-
-                return ApplyRows(result.Data, replace: false);
-            }
-
-            var any = false;
-            foreach (var raw in categories)
-            {
-                if (string.IsNullOrWhiteSpace(raw))
-                    continue;
-                var cat = raw.Trim();
-                if (await PollCategoryAsync(cat, accessToken).ConfigureAwait(true))
-                    any = true;
-            }
-
-            return any;
-        }
-
-        /// <summary>
-        /// DB에 설정된 주기(및 인스펙터 오버라이드)에 따라, 만기된 카테고리만 폴링합니다. <see cref="SupabaseRuntime"/> 또는 <c>Update</c>에서 호출하세요.
-        /// </summary>
-        public async Task TickCategoryPollsAsync(float realtimeSinceStartup)
-        {
-            LastApplyHadChanges = false;
-            var accessToken = _accessTokenGetter?.Invoke();
-            var keys = new List<string>(_categoryStates.Keys);
-            foreach (var category in keys)
-            {
-                if (_categoryStates.TryGetValue(category, out var state) == false)
-                    continue;
-
-                var interval = GetEffectivePollIntervalSeconds(category, state.DbPollIntervalSeconds);
-                if (interval <= 0)
-                    continue;
-
-                if (realtimeSinceStartup < state.NextPollAtRealtime)
-                    continue;
-
-                await PollCategoryAsync(category, accessToken).ConfigureAwait(true);
-                state.NextPollAtRealtime = realtimeSinceStartup + interval;
-            }
-        }
-
-        /// <summary>온디맨드 전체 갱신 후 모든 카테고리의 다음 폴링 시각을 뒤로 미룹니다.</summary>
-        public void PushBackAllCategoryPolls(float realtimeSinceStartup, float delaySeconds)
-        {
-            if (delaySeconds <= 0f)
-                return;
-
-            var target = realtimeSinceStartup + delaySeconds;
-            foreach (var state in _categoryStates.Values)
-            {
-                if (state.NextPollAtRealtime < target)
-                    state.NextPollAtRealtime = target;
-            }
-        }
-
-        private async Task<bool> PollCategoryAsync(string category, string accessToken)
-        {
-            if (_categoryStates.TryGetValue(category, out var state) == false)
-                state = new CategoryPollState();
-
-            SupabaseResult<SupabaseRemoteConfigService.RemoteConfigRow[]> result;
-            if (string.IsNullOrWhiteSpace(state.LastUpdatedAtIso))
-                result = await _service.GetByCategoryAsync(category, accessToken).ConfigureAwait(true);
-            else
-                result = await _service.GetChangedSinceAsync(state.LastUpdatedAtIso, new[] { category }, accessToken).ConfigureAwait(true);
-
+            var result = await _service.GetChangedSinceAsync(LastUpdatedAtIso, accessToken).ConfigureAwait(true);
             if (result.IsSuccess == false || result.Data == null)
                 return false;
 
             return ApplyRows(result.Data, replace: false);
         }
 
-        private async Task RefreshCategoryInBackgroundAsync(string category)
+        /// <summary>
+        /// DB에 설정된 주기(및 인스펙터 오버라이드)에 따라, 만기된 키만 폴링합니다. <see cref="SupabaseRuntime"/> 또는 <c>Update</c>에서 호출하세요.
+        /// </summary>
+        public async Task TickKeyPollsAsync(float realtimeSinceStartup)
+        {
+            LastApplyHadChanges = false;
+            var accessToken = _accessTokenGetter?.Invoke();
+            var keys = new List<string>(_keyPollStates.Keys);
+            foreach (var key in keys)
+            {
+                if (_keyPollStates.TryGetValue(key, out var state) == false)
+                    continue;
+
+                var interval = GetEffectivePollIntervalSeconds(key, state.DbPollIntervalSeconds);
+                if (interval <= 0)
+                    continue;
+
+                if (realtimeSinceStartup < state.NextPollAtRealtime)
+                    continue;
+
+                await PollKeyAsync(key, accessToken).ConfigureAwait(true);
+                state.NextPollAtRealtime = realtimeSinceStartup + interval;
+            }
+        }
+
+        /// <summary>온디맨드 전체 갱신 후 모든 키의 다음 폴링 시각을 뒤로 미룹니다.</summary>
+        public void PushBackAllKeyPolls(float realtimeSinceStartup, float delaySeconds)
+        {
+            if (delaySeconds <= 0f)
+                return;
+
+            var target = realtimeSinceStartup + delaySeconds;
+            foreach (var state in _keyPollStates.Values)
+            {
+                if (state.NextPollAtRealtime < target)
+                    state.NextPollAtRealtime = target;
+            }
+        }
+
+        private async Task<bool> PollKeyAsync(string key, string accessToken)
+        {
+            var result = await _service.GetByKeysAsync(new[] { key }, accessToken).ConfigureAwait(true);
+            if (result.IsSuccess == false || result.Data == null)
+                return false;
+
+            return ApplyRows(result.Data, replace: false);
+        }
+
+        private async Task RefreshKeyInBackgroundAsync(string key)
         {
             try
             {
                 var accessToken = _accessTokenGetter?.Invoke();
-                await PollCategoryAsync(category, accessToken).ConfigureAwait(false);
+                await PollKeyAsync(key, accessToken).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                Debug.LogWarning($"[Supabase] RemoteConfig 백그라운드 갱신 실패. category={category}, err={e.Message}");
+                Debug.LogWarning($"[Supabase] RemoteConfig 백그라운드 갱신 실패. key={key}, err={e.Message}");
             }
         }
 
@@ -311,9 +287,9 @@ namespace Truesoft.Supabase.Unity
 
         private static int NormalizeMaxStaleSeconds(int secondsFromDb) => secondsFromDb > 0 ? secondsFromDb : 300;
 
-        private int GetEffectivePollIntervalSeconds(string category, int fromDb)
+        private int GetEffectivePollIntervalSeconds(string key, int fromDb)
         {
-            if (_pollIntervalOverrideByCategory.TryGetValue(category, out var o))
+            if (_pollIntervalOverrideByKey.TryGetValue(key, out var o))
             {
                 if (o <= 0f)
                     return 0;
@@ -337,27 +313,13 @@ namespace Truesoft.Supabase.Unity
                 previousValues = new Dictionary<string, string>(_cache, StringComparer.Ordinal);
                 _cache.Clear();
                 _keyMeta.Clear();
-                _categoryStates.Clear();
+                _keyPollStates.Clear();
                 acceptedKeys = new HashSet<string>(StringComparer.Ordinal);
             }
 
             var changedKeys = new HashSet<string>(StringComparer.Ordinal);
-            var categoryRowBuffer = new Dictionary<string, List<SupabaseRemoteConfigService.RemoteConfigRow>>(StringComparer.Ordinal);
-
-            foreach (var row in rows)
-            {
-                if (row == null || string.IsNullOrWhiteSpace(row.key))
-                    continue;
-
-                var cat = string.IsNullOrWhiteSpace(row.category) ? "default" : row.category.Trim();
-                if (categoryRowBuffer.TryGetValue(cat, out var list) == false)
-                {
-                    list = new List<SupabaseRemoteConfigService.RemoteConfigRow>();
-                    categoryRowBuffer[cat] = list;
-                }
-
-                list.Add(row);
-            }
+            var now = DateTime.UtcNow;
+            var realtime = Time.realtimeSinceStartup;
 
             foreach (var row in rows)
             {
@@ -366,7 +328,6 @@ namespace Truesoft.Supabase.Unity
 
                 TouchGlobalLastUpdated(row.updated_at);
 
-                var cat = string.IsNullOrWhiteSpace(row.category) ? "default" : row.category.Trim();
                 var newValue = row.value_json ?? string.Empty;
 
                 if (row.enabled == false)
@@ -376,7 +337,6 @@ namespace Truesoft.Supabase.Unity
                         _keyMeta.Remove(row.key);
                         changedKeys.Add(row.key);
                     }
-
                     continue;
                 }
 
@@ -387,7 +347,6 @@ namespace Truesoft.Supabase.Unity
                         _keyMeta.Remove(row.key);
                         changedKeys.Add(row.key);
                     }
-
                     continue;
                 }
 
@@ -398,14 +357,13 @@ namespace Truesoft.Supabase.Unity
                         _keyMeta.Remove(row.key);
                         changedKeys.Add(row.key);
                     }
-
                     continue;
                 }
 
                 if (IsObjectRootJson(newValue) == false)
                 {
                     Debug.LogError($"[Supabase] RemoteConfig value_json은 객체 루트(JSON이 '{{'로 시작)여야 합니다. key={row.key}, value={TruncateForLog(newValue, 200)}");
-                    UpdateCategoryTimestampFromRow(cat, row.updated_at);
+                    UpdateKeyTimestampFromRow(row.key, row.updated_at);
                     continue;
                 }
 
@@ -419,7 +377,7 @@ namespace Truesoft.Supabase.Unity
                         changedKeys.Add(row.key);
 
                     _cache[row.key] = newValue;
-                    _keyMeta[row.key] = new CachedKeyMeta(cat, DateTime.UtcNow, NormalizeMaxStaleSeconds(row.max_stale_seconds));
+                    _keyMeta[row.key] = new CachedKeyMeta(now, NormalizeMaxStaleSeconds(row.max_stale_seconds));
                 }
                 else
                 {
@@ -427,21 +385,19 @@ namespace Truesoft.Supabase.Unity
                     {
                         if (string.Equals(oldValue, newValue, StringComparison.Ordinal))
                         {
-                            UpdateCategoryTimestampFromRow(cat, row.updated_at);
+                            UpdateKeyTimestampFromRow(row.key, row.updated_at);
                             continue;
                         }
                     }
 
                     _cache[row.key] = newValue;
-                    _keyMeta[row.key] = new CachedKeyMeta(cat, DateTime.UtcNow, NormalizeMaxStaleSeconds(row.max_stale_seconds));
+                    _keyMeta[row.key] = new CachedKeyMeta(now, NormalizeMaxStaleSeconds(row.max_stale_seconds));
                     changedKeys.Add(row.key);
                 }
 
-                UpdateCategoryTimestampFromRow(cat, row.updated_at);
+                UpdateKeyTimestampFromRow(row.key, row.updated_at);
+                RecomputeKeyPollState(row.key, row.poll_interval_seconds, realtime);
             }
-
-            foreach (var kv in categoryRowBuffer)
-                RecomputeCategoryPollState(kv.Key, kv.Value, Time.realtimeSinceStartup);
 
             if (replace && previousValues != null && previousValues.Count > 0)
             {
@@ -471,47 +427,31 @@ namespace Truesoft.Supabase.Unity
             return true;
         }
 
-        private void RecomputeCategoryPollState(
-            string category,
-            List<SupabaseRemoteConfigService.RemoteConfigRow> rowsInCategory,
-            float realtimeSinceStartup)
+        private void RecomputeKeyPollState(string key, int pollIntervalFromDb, float realtimeSinceStartup)
         {
-            if (rowsInCategory == null || rowsInCategory.Count == 0)
-                return;
+            if (_keyPollStates.TryGetValue(key, out var state) == false)
+                state = new KeyPollState();
 
-            var minPositive = int.MaxValue;
-            foreach (var r in rowsInCategory)
-            {
-                if (r == null)
-                    continue;
-                if (r.poll_interval_seconds > 0 && r.poll_interval_seconds < minPositive)
-                    minPositive = r.poll_interval_seconds;
-            }
-
-            var dbInterval = minPositive == int.MaxValue ? 0 : minPositive;
-            if (_categoryStates.TryGetValue(category, out var state) == false)
-                state = new CategoryPollState();
-
-            state.DbPollIntervalSeconds = dbInterval;
-            var effective = GetEffectivePollIntervalSeconds(category, dbInterval);
+            state.DbPollIntervalSeconds = pollIntervalFromDb;
+            var effective = GetEffectivePollIntervalSeconds(key, pollIntervalFromDb);
             if (effective > 0 && state.NextPollAtRealtime <= 0f)
                 state.NextPollAtRealtime = realtimeSinceStartup + effective;
 
-            _categoryStates[category] = state;
+            _keyPollStates[key] = state;
         }
 
-        private void UpdateCategoryTimestampFromRow(string category, string updatedAtIso)
+        private void UpdateKeyTimestampFromRow(string key, string updatedAtIso)
         {
             if (string.IsNullOrWhiteSpace(updatedAtIso))
                 return;
 
-            if (_categoryStates.TryGetValue(category, out var state) == false)
-                state = new CategoryPollState();
+            if (_keyPollStates.TryGetValue(key, out var state) == false)
+                state = new KeyPollState();
 
             if (string.IsNullOrWhiteSpace(state.LastUpdatedAtIso) || string.CompareOrdinal(updatedAtIso, state.LastUpdatedAtIso) > 0)
                 state.LastUpdatedAtIso = updatedAtIso;
 
-            _categoryStates[category] = state;
+            _keyPollStates[key] = state;
         }
 
         private void TouchGlobalLastUpdated(string updatedAtIso)
@@ -585,19 +525,17 @@ namespace Truesoft.Supabase.Unity
 
         private readonly struct CachedKeyMeta
         {
-            public readonly string Category;
             public readonly DateTime FetchedAtUtc;
             public readonly int MaxStaleSeconds;
 
-            public CachedKeyMeta(string category, DateTime fetchedAtUtc, int maxStaleSeconds)
+            public CachedKeyMeta(DateTime fetchedAtUtc, int maxStaleSeconds)
             {
-                Category = category;
                 FetchedAtUtc = fetchedAtUtc;
                 MaxStaleSeconds = maxStaleSeconds;
             }
         }
 
-        private sealed class CategoryPollState
+        private sealed class KeyPollState
         {
             public string LastUpdatedAtIso;
             public int DbPollIntervalSeconds;
