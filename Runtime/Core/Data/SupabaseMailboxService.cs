@@ -1,0 +1,446 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Truesoft.Supabase.Core.Common;
+using Truesoft.Supabase.Core.Http;
+
+namespace Truesoft.Supabase.Core.Data
+{
+    /// <summary>
+    /// 우편함 REST + RPC (<c>mails</c>, <c>ts_claim_mail_items</c>, <c>ts_claim_all_mail_items</c>, <c>ts_delete_mail_for_user</c>, <c>ts_mail_inbox_counts</c>).
+    /// </summary>
+    public sealed class SupabaseMailboxService
+    {
+        private const string MailSelectColumns =
+            "id,account_id,user_id,sender_type,sender_name,title,content,is_read,expires_at,created_at,items,items_claimed_at";
+
+        private readonly string _supabaseUrl;
+        private readonly string _publishableKey;
+        private readonly string _mailsTable;
+        private readonly ISupabaseHttpClient _httpClient;
+
+        public SupabaseMailboxService(
+            string supabaseUrl,
+            string publishableKey,
+            ISupabaseHttpClient httpClient,
+            string mailsTable = "mails")
+        {
+            _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
+            _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _mailsTable = SupabaseRestTableRef.Normalize(mailsTable, nameof(mailsTable));
+        }
+
+        public async Task<SupabaseResult<IReadOnlyList<Mail>>> GetMailsAsync(
+            string accessToken,
+            int limit = 50,
+            int offset = 0)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<IReadOnlyList<Mail>>.Fail("access_token_empty");
+
+            limit = Math.Clamp(limit, 1, 200);
+            offset = Math.Max(0, offset);
+
+            var url =
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _mailsTable)}" +
+                $"?select={Uri.EscapeDataString(MailSelectColumns)}" +
+                $"&order=created_at.desc" +
+                $"&limit={limit}" +
+                $"&offset={offset}";
+
+            return await FetchMailListAsync(accessToken, url);
+        }
+
+        public async Task<SupabaseResult<Mail>> GetMailByIdAsync(string accessToken, string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<Mail>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(mailId))
+                return SupabaseResult<Mail>.Fail("mail_id_empty");
+
+            var url =
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _mailsTable)}" +
+                $"?select={Uri.EscapeDataString(MailSelectColumns)}" +
+                $"&id=eq.{Uri.EscapeDataString(mailId.Trim())}" +
+                $"&limit=1";
+
+            var list = await FetchMailListAsync(accessToken, url);
+            if (!list.IsSuccess)
+                return SupabaseResult<Mail>.Fail(list.ErrorMessage ?? "mail_fetch_failed");
+
+            if (list.Data == null || list.Data.Count == 0)
+                return SupabaseResult<Mail>.Fail("mail_not_found");
+
+            return SupabaseResult<Mail>.Success(list.Data[0]);
+        }
+
+        public async Task<SupabaseResult<bool>> MarkAsReadAsync(string accessToken, string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(mailId))
+                return SupabaseResult<bool>.Fail("mail_id_empty");
+
+            var url =
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _mailsTable)}" +
+                $"?id=eq.{Uri.EscapeDataString(mailId.Trim())}";
+
+            var bodyJson = JsonConvert.SerializeObject(new Dictionary<string, object> { { "is_read", true } });
+
+            var response = await _httpClient.SendAsync(
+                method: "PATCH",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateAuthHeaders(accessToken, "return=minimal"));
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "mail_mark_read_failed");
+
+            return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <summary>단일 메일 수령 RPC. 보상 없음이면 빈 목록(no-op).</summary>
+        public async Task<SupabaseResult<IReadOnlyList<MailItemPayload>>> ClaimMailItemsRpcAsync(
+            string accessToken,
+            string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<IReadOnlyList<MailItemPayload>>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(mailId))
+                return SupabaseResult<IReadOnlyList<MailItemPayload>>.Fail("mail_id_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_claim_mail_items";
+            var bodyJson = JsonConvert.SerializeObject(new { p_mail_id = mailId.Trim() });
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateAuthHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<IReadOnlyList<MailItemPayload>>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<IReadOnlyList<MailItemPayload>>.Fail(
+                    response.ErrorMessage ?? response.Body ?? "claim_mail_items_failed");
+
+            return ParseClaimItemsArray(response.Body);
+        }
+
+        public async Task<SupabaseResult<IReadOnlyList<MailClaimBundle>>> ClaimAllMailItemsRpcAsync(string accessToken)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<IReadOnlyList<MailClaimBundle>>.Fail("access_token_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_claim_all_mail_items";
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: "{}",
+                headers: CreateAuthHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<IReadOnlyList<MailClaimBundle>>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<IReadOnlyList<MailClaimBundle>>.Fail(
+                    response.ErrorMessage ?? response.Body ?? "claim_all_mail_items_failed");
+
+            return ParseClaimAllResponse(response.Body);
+        }
+
+        public async Task<SupabaseResult<bool>> DeleteMailForUserRpcAsync(string accessToken, string mailId)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(mailId))
+                return SupabaseResult<bool>.Fail("mail_id_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_delete_mail_for_user";
+            var bodyJson = JsonConvert.SerializeObject(new { p_mail_id = mailId.Trim() });
+
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: bodyJson,
+                headers: CreateAuthHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "delete_mail_failed");
+
+            return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <summary>미읽음·미수령 보상 메일 개수(JWT <c>auth.uid()</c> + 현재 프로필 서버).</summary>
+        public async Task<SupabaseResult<MailInboxCounts>> GetInboxCountsAsync(string accessToken)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<MailInboxCounts>.Fail("access_token_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_mail_inbox_counts";
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: "{}",
+                headers: CreateAuthHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<MailInboxCounts>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<MailInboxCounts>.Fail(
+                    response.ErrorMessage ?? response.Body ?? "mail_inbox_counts_failed");
+
+            var body = response.Body?.Trim();
+            if (string.IsNullOrEmpty(body) || body == "null")
+                return SupabaseResult<MailInboxCounts>.Fail("mail_inbox_counts_null");
+
+            try
+            {
+                var counts = JsonConvert.DeserializeObject<MailInboxCounts>(body);
+                if (counts == null)
+                    return SupabaseResult<MailInboxCounts>.Fail("mail_inbox_counts_parse_null");
+
+                return SupabaseResult<MailInboxCounts>.Success(counts);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<MailInboxCounts>.Fail("mail_inbox_counts_parse:" + e.Message);
+            }
+        }
+
+        private async Task<SupabaseResult<IReadOnlyList<Mail>>> FetchMailListAsync(string accessToken, string url)
+        {
+            var response = await _httpClient.SendAsync(
+                method: "GET",
+                url: url,
+                jsonBody: null,
+                headers: CreateAuthHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<IReadOnlyList<Mail>>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<IReadOnlyList<Mail>>.Fail(response.ErrorMessage ?? response.Body ?? "mail_list_failed");
+
+            try
+            {
+                var rows = JsonConvert.DeserializeObject<List<MailRestRow>>(response.Body);
+                if (rows == null)
+                    return SupabaseResult<IReadOnlyList<Mail>>.Success(Array.Empty<Mail>());
+
+                var mapped = rows.Select(MapRow).Where(m => m != null).ToList();
+                return SupabaseResult<IReadOnlyList<Mail>>.Success(mapped);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<IReadOnlyList<Mail>>.Fail("mail_list_parse:" + e.Message);
+            }
+        }
+
+        private static SupabaseResult<IReadOnlyList<MailItemPayload>> ParseClaimItemsArray(string body)
+        {
+            try
+            {
+                var arr = JsonConvert.DeserializeObject<List<MailClaimLineDto>>(body);
+                if (arr == null)
+                    return SupabaseResult<IReadOnlyList<MailItemPayload>>.Success(Array.Empty<MailItemPayload>());
+
+                var list = arr
+                    .Select(
+                        x => new MailItemPayload
+                        {
+                            Index = x.Index,
+                            Key = x.Key?.Trim() ?? string.Empty,
+                            Count = x.Count
+                        })
+                    .ToList();
+
+                return SupabaseResult<IReadOnlyList<MailItemPayload>>.Success(list);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<IReadOnlyList<MailItemPayload>>.Fail("claim_items_parse:" + e.Message);
+            }
+        }
+
+        private static SupabaseResult<IReadOnlyList<MailClaimBundle>> ParseClaimAllResponse(string body)
+        {
+            try
+            {
+                var arr = JsonConvert.DeserializeObject<List<ClaimAllMailEntryDto>>(body);
+                if (arr == null)
+                    return SupabaseResult<IReadOnlyList<MailClaimBundle>>.Success(Array.Empty<MailClaimBundle>());
+
+                var bundles = new List<MailClaimBundle>();
+                foreach (var e in arr)
+                {
+                    var items = (e.Items ?? new List<MailClaimLineDto>())
+                        .Select(
+                            x => new MailItemPayload
+                            {
+                                Index = x.Index,
+                                Key = x.Key?.Trim() ?? string.Empty,
+                                Count = x.Count
+                            })
+                        .ToList();
+
+                    bundles.Add(
+                        new MailClaimBundle
+                        {
+                            MailId = e.MailId?.Trim(),
+                            Items = items
+                        });
+                }
+
+                return SupabaseResult<IReadOnlyList<MailClaimBundle>>.Success(bundles);
+            }
+            catch (Exception ex)
+            {
+                return SupabaseResult<IReadOnlyList<MailClaimBundle>>.Fail("claim_all_parse:" + ex.Message);
+            }
+        }
+
+        private Mail MapRow(MailRestRow r)
+        {
+            if (r == null || string.IsNullOrWhiteSpace(r.Id))
+                return null;
+
+            var items = ParseItemsToken(r.Items);
+            for (var i = 0; i < items.Count; i++)
+                items[i].Index = i;
+
+            return new Mail
+            {
+                Id = r.Id,
+                AccountId = r.AccountId,
+                UserId = r.UserId,
+                SenderType = r.SenderType ?? string.Empty,
+                SenderName = r.SenderName ?? string.Empty,
+                Title = r.Title ?? string.Empty,
+                Content = r.Content ?? string.Empty,
+                IsRead = r.IsRead,
+                ExpiresAt = r.ExpiresAt,
+                CreatedAt = r.CreatedAt,
+                ItemsClaimedAt = r.ItemsClaimedAt,
+                Items = items
+            };
+        }
+
+        private static List<MailItemPayload> ParseItemsToken(JToken tok)
+        {
+            var list = new List<MailItemPayload>();
+            if (tok == null || tok.Type == JTokenType.Null)
+                return list;
+
+            if (tok.Type != JTokenType.Array)
+                return list;
+
+            foreach (var el in (JArray)tok)
+            {
+                var key = el["key"]?.Value<string>();
+                var countToken = el["count"];
+                var count = countToken?.Type == JTokenType.Integer
+                    ? countToken.Value<int>()
+                    : countToken?.Value<int?>() ?? 0;
+
+                if (string.IsNullOrWhiteSpace(key))
+                    continue;
+
+                list.Add(new MailItemPayload { Key = key.Trim(), Count = count });
+            }
+
+            return list;
+        }
+
+        private Dictionary<string, string> CreateAuthHeaders(string accessToken, string prefer = null)
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { "apikey", _publishableKey },
+                { "Authorization", "Bearer " + accessToken },
+                { "Content-Type", "application/json" }
+            };
+
+            if (string.IsNullOrEmpty(prefer) == false)
+                headers["Prefer"] = prefer;
+
+            return headers;
+        }
+
+        private sealed class MailRestRow
+        {
+            [JsonProperty("id")]
+            public string Id { get; set; }
+
+            [JsonProperty("account_id")]
+            public string AccountId { get; set; }
+
+            [JsonProperty("user_id")]
+            public string UserId { get; set; }
+
+            [JsonProperty("sender_type")]
+            public string SenderType { get; set; }
+
+            [JsonProperty("sender_name")]
+            public string SenderName { get; set; }
+
+            [JsonProperty("title")]
+            public string Title { get; set; }
+
+            [JsonProperty("content")]
+            public string Content { get; set; }
+
+            [JsonProperty("is_read")]
+            public bool IsRead { get; set; }
+
+            [JsonProperty("expires_at")]
+            public DateTime ExpiresAt { get; set; }
+
+            [JsonProperty("created_at")]
+            public DateTime CreatedAt { get; set; }
+
+            [JsonProperty("items_claimed_at")]
+            public DateTime? ItemsClaimedAt { get; set; }
+
+            [JsonProperty("items")]
+            public JToken Items { get; set; }
+        }
+
+        private sealed class MailClaimLineDto
+        {
+            [JsonProperty("index")]
+            public int Index { get; set; }
+
+            [JsonProperty("key")]
+            public string Key { get; set; }
+
+            [JsonProperty("count")]
+            public int Count { get; set; }
+        }
+
+        private sealed class ClaimAllMailEntryDto
+        {
+            [JsonProperty("mail_id")]
+            public string MailId { get; set; }
+
+            [JsonProperty("items")]
+            public List<MailClaimLineDto> Items { get; set; }
+        }
+    }
+}

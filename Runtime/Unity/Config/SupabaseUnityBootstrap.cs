@@ -21,6 +21,7 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseUserSessionService UserSessionService { get; private set; }
         public SupabaseAnonymousRecoveryService AnonymousRecoveryService { get; private set; }
         public SupabaseServerTimeService ServerTimeService { get; private set; }
+        public SupabaseMailboxService MailboxService { get; private set; }
 
         /// <summary><see cref="SupabaseSettings.userSavesDefaultSelectColumnsCsv"/>.</summary>
         public string UserSavesDefaultSelectColumnsCsv { get; private set; } = "";
@@ -119,6 +120,12 @@ namespace Truesoft.Supabase.Unity.Config
                 options.PublishableKey,
                 http,
                 json);
+
+            MailboxService = new SupabaseMailboxService(
+                options.ProjectURL,
+                options.PublishableKey,
+                http,
+                options.MailsTable);
 
             EnableDuplicateSessionMonitor = settings.enableDuplicateSessionMonitor;
             DuplicateSessionPollSeconds = settings.duplicateSessionPollSeconds;

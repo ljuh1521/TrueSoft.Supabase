@@ -21,6 +21,15 @@ namespace Truesoft.Supabase
         /// <summary>채팅 메시지 REST 테이블 (기본 <c>chat_messages</c>).</summary>
         public string ChatMessagesTable = "chat_messages";
 
+        /// <summary>우편함 REST 테이블 (기본 <c>mails</c>).</summary>
+        public string MailsTable = "mails";
+
+        /// <summary>기본 메일 만료 일수(클라이언트·Edge 발송 보조용, DB 기본값과 별개).</summary>
+        public int DefaultMailExpirationDays = 30;
+
+        /// <summary>우편함 폴링 권장 간격(초). 0이면 폴링 비활성 안내용.</summary>
+        public int MailPollingIntervalSeconds = 0;
+
         /// <summary>공개 프로필 REST 테이블 — <c>id</c>(row PK), <c>user_id</c>, <c>account_id</c>, <c>withdrawn_at</c> (기본 <c>profiles</c>).</summary>
         public string PublicProfilesTable = "profiles";
 

@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 type SetRequest = {
   display_name?: string;
-  user_id?: string; // stable player id (oauth sub etc) supplied by client/session
+  user_id?: string;
 };
 
 type SetResponse = {
@@ -12,7 +12,9 @@ type SetResponse = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// ✅ 변경: service_role → 새 Secret Key (SECRET_KEY)
+// Dashboard → Project Settings → API → Secret Keys에서 발급 (이름: SECRET_KEY)
+const SECRET_KEY = Deno.env.get("SECRET_KEY")!;
 
 function normalize(name: string): string {
   return name.trim();
@@ -57,7 +59,6 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
-  // JWT를 인자로 넘겨야 하며, 전역 헤더만으로는 auth.updateUser()에 세션이 생기지 않아 "Auth session missing!"이 난다.
   const userRes = await userClient.auth.getUser(jwt);
   const user = userRes.data.user;
   if (!user) {
@@ -72,7 +73,6 @@ Deno.serve(async (req) => {
   const myProfile = await userClient
     .from("profiles")
     .select("server_id")
-    .eq("account_id", user.id)
     .limit(1)
     .maybeSingle();
 
@@ -83,8 +83,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 1) upsert claim row for this account
-  // Uniqueness is enforced by DB unique index on (server_id, lower(trim(display_name))).
+  // 1) display_names upsert (userClient - RLS 적용)
   const upsert = await userClient
     .from("display_names")
     .upsert(
@@ -109,8 +108,9 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 2) sync auth user_metadata.displayName (세션 없이 userClient.auth.updateUser는 실패하므로 service role로 병합 갱신)
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  // 2) auth user_metadata 업데이트 (admin API - Secret Key 사용)
+  // ✅ 변경: service_role → SECRET_KEY
+  const adminClient = createClient(SUPABASE_URL, SECRET_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const existing = await adminClient.auth.admin.getUserById(user.id);
@@ -121,7 +121,6 @@ Deno.serve(async (req) => {
     );
   }
   const prevMeta = (existing.data.user.user_metadata ?? {}) as Record<string, unknown>;
-  // Studio 사용자 목록은 Google OIDC가 넣은 full_name/name을 보여주는 경우가 많아 displayName만으론 대시보드가 안 바뀝니다.
   const merged = {
     ...prevMeta,
     displayName,
@@ -137,7 +136,6 @@ Deno.serve(async (req) => {
   }
 
   return new Response(JSON.stringify({ ok: true } satisfies SetResponse), {
-    headers: { "Content-Type": "application/json" },
-  });
+    headers: { "Content-Type": "application/json" } },
+  );
 });
-

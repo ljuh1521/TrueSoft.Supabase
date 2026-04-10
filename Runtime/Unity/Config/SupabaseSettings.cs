@@ -44,6 +44,15 @@ namespace Truesoft.Supabase.Unity
         [Tooltip("채팅 메시지 테이블.")]
         public string chatMessagesTable = "chat_messages";
 
+        [Tooltip("우편함 테이블 (mails).")]
+        public string mailsTable = "mails";
+
+        [Tooltip("메일 만료 일수(클라이언트·발송 보조 참고).")]
+        public int defaultMailExpirationDays = 30;
+
+        [Tooltip("우편함 폴링 간격(초). 0이면 비활성.")]
+        public int mailPollingIntervalSeconds = 0;
+
         [Tooltip("공개 프로필 테이블.")]
         public string publicProfilesTable = "profiles";
 
@@ -88,6 +97,9 @@ namespace Truesoft.Supabase.Unity
                 UserSavesDefaultSelectColumnsCsv = userSavesDefaultSelectColumnsCsv == null ? "" : userSavesDefaultSelectColumnsCsv.Trim(),
                 RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
                 ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
+                MailsTable = string.IsNullOrWhiteSpace(mailsTable) ? "mails" : mailsTable.Trim(),
+                DefaultMailExpirationDays = defaultMailExpirationDays < 1 ? 1 : defaultMailExpirationDays,
+                MailPollingIntervalSeconds = mailPollingIntervalSeconds < 0 ? 0 : mailPollingIntervalSeconds,
                 PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim(),
                 UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim(),
                 DefaultServerCode = string.IsNullOrWhiteSpace(defaultServerCode) ? "GLOBAL" : defaultServerCode.Trim(),

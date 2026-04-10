@@ -14,6 +14,7 @@ namespace Truesoft.Supabase.Unity
     /// • 구글: <see cref="TrySignInWithGoogleAsync(bool)"/>는 Android 네이티브 전체 플로우(설정의 Web Client ID), <see cref="TrySignInWithGoogleIdTokenAsync"/>는 ID 토큰 문자열만 넘길 때.<br/>
     /// • <see cref="TryStartAsync"/>는 초기화·(선택)세션 복원·(선택)RC를 한 번에 수행합니다.<br/>
         /// • 공개 프로필: <see cref="TryGetPublicProfileAsync"/>, displayName <see cref="TryIsDisplayNameAvailableAsync"/> → <see cref="TrySetMyDisplayNameAsync"/>, 탈퇴 표시 <see cref="TryMarkMyWithdrawnAsync"/> 등 (DB <c>profiles</c>, README).<br/>
+    /// • 우편함: <see cref="TryGetMyMailsAsync"/>, <see cref="TryClaimMailItemsAsync"/>, <see cref="TryClaimAllMailItemsAsync"/>, <see cref="Mailbox"/> (SQL <c>Sql/player/11_mails.sql</c>).<br/>
     /// • Try API들은 <c>SupabaseSettings.enableApiResultLogs</c>에 따라 API별 고정 태그로 성공/실패 로그를 자동 출력합니다.
     /// </remarks>
     public static class Supabase
@@ -519,6 +520,73 @@ namespace Truesoft.Supabase.Unity
 
         /// <inheritdoc cref="SupabaseSDK.TryRestoreSessionAsync"/>
         public static Task<bool> TryRestoreSessionAsync() => SupabaseSDK.TryRestoreSessionAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.GetMyMailsAsync"/>
+        public static Task<SupabaseResult<IReadOnlyList<Mail>>> GetMyMailsAsync(int limit = 50, int offset = 0) =>
+            SupabaseSDK.GetMyMailsAsync(limit, offset);
+
+        /// <inheritdoc cref="SupabaseSDK.GetMailDetailAsync"/>
+        public static Task<SupabaseResult<Mail>> GetMailDetailAsync(string mailId) =>
+            SupabaseSDK.GetMailDetailAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.MarkMailAsReadAsync"/>
+        public static Task<SupabaseResult<bool>> MarkMailAsReadAsync(string mailId) =>
+            SupabaseSDK.MarkMailAsReadAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.ClaimMailItemsAsync"/>
+        public static Task<SupabaseResult<IReadOnlyList<ClaimResult>>> ClaimMailItemsAsync(string mailId) =>
+            SupabaseSDK.ClaimMailItemsAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.ClaimAllMailItemsAsync"/>
+        public static Task<SupabaseResult<IReadOnlyList<ClaimResult>>> ClaimAllMailItemsAsync() =>
+            SupabaseSDK.ClaimAllMailItemsAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.DeleteMailAsync"/>
+        public static Task<SupabaseResult<bool>> DeleteMailAsync(string mailId) =>
+            SupabaseSDK.DeleteMailAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.GetUnreadMailCountAsync"/>
+        public static Task<SupabaseResult<int>> GetUnreadMailCountAsync(string userId = null) =>
+            SupabaseSDK.GetUnreadMailCountAsync(userId);
+
+        /// <inheritdoc cref="SupabaseSDK.GetUnclaimedItemMailCountAsync"/>
+        public static Task<SupabaseResult<int>> GetUnclaimedItemMailCountAsync(string userId = null) =>
+            SupabaseSDK.GetUnclaimedItemMailCountAsync(userId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetMyMailsAsync"/>
+        public static Task<IReadOnlyList<Mail>> TryGetMyMailsAsync(int limit = 50, int offset = 0) =>
+            SupabaseSDK.TryGetMyMailsAsync(limit, offset);
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetMailDetailAsync"/>
+        public static Task<Mail> TryGetMailDetailAsync(string mailId) =>
+            SupabaseSDK.TryGetMailDetailAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryMarkMailAsReadAsync"/>
+        public static Task<bool> TryMarkMailAsReadAsync(string mailId) =>
+            SupabaseSDK.TryMarkMailAsReadAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryClaimMailItemsAsync"/>
+        public static Task<IReadOnlyList<ClaimResult>> TryClaimMailItemsAsync(string mailId) =>
+            SupabaseSDK.TryClaimMailItemsAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryClaimAllMailItemsAsync"/>
+        public static Task<IReadOnlyList<ClaimResult>> TryClaimAllMailItemsAsync() =>
+            SupabaseSDK.TryClaimAllMailItemsAsync();
+
+        /// <inheritdoc cref="SupabaseSDK.TryDeleteMailAsync"/>
+        public static Task<bool> TryDeleteMailAsync(string mailId) =>
+            SupabaseSDK.TryDeleteMailAsync(mailId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetUnreadMailCountAsync"/>
+        public static Task<int?> TryGetUnreadMailCountAsync(string userId = null) =>
+            SupabaseSDK.TryGetUnreadMailCountAsync(userId);
+
+        /// <inheritdoc cref="SupabaseSDK.TryGetUnclaimedItemMailCountAsync"/>
+        public static Task<int?> TryGetUnclaimedItemMailCountAsync(string userId = null) =>
+            SupabaseSDK.TryGetUnclaimedItemMailCountAsync(userId);
+
+        /// <summary>우편함 파사드(<c>SupabaseSDK.Mailbox</c>와 동일 인스턴스).</summary>
+        public static MailboxFacade Mailbox => SupabaseSDK.Mailbox;
 
         /// <summary>서버 기준 현재 시각(UTC). 로그인 없이 호출 가능합니다. SQL: <c>Sql/supabase_server_time.sql</c>.</summary>
         public static Task<SupabaseResult<DateTime>> GetServerUtcNowAsync() => SupabaseSDK.GetServerUtcNowAsync();

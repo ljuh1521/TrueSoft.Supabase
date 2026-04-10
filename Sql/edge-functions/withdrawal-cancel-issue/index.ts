@@ -16,7 +16,7 @@ type CancelTokenPayload = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// ❌ 제거: SUPABASE_SERVICE_ROLE_KEY 불필요
 const CANCEL_TOKEN_SECRET = Deno.env.get("CANCEL_TOKEN_SECRET")!;
 const CANCEL_TOKEN_TTL_SECONDS = Number(Deno.env.get("CANCEL_TOKEN_TTL_SECONDS") ?? "900");
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  // ❌ 제거: adminClient 불필요 (service_role 제거)
 
   const userRes = await userClient.auth.getUser();
   const user = userRes.data.user;
@@ -78,10 +78,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  const profileRes = await adminClient
+  // ✅ 변경: userClient로 profiles 직접 조회 (RLS 적용)
+  const profileRes = await userClient
     .from("profiles")
     .select("withdrawn_at")
-    .eq("account_id", user.id)
     .maybeSingle();
 
   if (profileRes.error) {
@@ -124,4 +124,3 @@ Deno.serve(async (req) => {
     { headers: { "Content-Type": "application/json" } },
   );
 });
-

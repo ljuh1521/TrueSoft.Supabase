@@ -1,143 +1,173 @@
-# Withdrawal Edge Functions
+# Supabase Edge Functions - 보안 강화 마이그레이션 가이드
 
-현재 구성은 아래 6개 Function입니다.
-
-- `withdrawal-guard`: 로그인 직후 만료 계정 즉시 삭제(하드 삭제)
-- `withdrawal-cleanup`: 일일 배치 삭제
-- `withdrawal-cancel-issue`: 탈퇴 예약 중 계정에 대해 철회 전용 토큰 발급
-- `withdrawal-cancel-redeem`: 철회 토큰 검증 후 `profiles.withdrawn_at` 해제
-- `displayname-get`: 공개 displayName 조회 (JWT 불필요)
-- `displayname-set`: 본인 displayName 설정 (JWT 필요, `display_names` 유니크 + `auth.user_metadata` 동기화)
-
-권장 스케줄(한국 트래픽 저점): **KST 05:00 = UTC 20:00**
-
-템플릿 파일:
-- `Sql/edge-functions/withdrawal-guard/index.ts`
-- `Sql/edge-functions/withdrawal-cleanup/index.ts`
-- `Sql/edge-functions/withdrawal-cancel-issue/index.ts`
-- `Sql/edge-functions/withdrawal-cancel-redeem/index.ts`
-- `Sql/edge-functions/displayname-get/index.ts`
-- `Sql/edge-functions/displayname-set/index.ts`
+> **주요 변경사항 (2025-04)**  
+> `service_role` 키는 **레거시**이며 새 `SUPABASE_SECRET_KEY` (또는 `sb_secret_...`)로 교체했습니다.  
+> 일부 기능은 `pg_cron`으로 대체되어 Edge Function이 제거되었습니다.
 
 ---
 
-## 환경변수(Secrets)
+## 환경 변수 설정
 
-호스팅(Supabase 클라우드) Edge Function에는 아래 **기본 시크릿**이 자동으로 주입된다. 대시보드에 직접 넣지 않아도 된다.
+### 이전 (.env)
+```bash
+SUPABASE_SERVICE_ROLE_KEY=eyJhbG...  # 레거시, 제거됨
+SUPABASE_ANON_KEY=eyJhbG...
+SUPABASE_URL=https://<project>.supabase.co
+```
 
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- (참고) `SUPABASE_DB_URL` 등 — [공식 문서: Environment variables](https://supabase.com/docs/guides/functions/secrets)
+### 이후 (.env)
+```bash
+# 필수
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_ANON_KEY=eyJhbG...
 
-**직접 등록해야 하는 값(철회 토큰, B 방식):**
+# 관리자 API용 (service_role 대체)
+# 주의: SUPABASE_ 접두사는 예약어이므로 사용 불가
+SECRET_KEY=sb_secret_...    # Dashboard → API → Secret Keys (이름: SECRET_KEY)
 
-- `CANCEL_TOKEN_SECRET` — 충분히 긴 랜덤 문자열 (필수)
-- `CANCEL_TOKEN_TTL_SECONDS` — 선택, 기본 900초
+# 기능별 키
+CANCEL_TOKEN_SECRET=your-random-secret-here
+CANCEL_TOKEN_TTL_SECONDS=900
 
----
-
-## 웹 대시보드에서 시크릿 설정
-
-1. [Supabase Dashboard](https://supabase.com/dashboard)에서 프로젝트를 연다.
-2. 좌측 **Edge Functions** 메뉴로 이동한 뒤 **Secrets**(또는 **Manage secrets**)를 연다.  
-   - 직접 URL: `https://supabase.com/dashboard/project/<프로젝트_REF>/functions/secrets`  
-     (`<프로젝트_REF>`는 **Project Settings → General → Reference ID**에 있다.)
-3. **Add new secret**에서 Key / Value를 입력하고 저장한다.
-   - `CANCEL_TOKEN_SECRET` = (예: 32바이트 이상 랜덤을 Base64 등으로 인코딩한 값)
-   - (선택) `CANCEL_TOKEN_TTL_SECONDS` = `900`
-4. 시크릿 저장 후 **함수를 다시 배포할 필요는 없다**(이미 배포된 함수에 곧바로 반영된다).
-
----
-
-## 함수 코드(템플릿)와의 대응
-
-대시보드에 올린 함수 이름·동작은 이 레포의 아래 템플릿과 같게 맞추면 된다.
-
-- `Sql/edge-functions/withdrawal-guard/index.ts`
-- `Sql/edge-functions/withdrawal-cleanup/index.ts`
-- `Sql/edge-functions/withdrawal-cancel-issue/index.ts`
-- `Sql/edge-functions/withdrawal-cancel-redeem/index.ts`
+# 제거됨 (예약어 충돌로 삭제 불가, 무시)
+# SUPABASE_SECRET_KEY  
+```
 
 ---
 
-## 1) `withdrawal-guard` (로그인 직후 1회 호출)
+## Secret Key 발급 방법
 
-- 입력: `Authorization: Bearer <access_token>`
-- **대시보드(호스팅)**: Edge Function 설정에 **JWT 검증을 게이트웨이에서 강제**하는 옵션이 있다면(표기는 `Verify JWT` / `Enforce JWT` 등) **꺼 두는 것을 권장**합니다. 켜 두면 요청이 함수 코드에 도달하기 전에 JWT가 거절되어 `401 Invalid JWT`가 날 수 있고, 같은 토큰으로 REST RPC는 성공하는 불일치가 생길 수 있습니다. 이 템플릿은 함수 안에서 `createClient` + `auth.getUser()`로 사용자를 검증합니다.
-- 동작:
-  - 본인 `profiles.withdrawn_at` 조회
-  - `withdrawn_at <= now`이면 `account_closures` 기록 후 `auth.admin.deleteUser`
-  - 만료 전(미래) 또는 예약 없음이면 `deleted: false`
+> ⚠️ **주의**: `SUPABASE_` 접두사는 예약어입니다. `SECRET_KEY` 등 다른 이름을 사용하세요.
 
----
-
-## 2) `withdrawal-cleanup` (매일 배치 실행)
-
-- 동작:
-  - `withdrawn_at <= now` 계정을 배치로 조회
-  - `account_closures` upsert 후 `auth.admin.deleteUser`
+1. **Supabase Dashboard** 접속
+2. **Project Settings** → **API**
+3. **Secret Keys** 섹션에서 **Generate new secret key**
+4. 키 이름: `SECRET_KEY` (⚠️ `SUPABASE_SECRET_KEY`는 예약어 충돌)
+5. 생성된 `sb_secret_...` 키를 복사하여 설정
 
 ---
 
-## 3) `withdrawal-cancel-issue` (철회 토큰 발급)
+## 함수별 변경사항 요약
 
-- 입력: `Authorization: Bearer <access_token>`
-- **대시보드(호스팅)**: `withdrawal-guard`와 동일하게 Edge Function의 게이트웨이 JWT 강제 옵션(`Verify JWT`/`Enforce JWT`)은 **꺼 두는 것을 권장**합니다. 켜져 있으면 함수 코드 실행 전에 `401 Invalid JWT`로 차단되어, SDK 게이트 로그인에서는 토큰 저장이 실패하고 이후 `withdrawal_cancel_token_empty`로 이어질 수 있습니다.
-- 발급 조건:
-  - `profiles.withdrawn_at > now` (탈퇴 예약 진행 중)일 때만 발급
-- 출력:
-  - `cancel_token`
-  - `expires_at` (UTC ISO)
-
-토큰은 HMAC-SHA256(`CANCEL_TOKEN_SECRET`)으로 서명된 짧은 TTL 토큰입니다.
-
----
-
-## 4) `withdrawal-cancel-redeem` (철회 토큰 사용)
-
-- 입력(JSON): `{ "cancel_token": "..." }`
-- **대시보드(호스팅)**: 이 함수도 게이트웨이 JWT 강제 옵션(`Verify JWT`/`Enforce JWT`)을 **꺼 두는 것을 권장**합니다. B 방식은 로그아웃 상태에서 `cancel_token`만으로 호출하므로, 옵션이 켜져 있으면 `401 Missing authorization header`가 발생합니다.
-- 동작:
-  - 토큰 검증(서명/만료/타입)
-  - `profiles`에서 `account_id = token.sub`의 `withdrawn_at`를 `NULL`로 업데이트
-- 출력(JSON): `{ "ok": true }`
+| 함수 | 변경 내용 | 환경 변수 |
+|------|----------|----------|
+| `cleanup-expired-mails` | **삭제** → `pg_cron` 직접 RPC | 불필요 |
+| `withdrawal-cleanup` | **삭제** → `pg_cron` 직접 RPC | 불필요 |
+| `withdrawal-cancel-redeem` | `service_role` 제거, 새 RPC 사용 | `SUPABASE_ANON_KEY`만 |
+| `withdrawal-cancel-issue` | `service_role` 제거 | `SUPABASE_ANON_KEY`만 |
+| `withdrawal-guard` | `service_role` → `SECRET_KEY` | `SECRET_KEY` |
+| `displayname-set` | `service_role` → `SECRET_KEY` | `SECRET_KEY` |
 
 ---
 
-## 스케줄 예시
+## SQL 설정 단계
 
-- Scheduled Function (cleanup): `0 20 * * *` (UTC 20:00 = KST 05:00)
+### 1. pg_cron Extension 활성화
 
-## B 방식 UX 권장 순서
+```sql
+-- SQL Editor에서 실행
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+```
 
-1. 로그인 성공
-2. `ts_my_withdrawal_status` 조회(displayName/예약/남은 초)
-3. 예약 중이면 본편 진입 차단
-4. `withdrawal-cancel-issue` 호출 후 `cancel_token` 로컬 저장
-5. `ClearSession`으로 로그아웃
-6. UI에서 철회 선택 시 `withdrawal-cancel-redeem` 호출
-7. 성공 후 일반 로그인 재진입
+### 2. 새 RPC 함수 생성
+
+```bash
+# SQL 파일 순서대로 실행
+1. 12_withdrawal_cancel_rpc.sql      -- ts_withdrawal_cancel_redeem
+2. 13_cron_jobs_setup.sql            -- ts_withdrawal_cleanup_batch + cron 설정
+```
+
+또는 SQL Editor에서 각 파일 내용을 복사하여 실행합니다.
+
+### 3. Cron Job 확인
+
+```sql
+-- 등록된 job 확인
+SELECT * FROM cron.job;
+
+-- 실행 로그 확인
+SELECT * FROM cron.job_run_details 
+WHERE jobname IN ('cleanup-expired-mails', 'withdrawal-cleanup')
+ORDER BY start_time DESC
+LIMIT 20;
+```
 
 ---
 
-## 5) `displayname-get` (공개 displayName 조회)
+## Edge Function 배포
 
-- 입력(JSON): `{ "user_id": "<profiles.user_id>" }`
-- JWT 불필요 (Publishable 키만으로 호출)
-- **대시보드**: JWT 강제 옵션 OFF 권장
-- 동작: `display_names` 테이블에서 `user_id`로 조회
-- 출력: `{ "ok": true, "display_name": "..." }`
+### 1. 환경 변수 업데이트
+
+```bash
+# Supabase CLI
+supabase secrets set SUPABASE_SECRET_KEY="sb_secret_..."
+
+# (선택) 기존 service_role 제거
+supabase secrets unset SUPABASE_SERVICE_ROLE_KEY
+```
+
+### 2. 함수 배포
+
+```bash
+# 사용 중인 함수만 배포
+supabase functions deploy withdrawal-cancel-redeem
+supabase functions deploy withdrawal-cancel-issue
+supabase functions deploy withdrawal-guard
+supabase functions deploy displayname-set
+
+# Deprecated 함수는 배포하지 않거나 삭제
+# supabase functions delete cleanup-expired-mails
+# supabase functions delete withdrawal-cleanup
+```
 
 ---
 
-## 6) `displayname-set` (본인 displayName 설정)
+## 검증 체크리스트
 
-- 입력(JSON): `{ "display_name": "...", "user_id": "<optional stable id>" }`
-- 입력(Header): `Authorization: Bearer <access_token>`
-- **대시보드**: JWT 강제 옵션 OFF 권장 (함수 내부에서 `auth.getUser()`로 검증)
-- 동작:
-  - `display_names` 테이블에 `account_id` 기준 upsert (유니크 인덱스 `lower(trim(display_name))`)
-  - `auth.user_metadata.displayName` 동기화는 **Secret 키**로 `admin.updateUserById`를 호출해 수행한다. (`supabase-js`의 `auth.updateUser()`는 Edge 런타임에 세션이 없어 `Auth session missing!`로 실패할 수 있음)
-- 출력: `{ "ok": true }` 또는 `{ "ok": false, "reason": "display_name_taken" }`
+### SQL RPC 테스트
+```sql
+-- 탈퇴 취소 RPC (JWT 인증된 상태에서)
+SELECT ts_withdrawal_cancel_redeem();
 
+-- 탈퇴 정리 RPC (pg_cron 내부용)
+SELECT ts_withdrawal_cleanup_batch(10);
+```
+
+### Edge Function 테스트
+```bash
+# withdrawal-cancel-redeem (JWT 필요)
+curl -X POST https://<project>.supabase.co/functions/v1/withdrawal-cancel-redeem \
+  -H "Authorization: Bearer <user-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"cancel_token": "..."}'
+
+# withdrawal-guard (JWT 필요, 내부에서 Secret Key 사용)
+curl -X POST https://<project>.supabase.co/functions/v1/withdrawal-guard \
+  -H "Authorization: Bearer <user-jwt>"
+```
+
+---
+
+## 문제 해결
+
+### "Secret Key not found" 오류
+- Dashboard에서 Secret Key가 생성되었는지 확인
+- `supabase secrets list`로 설정 확인
+
+### "not_authenticated" 오류 (ts_withdrawal_cancel_redeem)
+- JWT가 유효한지 확인
+- `auth.uid()`가 null이면 인증되지 않은 상태
+
+### Cron job 미실행
+- `SELECT * FROM cron.job;`으로 등록 확인
+- `SELECT * FROM cron.job_run_details;`로 오류 로그 확인
+
+---
+
+## 보안 체크리스트
+
+- [ ] `SUPABASE_SERVICE_ROLE_KEY`가 모든 환경에서 제거됨
+- [ ] `SECRET_KEY`가 서버/Edge Function에만 존재 (⚠️ `SUPABASE_SECRET_KEY`는 예약어)
+- [ ] 클라이언트(Unity, Web)에는 `ANON_KEY`만 존재
+- [ ] Secret Key가 Git 저장소에 커밋되지 않음
+- [ ] `.env` 파일이 `.gitignore`에 포함됨

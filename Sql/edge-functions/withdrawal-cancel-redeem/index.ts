@@ -17,7 +17,7 @@ type CancelTokenPayload = {
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const CANCEL_TOKEN_SECRET = Deno.env.get("CANCEL_TOKEN_SECRET")!;
 
 if (!CANCEL_TOKEN_SECRET) {
@@ -106,16 +106,26 @@ Deno.serve(async (req) => {
     );
   }
 
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const updateRes = await adminClient
-    .from("profiles")
-    .update({ withdrawn_at: null })
-    .eq("account_id", payload.sub);
+  // ✅ 변경: service_role 제거, 사용자 JWT로 새 RPC 호출
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
 
-  if (updateRes.error) {
+  // ✅ 새 RPC: ts_withdrawal_cancel_redeem (JWT 기반, auth.uid() 사용)
+  const { data, error } = await supabase.rpc("ts_withdrawal_cancel_redeem");
+
+  if (error) {
     return new Response(
-      JSON.stringify({ ok: false, reason: updateRes.error.message } satisfies RedeemResponse),
+      JSON.stringify({ ok: false, reason: error.message } satisfies RedeemResponse),
       { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  if (!data?.ok) {
+    return new Response(
+      JSON.stringify({ ok: false, reason: data?.reason || "redeem_failed" } satisfies RedeemResponse),
+      { status: 400, headers: { "Content-Type": "application/json" } },
     );
   }
 
@@ -124,4 +134,3 @@ Deno.serve(async (req) => {
     { headers: { "Content-Type": "application/json" } },
   );
 });
-

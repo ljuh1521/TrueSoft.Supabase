@@ -31,7 +31,8 @@ from (
       ('user_sessions'),
       ('anonymous_recovery_tokens'),
       ('account_closures'),
-      ('remote_config')
+      ('remote_config'),
+      ('mails')
   ) as exp(name)
   left join lateral (
     select c.oid, c.relrowsecurity
@@ -66,7 +67,14 @@ from (
       ('ts_my_server_id'),
       ('ts_transfer_my_server'),
       ('ts_admin_transfer_user_server'),
-      ('_ts_transfer_user_server_core')
+      ('_ts_transfer_user_server_core'),
+      ('ts_claim_mail_items'),
+      ('ts_claim_all_mail_items'),
+      ('ts_delete_mail_for_user'),
+      ('ts_cleanup_expired_mails'),
+      ('ts_mail_inbox_counts'),
+      ('ts_withdrawal_cancel_redeem'),
+      ('ts_withdrawal_cleanup_batch')
   ) as exp(name)
   left join lateral (
     select p.oid
