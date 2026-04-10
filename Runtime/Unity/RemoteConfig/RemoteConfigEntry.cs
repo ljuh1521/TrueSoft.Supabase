@@ -4,7 +4,7 @@ using Truesoft.Supabase.Core.Common;
 namespace Truesoft.Supabase.Unity.RemoteConfig
 {
     /// <summary>
-    /// 단일 RemoteConfig 키에 대한 타입 안전 fetch. Source Generator가 생성한 코드에서 사용합니다.
+    /// 단일 RemoteConfig 키에 대한 타입 안전 fetch.
     /// </summary>
     public sealed class RemoteConfigEntry<T> where T : class, new()
     {

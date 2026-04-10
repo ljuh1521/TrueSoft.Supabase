@@ -137,9 +137,5 @@ Temporary Items
 # Cursor/agent session NDJSON logs (written at repo / Unity project root)
 /debug-*.log
 
-# RemoteConfig source generator MSBuild output (ship merged DLL from RoslynAnalyzers/ only)
-Generators/**/bin/
-Generators/**/obj/
-
 Assets/GoogleMobileAds/link.xml.meta
 Assets/StreamingAssets/google-services-desktop.json.meta

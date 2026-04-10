@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <!-- Avoid post-merge Delete of satellite DLLs (AV/IDE can lock files; only Truesoft DLL is self-contained). -->
-    <ClearOutputDirectory>False</ClearOutputDirectory>
-  </PropertyGroup>
-</Project>
