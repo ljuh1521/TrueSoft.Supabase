@@ -1,2 +1,9 @@
 fileFormatVersion: 2
 guid: 135e66ea103d66142b4958d005cb19fd
+labels:
+- RoslynAnalyzer
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

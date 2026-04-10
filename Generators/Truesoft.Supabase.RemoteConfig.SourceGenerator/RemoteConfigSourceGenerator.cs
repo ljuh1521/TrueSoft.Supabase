@@ -104,7 +104,7 @@ namespace Truesoft.Supabase.RemoteConfig.Generator
                 }
 
                 var typeArg = ret.TypeArguments[0]!;
-                list.Add(new EntryInfo(methodSymbol.Name, key.Trim(), typeArg));
+                list.Add(new EntryInfo(methodSymbol.Name, key!.Trim(), typeArg));
             }
 
             return list;

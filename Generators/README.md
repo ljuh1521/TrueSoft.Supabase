@@ -4,6 +4,8 @@
 
 ## 빌드 및 패키지 반영
 
+Release 빌드 시 **ILRepack**으로 `Microsoft.CodeAnalysis` 등 의존성이 제너레이터 DLL 하나로 병합됩니다. Unity 패키지에는 `RoslynAnalyzers/Truesoft.Supabase.RemoteConfig.SourceGenerator.dll`만 두면 됩니다. `bin/Release/netstandard2.0`에는 병합 후에도 위성 DLL이 남을 수 있으니, 패키지에는 위 DLL만 복사하면 됩니다(정리하려면 `dotnet clean` 후 Release 빌드).
+
 저장소 루트에서:
 
 ```powershell
