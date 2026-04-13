@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Data;
-using Truesoft.Supabase.Unity;
 using UnityEngine;
+
+// ExampleSupabaseScenarios와 동일: Truesoft.Supabase 루트 네임스페이스와의 혼동·해석 오류(CS0234) 방지
+using SupabaseClient = global::Truesoft.Supabase.Unity.Supabase;
 
 namespace Truesoft.SupabaseUnity.Samples
 {
@@ -13,7 +15,8 @@ namespace Truesoft.SupabaseUnity.Samples
     /// </summary>
     /// <remarks>
     /// 테스트 데이터: 패키지 루트 <c>Sql/samples/MailboxTestData.sql</c> — Supabase SQL Editor에서 실행 후 <c>YOUR_ACCOUNT_UUID</c> / <c>YOUR_USER_ID</c> 교체.<br/>
-    /// 가이드: 동일 폴더 <c>README-MailboxTest.md</c>
+    /// 가이드: 동일 폴더 <c>README-MailboxTest.md</c><br/>
+    /// 우편 API가 포함된 패키지 버전을 쓰는지 확인하세요. 구버전 DLL만 있으면 Try* 메일 API가 없어 컴파일이 실패합니다.
     /// </remarks>
     public class MailboxTestSample : MonoBehaviour
     {
@@ -88,8 +91,8 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log("[Test] 미읽음/미수령 카운트 조회...");
 
-            var unreadCount = await Supabase.TryGetUnreadMailCountAsync();
-            var unclaimedCount = await Supabase.TryGetUnclaimedItemMailCountAsync();
+            var unreadCount = await SupabaseClient.TryGetUnreadMailCountAsync();
+            var unclaimedCount = await SupabaseClient.TryGetUnclaimedItemMailCountAsync();
 
             Debug.Log($"[Mailbox] 미읽음: {unreadCount ?? 0}개, 미수령 보상: {unclaimedCount ?? 0}개");
         }
@@ -98,7 +101,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log("[Test] 우편함 목록 조회...");
 
-            var mails = await Supabase.TryGetMyMailsAsync(limit: 10);
+            var mails = await SupabaseClient.TryGetMyMailsAsync(limit: 10);
 
             if (mails != null)
             {
@@ -119,7 +122,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log($"[Test] 메일 상세 조회: {mailId}");
 
-            var mail = await Supabase.TryGetMailDetailAsync(mailId);
+            var mail = await SupabaseClient.TryGetMailDetailAsync(mailId);
 
             if (mail != null)
             {
@@ -146,7 +149,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log($"[Test] 단일 메일 수령: {mailId}");
 
-            var results = await Supabase.TryClaimMailItemsAsync(mailId);
+            var results = await SupabaseClient.TryClaimMailItemsAsync(mailId);
 
             if (results != null)
             {
@@ -166,7 +169,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log("[Test] 전체 일괄 수령...");
 
-            var results = await Supabase.TryClaimAllMailItemsAsync();
+            var results = await SupabaseClient.TryClaimAllMailItemsAsync();
 
             if (results != null && results.Count > 0)
             {
@@ -195,7 +198,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log($"[Test] 읽음 처리: {mailId}");
 
-            var success = await Supabase.TryMarkMailAsReadAsync(mailId);
+            var success = await SupabaseClient.TryMarkMailAsReadAsync(mailId);
 
             if (success)
             {
@@ -211,7 +214,7 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             Debug.Log($"[Test] 메일 삭제: {mailId}");
 
-            var success = await Supabase.TryDeleteMailAsync(mailId);
+            var success = await SupabaseClient.TryDeleteMailAsync(mailId);
 
             if (success)
             {
