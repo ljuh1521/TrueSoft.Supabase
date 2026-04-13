@@ -24,17 +24,41 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("테스트할 메일 ID (수동 입력 또는 자동 할당)")]
         public string testMailId;
 
-        [Tooltip("자동으로 목록을 가져와서 테스트할지 여부")]
-        public bool autoFetchOnStart = true;
+        [Tooltip(
+            "Play 시 전체 우편함 테스트를 자동 실행합니다. 우편 API는 로그인(유효한 액세스 토큰)이 있어야 하므로, 세션이 없으면 경고만 남기고 건너뜁니다. " +
+            "로그인/세션 복원은 다른 컴포넌트에서 먼저 수행하거나, 로그인 후 컨텍스트 메뉴 `Test: 전체 흐름`을 사용하세요.")]
+        public bool autoFetchOnStart;
 
         private async void Start()
         {
             RegisterMailHandlers();
 
-            if (autoFetchOnStart)
+            if (!autoFetchOnStart)
+                return;
+
+            if (!HasMailboxAuth(out var reason))
             {
-                await TestMailboxFlow();
+                Debug.LogWarning("[Mailbox] Auto Fetch On Start를 건너뜁니다. " + reason);
+                return;
             }
+
+            await TestMailboxFlow();
+        }
+
+        /// <summary>우편함 API와 동일한 최소 조건: 세션 + 액세스 토큰.</summary>
+        private static bool HasMailboxAuth(out string skipReason)
+        {
+            var s = SupabaseClient.Session;
+            if (s == null || string.IsNullOrWhiteSpace(s.AccessToken))
+            {
+                skipReason =
+                    "우편함은 로그인 세션이 필요합니다. `Supabase.TryStartAsync` 등으로 세션을 복원·로그인한 뒤 다시 실행하거나, " +
+                    "Inspector의 Auto Fetch On Start를 끈 채 로그인 후 컨텍스트 메뉴 `Test: 전체 흐름`을 쓰세요.";
+                return false;
+            }
+
+            skipReason = null;
+            return true;
         }
 
         private void RegisterMailHandlers()
@@ -230,18 +254,55 @@ namespace Truesoft.SupabaseUnity.Samples
 
         #region UI 버튼용 공개 메서드
 
+        [ContextMenu("Test: 전체 흐름")]
+        public void RunFullMailboxTestFromContextMenu()
+        {
+            RegisterMailHandlers();
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
+            _ = TestMailboxFlow();
+        }
+
         [ContextMenu("Test: 목록 조회")]
-        public void TestListOnly() => _ = TestGetMailList();
+        public void TestListOnly()
+        {
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
+            _ = TestGetMailList();
+        }
 
         [ContextMenu("Test: 수령만 실행")]
         public void TestClaimOnly()
         {
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
             if (!string.IsNullOrEmpty(testMailId))
                 _ = TestClaimSingleMail(testMailId);
         }
 
         [ContextMenu("Test: 일괄 수령")]
-        public void TestClaimAll() => _ = TestClaimAllMails();
+        public void TestClaimAll()
+        {
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
+            _ = TestClaimAllMails();
+        }
 
         #endregion
     }

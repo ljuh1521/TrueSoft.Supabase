@@ -12,7 +12,8 @@ UPM **Examples** 샘플을 Import한 뒤 `MailboxTestSample` 컴포넌트를 씬
 
 1. Package Manager → **Truesoft Supabase SDK** → Samples → **Examples** → **Import**
 2. 씬에 GameObject 추가 → **`MailboxTestSample`** 붙이기
-3. Play (기본으로 `Auto Fetch On Start`가 켜져 있으면 자동 테스트)
+3. **로그인(또는 저장된 세션 복원)** 이 끝난 뒤에만 우편 API가 동작합니다. SDK의 `Supabase.TryStartAsync` 등으로 세션이 잡힌 상태에서 테스트하세요.
+4. Play 후 테스트: Inspector에서 **`Auto Fetch On Start`** 를 켜면(세션이 있을 때만) 시작 시 전체 흐름이 돌고, 끈 상태면 컴포넌트 우클릭 → **`Test: 전체 흐름`** / **`Test: 목록 조회`** 등을 사용합니다.
 
 ## 3. 핸들러
 
