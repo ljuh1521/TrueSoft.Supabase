@@ -150,12 +150,7 @@ namespace Truesoft.Supabase.Unity
             }
 
             if (TryGetRaw(trimmedKey, out var json) == false || string.IsNullOrWhiteSpace(json))
-            {
-                // #region agent log
-                Debug.Log($"[Supabase][DEBUG] 키 없음: {trimmedKey}, 캐시 키 개수={_cache.Count}, 키 목록={string.Join(",", _cache.Keys)}");
-                // #endregion
                 return SupabaseResult<T>.Fail("remote_config_key_not_found_or_filtered");
-            }
 
             if (IsObjectRootJson(json) == false)
                 return SupabaseResult<T>.Fail("remote_config_value_must_be_object_json");
@@ -280,13 +275,7 @@ namespace Truesoft.Supabase.Unity
                 return new FetchOutcome(true, null);
 
             var accessToken = _accessTokenGetter?.Invoke();
-            // #region agent log
-            Debug.Log($"[Supabase][DEBUG] 키 fetch 시도: {string.Join(",", keys)}, access_token 존재={!string.IsNullOrWhiteSpace(accessToken)}");
-            // #endregion
             var result = await _service.GetByKeysAsync(keys, accessToken).ConfigureAwait(true);
-            // #region agent log
-            Debug.Log($"[Supabase][DEBUG] fetch 결과: success={result.IsSuccess}, error={result.ErrorMessage}, data_rows={(result.Data?.Length.ToString() ?? "null")}");
-            // #endregion
             if (result.IsSuccess == false)
                 return new FetchOutcome(false, result.ErrorMessage ?? "remote_config_fetch_failed");
 
@@ -316,10 +305,6 @@ namespace Truesoft.Supabase.Unity
             if (rows == null)
                 rows = Array.Empty<SupabaseRemoteConfigService.RemoteConfigRow>();
 
-            // #region agent log
-            Debug.Log($"[Supabase][DEBUG] ApplyRows 시작: {rows.Length}개 행 수신, replace={replace}");
-            // #endregion
-
             Dictionary<string, string> previousValues = null;
             HashSet<string> acceptedKeys = null;
 
@@ -339,16 +324,7 @@ namespace Truesoft.Supabase.Unity
             foreach (var row in rows)
             {
                 if (row == null || string.IsNullOrWhiteSpace(row.key))
-                {
-                    // #region agent log
-                    Debug.Log("[Supabase][DEBUG] 행 스킵: null 또는 key 없음");
-                    // #endregion
                     continue;
-                }
-
-                // #region agent log
-                Debug.Log($"[Supabase][DEBUG] 행 처리: key={row.key}, enabled={row.enabled}, requires_auth={row.requires_auth}, has_access_token={!string.IsNullOrWhiteSpace(_accessTokenGetter?.Invoke())}, ver_min={row.client_version_min}, ver_max={row.client_version_max}, current_ver={_applicationVersionProvider?.Invoke()}");
-                // #endregion
 
                 TouchGlobalLastUpdated(row.updated_at);
 
@@ -356,9 +332,6 @@ namespace Truesoft.Supabase.Unity
 
                 if (row.enabled == false)
                 {
-                    // #region agent log
-                    Debug.Log($"[Supabase][DEBUG] 필터링됨(key={row.key}): enabled=false");
-                    // #endregion
                     if (_cache.Remove(row.key))
                     {
                         _keyMeta.Remove(row.key);
@@ -369,9 +342,6 @@ namespace Truesoft.Supabase.Unity
 
                 if (row.requires_auth && string.IsNullOrWhiteSpace(_accessTokenGetter?.Invoke()))
                 {
-                    // #region agent log
-                    Debug.Log($"[Supabase][DEBUG] 필터링됨(key={row.key}): requires_auth=true but no access token");
-                    // #endregion
                     if (_cache.Remove(row.key))
                     {
                         _keyMeta.Remove(row.key);
@@ -382,9 +352,6 @@ namespace Truesoft.Supabase.Unity
 
                 if (PassesClientVersion(row) == false)
                 {
-                    // #region agent log
-                    Debug.Log($"[Supabase][DEBUG] 필터링됨(key={row.key}): client version mismatch");
-                    // #endregion
                     if (_cache.Remove(row.key))
                     {
                         _keyMeta.Remove(row.key);
@@ -395,17 +362,10 @@ namespace Truesoft.Supabase.Unity
 
                 if (IsObjectRootJson(newValue) == false)
                 {
-                    // #region agent log
-                    Debug.Log($"[Supabase][DEBUG] 필터링됨(key={row.key}): value_json is not object root, value={TruncateForLog(newValue, 50)}");
-                    // #endregion
                     Debug.LogError($"[Supabase] RemoteConfig value_json은 객체 루트(JSON이 '{{'로 시작)여야 합니다. key={row.key}, value={TruncateForLog(newValue, 200)}");
                     UpdateKeyTimestampFromRow(row.key, row.updated_at);
                     continue;
                 }
-
-                // #region agent log
-                Debug.Log($"[Supabase][DEBUG] 캐시 추가됨(key={row.key}): 값 길이={newValue.Length}");
-                // #endregion
 
                 if (replace)
                     acceptedKeys.Add(row.key);
