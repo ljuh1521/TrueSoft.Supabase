@@ -129,7 +129,8 @@ namespace Truesoft.Supabase.Unity
         /// 실패 시 <see cref="SupabaseResult{T}.ErrorMessage"/> 예:
         /// <c>remote_config_key_not_in_database</c>(테이블/RLS에 행 없음),
         /// <c>remote_config_key_disabled</c>, <c>remote_config_key_requires_auth</c>,
-        /// <c>remote_config_key_client_version_mismatch</c>, <c>remote_config_value_must_be_object_json</c>.
+        /// <c>remote_config_key_client_version_mismatch</c>,
+        /// <c>remote_config_value_must_be_object_json</c>(뒤에 <c>:</c>로 이유·접두 미리보기가 붙을 수 있음).
         /// </summary>
         public async Task<SupabaseResult<T>> GetTypedAsync<T>(string key) where T : class, new()
         {
@@ -157,7 +158,7 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<T>.Fail("remote_config_key_not_found_or_filtered");
 
             if (IsObjectRootJson(json) == false)
-                return SupabaseResult<T>.Fail("remote_config_value_must_be_object_json");
+                return SupabaseResult<T>.Fail("remote_config_value_must_be_object_json:" + BuildValueJsonShapeHint(json));
 
             try
             {
@@ -335,7 +336,7 @@ namespace Truesoft.Supabase.Unity
 
             var v = match.value_json ?? string.Empty;
             if (string.IsNullOrWhiteSpace(v) || IsObjectRootJson(v) == false)
-                return "remote_config_value_must_be_object_json";
+                return "remote_config_value_must_be_object_json:" + BuildValueJsonShapeHint(v);
 
             return "remote_config_key_not_found_or_filtered";
         }
@@ -564,6 +565,33 @@ namespace Truesoft.Supabase.Unity
 
             var trimmed = json.TrimStart();
             return trimmed.StartsWith("{", StringComparison.Ordinal);
+        }
+
+        /// <summary>DB <c>value_json</c>이 객체 루트가 아닐 때 <see cref="SupabaseResult{T}.ErrorMessage"/> 접미사로만 사용합니다.</summary>
+        private static string BuildValueJsonShapeHint(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return "empty_or_whitespace";
+
+            var t = raw.TrimStart();
+            if (t.Length == 0)
+                return "empty_or_whitespace";
+
+            switch (t[0])
+            {
+                case '[':
+                    return "array_root(use_object_like_{\"v\":...})";
+                case '"':
+                    return "string_root(use_object_like_{\"v\":\"...\"})";
+                case 't':
+                case 'f':
+                case 'n':
+                    return "scalar_or_keyword_root(use_object_wrapper)";
+                case '{':
+                    return "unexpected";
+                default:
+                    return "non_object_prefix=" + TruncateForLog(t, 80);
+            }
         }
 
         private static string TruncateForLog(string value, int maxLen)

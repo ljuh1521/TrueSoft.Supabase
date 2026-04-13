@@ -594,13 +594,19 @@ namespace Truesoft.SupabaseUnity.Samples
             var result = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey);
             if (result.IsSuccess == false)
             {
-                if (result.ErrorMessage == "remote_config_key_not_in_database")
+                var em = result.ErrorMessage ?? string.Empty;
+                if (em == "remote_config_key_not_in_database")
                     Debug.LogWarning(
                         "[Sample] remote_config에 해당 key 행이 없거나(RLS/anon) 응답에 포함되지 않았습니다. " +
                         "인스펙터의 Remote Config Key를 DB의 key 컬럼과 일치시키거나 Sql/player/10_remote_config.sql 등으로 행을 추가하세요. (key="
                         + remoteConfigKey + ")");
+                else if (em.StartsWith("remote_config_value_must_be_object_json", StringComparison.Ordinal))
+                    Debug.LogWarning(
+                        "[Sample] 해당 key의 value_json은 반드시 JSON **객체**로 시작해야 합니다(첫 비공백 문자가 '{' ). " +
+                        "배열·문자열·숫자만 두면 안 됩니다. 예: {\"stamina\":{\"max\":100}}. Supabase Table Editor에서 value_json을 수정하세요. SDK: "
+                        + em + " (key=" + remoteConfigKey + ")");
                 else
-                    Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + result.ErrorMessage);
+                    Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + em);
                 return false;
             }
 
