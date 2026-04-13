@@ -10,6 +10,7 @@
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
 - 서버 샤드 예시 — 로컬 서버 코드(`GetCurrentServerCode` / `SetCurrentServerCode`)와 DB의 `ts_my_server_id` 조회, 선택적으로 `TryTransferMyServerAsync`(RPC `ts_transfer_my_server`). 운영·Retool용 `ts_admin_transfer_user_server`는 루트 README 참고.
+- **우편함(Mailbox)** — `MailboxTestSample` + SQL `Sql/samples/MailboxTestData.sql`(패키지 루트 기준). 상세는 **README-MailboxTest.md** 참고.
 
 ## 1. 샘플 가져오기
 

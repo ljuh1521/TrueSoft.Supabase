@@ -6,7 +6,7 @@
 -- -----------------------------------------------------------------------------
 -- 1. 테스트 대상 유저 찾기 (실제 uuid와 user_id로 교체해서 사용)
 -- -----------------------------------------------------------------------------
--- SELECT account_id, user_id, display_name 
+-- SELECT account_id, user_id, display_name
 -- FROM public.profiles p
 -- JOIN public.display_names dn ON p.account_id = dn.account_id
 -- LIMIT 5;
