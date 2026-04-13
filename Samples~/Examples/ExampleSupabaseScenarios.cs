@@ -21,31 +21,31 @@ namespace Truesoft.SupabaseUnity.Samples
         [SerializeField] private int level = 1;
         [SerializeField] private int coins = 100;
 
-        [Header("RemoteConfig")]
+        [Header("원격 설정")]
         [SerializeField] private string remoteConfigKey = "game_balance";
 
-        [Header("Edge")]
+        [Header("엣지 함수")]
         [SerializeField] private string functionName = "gacha";
 
         [Header("표시 이름")]
         [SerializeField] private string demoDisplayName = "SamplePlayer";
 
         [Header("서버 샤드")]
-        [Tooltip("이주 목표 server_code.")]
+        [Tooltip("이주 목표 서버 코드")]
         [SerializeField] private string serverShardTransferTargetCode = "GLOBAL";
 
-        [Tooltip("시작 시 이주까지 시도.")]
+        [Tooltip("시작 시 이주까지 시도")]
         [SerializeField] private bool serverShardAttemptTransfer = false;
 
-        [Tooltip("시작 시 로컬 서버 코드 덮어쓰기. 비우면 유지.")]
+        [Tooltip("시작 시 로컬 서버 코드 덮어쓰기. 비우면 유지")]
         [SerializeField] private string serverShardOptionalSetLocalCode = "";
 
         [Header("중복 로그인")]
-        [Tooltip("OnDuplicateLoginDetected 구독.")]
+        [Tooltip("중복 로그인 감지 이벤트 구독")]
         [SerializeField] private bool subscribeDuplicateLoginOnEnable = true;
 
         [Header("키보드 테스트")]
-        [Tooltip("키 입력으로 샘플 API 호출.")]
+        [Tooltip("키 입력으로 샘플 API 호출")]
         [SerializeField] private bool enableKeyboardTest = true;
 
         [Tooltip("익명 로그인")]
@@ -60,28 +60,28 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("통합 로그아웃")]
         [SerializeField] private KeyCode keyLogout = KeyCode.W;
 
-        [Tooltip("공개 displayName")]
+        [Tooltip("공개 닉네임 설정")]
         [SerializeField] private KeyCode keySetDisplayName = KeyCode.E;
 
-        [Tooltip("유저 세이브 로드 (행 없으면 인스펙터 level/coins를 초기값으로)")]
+        [Tooltip("유저 세이브 로드 (행 없으면 인스펙터 레벨/코인을 초기값으로)")]
         [SerializeField] private KeyCode keyLoadUserSave = KeyCode.R;
 
-        [Tooltip("유저 세이브 저장 (서버 스냅샷 대비 변경분만 PATCH, 같으면 전송 안 함)")]
+        [Tooltip("유저 세이브 저장 (서버와 비교해 변경분만 전송, 같으면 생략)")]
         [SerializeField] private KeyCode keySaveUserSave = KeyCode.V;
 
-        [Tooltip("RemoteConfig 새로고침·조회")]
+        [Tooltip("원격 설정 새로고침 및 조회")]
         [SerializeField] private KeyCode keyRemoteConfig = KeyCode.T;
 
-        [Tooltip("RemoteConfig 즉시 동기화")]
+        [Tooltip("원격 설정 즉시 동기화")]
         [SerializeField] private KeyCode keyRemoteConfigOnDemand = KeyCode.U;
 
-        [Tooltip("Edge 함수 호출")]
+        [Tooltip("엣지 함수 호출")]
         [SerializeField] private KeyCode keyInvokeFunction = KeyCode.Y;
 
-        [Tooltip("중복 로그인 안내 로그")]
+        [Tooltip("중복 로그인 테스트 안내")]
         [SerializeField] private KeyCode keyDuplicateLoginInfo = KeyCode.L;
 
-        [Tooltip("서버 시각")]
+        [Tooltip("서버 시각 조회")]
         [SerializeField] private KeyCode keyServerTime = KeyCode.H;
 
         [Tooltip("탈퇴 요청")]
@@ -93,7 +93,7 @@ namespace Truesoft.SupabaseUnity.Samples
         [Tooltip("탈퇴 예약 취소")]
         [SerializeField] private KeyCode keyWithdrawalCancel = KeyCode.C;
 
-        [Tooltip("서버 샤드 조회·이주")]
+        [Tooltip("서버 샤드 조회 및 이주")]
         [SerializeField] private KeyCode keyServerShard = KeyCode.N;
 
         private bool _keyboardBusy;
@@ -183,103 +183,103 @@ namespace Truesoft.SupabaseUnity.Samples
             }
         }
 
-        [ContextMenu("Run All Examples")]
+        [ContextMenu("전체 예제 실행")]
         public void RunAllExamples()
         {
             _ = RunAllExamplesAsync();
         }
 
-        [ContextMenu("Run Login Example")]
+        [ContextMenu("로그인 예제 실행")]
         public void RunLoginExample()
         {
             _ = RunLoginExampleAsync();
         }
 
-        [ContextMenu("Run Google Login Example")]
+        [ContextMenu("구글 로그인 예제 실행")]
         public void RunGoogleLoginExample()
         {
             _ = RunGoogleLoginExampleAsync();
         }
 
-        [ContextMenu("Run Google Link Example")]
+        [ContextMenu("구글 연동 예제 실행")]
         public void RunGoogleLinkExample()
         {
             _ = RunGoogleLinkExampleAsync();
         }
 
-        [ContextMenu("Run Load User Save Example (static)")]
+        [ContextMenu("유저 세이브 로드 예제 실행")]
         public void RunLoadUserSaveExample()
         {
             _ = RunLoadUserSaveExampleAsync();
         }
 
-        [ContextMenu("Run Save User Save Example (static, diff only)")]
+        [ContextMenu("유저 세이브 저장 예제 실행 (변경분만)")]
         public void RunSaveUserSaveExample()
         {
             _ = RunSaveUserSaveExampleAsync();
         }
 
-        [ContextMenu("Run RemoteConfig Example")]
+        [ContextMenu("원격 설정 예제 실행")]
         public void RunRemoteConfigExample()
         {
             _ = RunRemoteConfigExampleAsync();
         }
 
-        [ContextMenu("Run RemoteConfig On-Demand Example")]
+        [ContextMenu("원격 설정 즉시 동기화 예제 실행")]
         public void RunRemoteConfigOnDemandExample()
         {
             _ = RunRemoteConfigOnDemandExampleAsync();
         }
 
-        [ContextMenu("Run Function Example")]
+        [ContextMenu("엣지 함수 예제 실행")]
         public void RunFunctionExample()
         {
             _ = RunFunctionExampleAsync();
         }
 
-        [ContextMenu("Run Public DisplayName Example")]
+        [ContextMenu("공개 닉네임 예제 실행")]
         public void RunPublicNicknameExample()
         {
             _ = RunPublicNicknameExampleAsync();
         }
 
-        [ContextMenu("Run Logout Example")]
+        [ContextMenu("로그아웃 예제 실행")]
         public void RunLogoutExample()
         {
             _ = RunLogoutExampleAsync();
         }
 
-        [ContextMenu("Run Duplicate Login Info (Console)")]
+        [ContextMenu("중복 로그인 테스트 안내 (콘솔)")]
         public void RunDuplicateLoginInfoExample()
         {
             LogDuplicateLoginHowToTest();
         }
 
-        [ContextMenu("Run Server Time Example")]
+        [ContextMenu("서버 시각 예제 실행")]
         public void RunServerTimeExample()
         {
             _ = RunServerTimeExampleAsync();
         }
 
-        [ContextMenu("Run Withdrawal Request Example")]
+        [ContextMenu("탈퇴 요청 예제 실행")]
         public void RunWithdrawalRequestExample()
         {
             _ = RunWithdrawalRequestExampleAsync();
         }
 
-        [ContextMenu("Run Withdrawal Status Example")]
+        [ContextMenu("탈퇴 상태 조회 예제 실행")]
         public void RunWithdrawalStatusExample()
         {
             _ = RunWithdrawalStatusExampleAsync();
         }
 
-        [ContextMenu("Run Withdrawal Cancel Redeem Example")]
+        [ContextMenu("탈퇴 취소 예제 실행")]
         public void RunWithdrawalCancelRedeemExample()
         {
             _ = RunWithdrawalCancelRedeemExampleAsync();
         }
 
-        [ContextMenu("Run Server Shard Example (my server + optional transfer)")]
+        [ContextMenu("서버 샤드 예제 실행 (이주 옵션)")]
         public void RunServerShardExample()
         {
             _ = RunServerShardExampleAsync();
