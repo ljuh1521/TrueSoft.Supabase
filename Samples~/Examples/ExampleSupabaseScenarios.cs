@@ -22,7 +22,7 @@ namespace Truesoft.SupabaseUnity.Samples
         [SerializeField] private int coins = 100;
 
         [Header("원격 설정")]
-        [Tooltip("T/U 키 예제 대상. 콘솔의 [Sample] 로그로 value_json(raw) 확인. SupabaseSettings.enableApiResultLogs로 RemoteConfig API 태그 로그.")]
+        [Tooltip("T/U 예제용 key — DB remote_config.key와 같아야 합니다.")]
         [SerializeField] private string remoteConfigKey = "game_balance";
 
         [Header("엣지 함수")]
@@ -590,28 +590,15 @@ namespace Truesoft.SupabaseUnity.Samples
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
             // Cold Start: 첫 조회에서 키 단위 fetch. 캐시 유효 시간은 DB max_stale_seconds.
-            // 확인: 아래 Debug.Log + SupabaseSettings.enableApiResultLogs 시 콘솔의 RemoteConfigGet 태그 로그.
             var result = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey);
             if (result.IsSuccess == false)
             {
-                var em = result.ErrorMessage ?? string.Empty;
-                if (em == "remote_config_key_not_in_database")
-                    Debug.LogWarning(
-                        "[Sample] remote_config에 해당 key 행이 없거나(RLS/anon) 응답에 포함되지 않았습니다. " +
-                        "인스펙터의 Remote Config Key를 DB의 key 컬럼과 일치시키거나 Sql/player/10_remote_config.sql 등으로 행을 추가하세요. (key="
-                        + remoteConfigKey + ")");
-                else if (em.StartsWith("remote_config_value_must_be_object_json", StringComparison.Ordinal))
-                    Debug.LogWarning(
-                        "[Sample] 해당 key의 value_json은 반드시 JSON **객체**로 시작해야 합니다(첫 비공백 문자가 '{' ). " +
-                        "배열·문자열·숫자만 두면 안 됩니다. 예: {\"stamina\":{\"max\":100}}. Supabase Table Editor에서 value_json을 수정하세요. SDK: "
-                        + em + " (key=" + remoteConfigKey + ")");
-                else
-                    Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + em);
+                Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + (result.ErrorMessage ?? string.Empty));
                 return false;
             }
 
             SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
-            Debug.Log("[Sample] remote config OK (key=" + remoteConfigKey + "). value_json(raw): " + raw);
+            Debug.Log("[Sample] remote config OK (key=" + remoteConfigKey + "). raw: " + raw);
             return string.IsNullOrEmpty(raw) == false;
         }
 
@@ -626,7 +613,7 @@ namespace Truesoft.SupabaseUnity.Samples
             // on-demand로 서버 값을 캐시에 반영한 뒤에는, raw를 바로 읽어오는 편이 네트워크 호출을 줄입니다.
             var has = SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
             Debug.Log(has
-                ? "[Sample] remote config on-demand OK (key=" + remoteConfigKey + "). value_json(raw): " + raw
+                ? "[Sample] remote config on-demand OK (key=" + remoteConfigKey + "). raw: " + raw
                 : "[Sample] remote config on-demand: raw 없음 (key=" + remoteConfigKey + ")");
             return has;
         }
