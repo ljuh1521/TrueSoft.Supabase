@@ -22,6 +22,7 @@ namespace Truesoft.SupabaseUnity.Samples
         [SerializeField] private int coins = 100;
 
         [Header("원격 설정")]
+        [Tooltip("T/U 키 예제 대상. 콘솔의 [Sample] 로그로 value_json(raw) 확인. SupabaseSettings.enableApiResultLogs로 RemoteConfig API 태그 로그.")]
         [SerializeField] private string remoteConfigKey = "game_balance";
 
         [Header("엣지 함수")]
@@ -589,15 +590,16 @@ namespace Truesoft.SupabaseUnity.Samples
         private async Task<bool> RunRemoteConfigExampleAsync()
         {
             // Cold Start: 첫 조회에서 키 단위 fetch. 캐시 유효 시간은 DB max_stale_seconds.
+            // 확인: 아래 Debug.Log + SupabaseSettings.enableApiResultLogs 시 콘솔의 RemoteConfigGet 태그 로그.
             var result = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey);
             if (result.IsSuccess == false)
             {
-                Debug.LogWarning("[Sample] remote config failed: " + result.ErrorMessage);
+                Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + result.ErrorMessage);
                 return false;
             }
 
             SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
-            Debug.Log("[Sample] remote config raw: " + raw);
+            Debug.Log("[Sample] remote config OK (key=" + remoteConfigKey + "). value_json(raw): " + raw);
             return string.IsNullOrEmpty(raw) == false;
         }
 
@@ -605,15 +607,15 @@ namespace Truesoft.SupabaseUnity.Samples
         {
             if (!await SupabaseClient.RefreshRemoteConfigOnDemandAsync())
             {
-                Debug.LogWarning("[Sample] remote config on-demand example failed.");
+                Debug.LogWarning("[Sample] remote config on-demand failed (key=" + remoteConfigKey + ").");
                 return false;
             }
 
             // on-demand로 서버 값을 캐시에 반영한 뒤에는, raw를 바로 읽어오는 편이 네트워크 호출을 줄입니다.
             var has = SupabaseClient.TryGetRemoteConfigRaw(remoteConfigKey, out var raw);
             Debug.Log(has
-                ? "[Sample] remote config on-demand raw: " + raw
-                : "[Sample] remote config on-demand raw: (null)");
+                ? "[Sample] remote config on-demand OK (key=" + remoteConfigKey + "). value_json(raw): " + raw
+                : "[Sample] remote config on-demand: raw 없음 (key=" + remoteConfigKey + ")");
             return has;
         }
 
