@@ -13,7 +13,7 @@ alter table if exists public.remote_config drop column if exists category;
 
 create table if not exists public.remote_config (
   key text primary key,
-  value_json text not null,  -- JSON 객체 루트 ({...}) 필수
+  value_json text not null,  -- JSON 객체 루트 ({...}) 필수 (컬럼이 jsonb여도 클라이언트 SDK가 객체/문자열 응답 모두 처리)
   updated_at timestamptz not null default now(),
   version int not null default 1,
   enabled boolean not null default true,

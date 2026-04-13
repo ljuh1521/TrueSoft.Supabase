@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
 
@@ -115,13 +117,62 @@ namespace Truesoft.Supabase.Core.Data
 
             try
             {
-                var rows = _jsonSerializer.FromJsonArray<RemoteConfigRow>(response.Body);
-                return SupabaseResult<RemoteConfigRow[]>.Success(rows ?? Array.Empty<RemoteConfigRow>());
+                var rows = DeserializeRemoteConfigRows(response.Body);
+                return SupabaseResult<RemoteConfigRow[]>.Success(rows);
             }
             catch (Exception e)
             {
                 return SupabaseResult<RemoteConfigRow[]>.Fail("remote_config_parse_exception:" + e.Message);
             }
+        }
+
+        /// <summary>
+        /// PostgREST는 <c>value_json</c>이 DB에서 <c>text</c>이면 JSON 문자열, <c>jsonb</c>이면 객체 리터럴로보냅니다.
+        /// Unity <see cref="ISupabaseJsonSerializer"/> 기본 구현(JsonUtility)은 객체 토큰을 <c>string</c> 필드에 넣지 못해 빈 값이 됩니다.
+        /// </summary>
+        private static RemoteConfigRow[] DeserializeRemoteConfigRows(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+                return Array.Empty<RemoteConfigRow>();
+
+            var arr = JArray.Parse(body);
+            var list = new List<RemoteConfigRow>(arr.Count);
+            foreach (var token in arr)
+            {
+                if (token is not JObject o)
+                    continue;
+
+                var row = new RemoteConfigRow
+                {
+                    key = o["key"]?.Type == JTokenType.String ? o["key"]!.Value<string>() : o["key"]?.ToString(),
+                    value_json = ExtractValueJsonString(o["value_json"]),
+                    updated_at = o["updated_at"]?.Type == JTokenType.String
+                        ? o["updated_at"]!.Value<string>()
+                        : o["updated_at"]?.ToString(),
+                    version = o["version"]?.Value<int?>() ?? 0,
+                    enabled = o["enabled"]?.Value<bool?>() ?? true,
+                    description = o["description"]?.Value<string>(),
+                    poll_interval_seconds = o["poll_interval_seconds"]?.Value<int?>() ?? 300,
+                    requires_auth = o["requires_auth"]?.Value<bool?>() ?? false,
+                    client_version_min = o["client_version_min"]?.Value<string>(),
+                    client_version_max = o["client_version_max"]?.Value<string>(),
+                    max_stale_seconds = o["max_stale_seconds"]?.Value<int?>() ?? 300,
+                };
+                list.Add(row);
+            }
+
+            return list.ToArray();
+        }
+
+        private static string ExtractValueJsonString(JToken vj)
+        {
+            if (vj == null || vj.Type == JTokenType.Null)
+                return string.Empty;
+
+            if (vj.Type == JTokenType.String)
+                return vj.Value<string>() ?? string.Empty;
+
+            return vj.ToString(Formatting.None);
         }
 
         private Dictionary<string, string> CreateHeaders(string accessToken)
@@ -142,6 +193,7 @@ namespace Truesoft.Supabase.Core.Data
         public sealed class RemoteConfigRow
         {
             public string key;
+            /// <summary>설정 JSON 본문. API는 <c>text</c> 컬럼이면 문자열, <c>jsonb</c> 컬럼이면 중첩 객체로 줄 수 있음(클라이언트는 문자열로 정규화).</summary>
             public string value_json;
             public string updated_at;
             public int version;
