@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
+using UnityEngine;
 
 namespace Truesoft.Supabase.Core.Data
 {
@@ -113,9 +114,19 @@ namespace Truesoft.Supabase.Core.Data
             if (response.IsSuccess == false)
                 return SupabaseResult<RemoteConfigRow[]>.Fail(response.ErrorMessage ?? response.Body ?? "remote_config_fetch_failed");
 
+            // #region agent log
+            Debug.Log($"[Supabase][DEBUG] ParseRows 응답 본문: {response.Body?.Substring(0, Math.Min(500, response.Body?.Length ?? 0)) ?? "null"}");
+            // #endregion
+
             try
             {
                 var rows = _jsonSerializer.FromJsonArray<RemoteConfigRow>(response.Body);
+                // #region agent log
+                if (rows != null && rows.Length > 0)
+                {
+                    Debug.Log($"[Supabase][DEBUG] 파싱된 행: key={rows[0].key}, value_json 길이={rows[0].value_json?.Length ?? 0}, value_json 값={rows[0].value_json?.Substring(0, Math.Min(100, rows[0].value_json?.Length ?? 0)) ?? "null"}");
+                }
+                // #endregion
                 return SupabaseResult<RemoteConfigRow[]>.Success(rows ?? Array.Empty<RemoteConfigRow>());
             }
             catch (Exception e)
