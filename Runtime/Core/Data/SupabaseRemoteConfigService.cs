@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using Truesoft.Supabase.Core.Common;
 using Truesoft.Supabase.Core.Http;
-using UnityEngine;
 
 namespace Truesoft.Supabase.Core.Data
 {
