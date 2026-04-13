@@ -152,10 +152,10 @@ namespace Truesoft.Supabase.Unity
             public const string ServerTime = "Supabase.Server.Time";
             public const string MailboxList = "Supabase.Mailbox.List";
             public const string MailboxDetail = "Supabase.Mailbox.Detail";
-            public const string MailboxMarkRead = "Supabase.Mailbox.MarkRead";
             public const string MailboxClaimOne = "Supabase.Mailbox.Claim.One";
             public const string MailboxClaimAll = "Supabase.Mailbox.Claim.All";
             public const string MailboxDelete = "Supabase.Mailbox.Delete";
+            public const string MailboxDeleteReadBulk = "Supabase.Mailbox.Delete.ReadBulk";
             public const string MailboxUnreadCount = "Supabase.Mailbox.UnreadCount";
             public const string MailboxUnclaimedCount = "Supabase.Mailbox.UnclaimedCount";
         }
@@ -1107,7 +1107,7 @@ namespace Truesoft.Supabase.Unity
             return await Mailbox.GetMyMailsAsync(limit, offset);
         }
 
-        /// <summary>우편함 메일 한 건.</summary>
+        /// <summary>우편함 메일 한 건(<c>ts_view_mail_for_user</c>: 보상 items 없으면 조회 시 읽음).</summary>
         public static async Task<SupabaseResult<Mail>> GetMailDetailAsync(string mailId)
         {
             var ready = await EnsureReadySessionAsync();
@@ -1117,17 +1117,7 @@ namespace Truesoft.Supabase.Unity
             return await Mailbox.GetMailDetailAsync(mailId);
         }
 
-        /// <summary>읽음 처리(PATCH <c>is_read</c>).</summary>
-        public static async Task<SupabaseResult<bool>> MarkMailAsReadAsync(string mailId)
-        {
-            var ready = await EnsureReadySessionAsync();
-            if (!ready.IsSuccess)
-                return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
-
-            return await Mailbox.MarkAsReadAsync(mailId);
-        }
-
-        /// <summary><c>ts_claim_mail_items</c> 후 등록된 <see cref="IMailItemHandler"/> 순서 실행.</summary>
+        /// <summary><c>ts_claim_mail_items</c>(DB에서 수령과 동시에 읽음 처리) 후 등록된 <see cref="IMailItemHandler"/> 순서 실행.</summary>
         public static async Task<SupabaseResult<IReadOnlyList<ClaimResult>>> ClaimMailItemsAsync(string mailId)
         {
             var ready = await EnsureReadySessionAsync();
@@ -1137,7 +1127,7 @@ namespace Truesoft.Supabase.Unity
             return await Mailbox.ClaimMailItemsAsync(mailId);
         }
 
-        /// <summary><c>ts_claim_all_mail_items</c> 후 메일·원소 순서대로 핸들러 실행.</summary>
+        /// <summary><c>ts_claim_all_mail_items</c>(DB에서 수령과 동시에 각 메일 읽음 처리) 후 메일·원소 순서대로 핸들러 실행.</summary>
         public static async Task<SupabaseResult<IReadOnlyList<ClaimResult>>> ClaimAllMailItemsAsync()
         {
             var ready = await EnsureReadySessionAsync();
@@ -1155,6 +1145,16 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
             return await Mailbox.DeleteMailAsync(mailId);
+        }
+
+        /// <summary><c>ts_delete_read_mails_for_user</c> — 읽음·삭제 가능한 메일만 일괄 숨김. 성공 시 데이터는 삭제한 행 수.</summary>
+        public static async Task<SupabaseResult<int>> DeleteReadMailsAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return SupabaseResult<int>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
+
+            return await Mailbox.DeleteReadMailsAsync();
         }
 
         /// <summary><c>ts_mail_inbox_counts</c>의 미읽음 수. <paramref name="userId"/>는 호환용(무시).</summary>
@@ -1193,14 +1193,6 @@ namespace Truesoft.Supabase.Unity
             return r.IsSuccess ? r.Data : null;
         }
 
-        /// <inheritdoc cref="MarkMailAsReadAsync"/>
-        public static async Task<bool> TryMarkMailAsReadAsync(string mailId)
-        {
-            var r = await MarkMailAsReadAsync(mailId);
-            LogApiResult(ApiLogTags.MailboxMarkRead, r.IsSuccess, r.ErrorMessage);
-            return r.IsSuccess;
-        }
-
         /// <inheritdoc cref="ClaimMailItemsAsync"/>
         public static async Task<IReadOnlyList<ClaimResult>> TryClaimMailItemsAsync(string mailId)
         {
@@ -1223,6 +1215,14 @@ namespace Truesoft.Supabase.Unity
             var r = await DeleteMailAsync(mailId);
             LogApiResult(ApiLogTags.MailboxDelete, r.IsSuccess, r.ErrorMessage);
             return r.IsSuccess;
+        }
+
+        /// <inheritdoc cref="DeleteReadMailsAsync"/>
+        public static async Task<int?> TryDeleteReadMailsAsync()
+        {
+            var r = await DeleteReadMailsAsync();
+            LogApiResult(ApiLogTags.MailboxDeleteReadBulk, r.IsSuccess, r.ErrorMessage);
+            return r.IsSuccess ? r.Data : (int?)null;
         }
 
         /// <inheritdoc cref="GetUnreadMailCountAsync"/>

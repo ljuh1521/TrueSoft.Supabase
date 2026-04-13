@@ -99,7 +99,6 @@ namespace Truesoft.SupabaseUnity.Samples
             }
 
             await TestClaimAllMails();
-            await TestMarkAsRead(testMailId);
 
             if (firstMail.CanDeleteFromInbox)
             {
@@ -218,22 +217,6 @@ namespace Truesoft.SupabaseUnity.Samples
             }
         }
 
-        private async Task TestMarkAsRead(string mailId)
-        {
-            Debug.Log($"[Test] 읽음 처리: {mailId}");
-
-            var success = await SupabaseClient.TryMarkMailAsReadAsync(mailId);
-
-            if (success)
-            {
-                Debug.Log("[Mailbox] 읽음 처리 완료");
-            }
-            else
-            {
-                Debug.LogError("[Mailbox] 읽음 처리 실패");
-            }
-        }
-
         private async Task TestDeleteMail(string mailId)
         {
             Debug.Log($"[Test] 메일 삭제: {mailId}");
@@ -248,6 +231,17 @@ namespace Truesoft.SupabaseUnity.Samples
             {
                 Debug.LogError("[Mailbox] 삭제 실패 (미수령 보상이 있거나 이미 삭제됨)");
             }
+        }
+
+        private async Task TestDeleteReadMailsBulk()
+        {
+            Debug.Log("[Test] 읽은 메일 일괄 삭제...");
+
+            var n = await SupabaseClient.TryDeleteReadMailsAsync();
+            if (n == null)
+                Debug.LogError("[Mailbox] 읽은 메일 일괄 삭제 실패");
+            else
+                Debug.Log($"[Mailbox] 읽은 메일 일괄 삭제 완료: {n}건 숨김");
         }
 
         #endregion
@@ -302,6 +296,18 @@ namespace Truesoft.SupabaseUnity.Samples
             }
 
             _ = TestClaimAllMails();
+        }
+
+        [ContextMenu("Test: 읽은 메일 일괄 삭제")]
+        public void TestDeleteReadMailsFromMenu()
+        {
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
+            _ = TestDeleteReadMailsBulk();
         }
 
         #endregion

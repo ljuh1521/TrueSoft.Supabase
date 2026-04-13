@@ -10,7 +10,7 @@ using Truesoft.Supabase.Core.Http;
 namespace Truesoft.Supabase.Core.Data
 {
     /// <summary>
-    /// 우편함 REST + RPC (<c>mails</c>, <c>ts_claim_mail_items</c>, <c>ts_claim_all_mail_items</c>, <c>ts_delete_mail_for_user</c>, <c>ts_mail_inbox_counts</c>).
+    /// 우편함 REST + RPC. 상세 <c>ts_view_mail_for_user</c>, 수령 <c>ts_claim_*</c>, 삭제 <c>ts_delete_mail_for_user</c>·<c>ts_delete_read_mails_for_user</c>, 카운트 <c>ts_mail_inbox_counts</c>.
     /// </summary>
     public sealed class SupabaseMailboxService
     {
@@ -63,49 +63,40 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(mailId))
                 return SupabaseResult<Mail>.Fail("mail_id_empty");
 
-            var url =
-                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _mailsTable)}" +
-                $"?select={Uri.EscapeDataString(MailSelectColumns)}" +
-                $"&id=eq.{Uri.EscapeDataString(mailId.Trim())}" +
-                $"&limit=1";
-
-            var list = await FetchMailListAsync(accessToken, url);
-            if (!list.IsSuccess)
-                return SupabaseResult<Mail>.Fail(list.ErrorMessage ?? "mail_fetch_failed");
-
-            if (list.Data == null || list.Data.Count == 0)
-                return SupabaseResult<Mail>.Fail("mail_not_found");
-
-            return SupabaseResult<Mail>.Success(list.Data[0]);
-        }
-
-        public async Task<SupabaseResult<bool>> MarkAsReadAsync(string accessToken, string mailId)
-        {
-            if (string.IsNullOrWhiteSpace(accessToken))
-                return SupabaseResult<bool>.Fail("access_token_empty");
-
-            if (string.IsNullOrWhiteSpace(mailId))
-                return SupabaseResult<bool>.Fail("mail_id_empty");
-
-            var url =
-                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _mailsTable)}" +
-                $"?id=eq.{Uri.EscapeDataString(mailId.Trim())}";
-
-            var bodyJson = JsonConvert.SerializeObject(new Dictionary<string, object> { { "is_read", true } });
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_view_mail_for_user";
+            var bodyJson = JsonConvert.SerializeObject(new { p_mail_id = mailId.Trim() });
 
             var response = await _httpClient.SendAsync(
-                method: "PATCH",
+                method: "POST",
                 url: url,
                 jsonBody: bodyJson,
-                headers: CreateAuthHeaders(accessToken, "return=minimal"));
+                headers: CreateAuthHeaders(accessToken, prefer: null));
 
             if (response == null)
-                return SupabaseResult<bool>.Fail("http_response_null");
+                return SupabaseResult<Mail>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "mail_mark_read_failed");
+                return SupabaseResult<Mail>.Fail(response.ErrorMessage ?? response.Body ?? "mail_view_failed");
 
-            return SupabaseResult<bool>.Success(true);
+            var body = response.Body?.Trim();
+            if (string.IsNullOrEmpty(body) || body == "null")
+                return SupabaseResult<Mail>.Fail("mail_not_found");
+
+            try
+            {
+                var row = JsonConvert.DeserializeObject<MailRestRow>(body);
+                if (row == null || string.IsNullOrWhiteSpace(row.Id))
+                    return SupabaseResult<Mail>.Fail("mail_not_found");
+
+                var mail = MapRow(row);
+                return mail == null
+                    ? SupabaseResult<Mail>.Fail("mail_not_found")
+                    : SupabaseResult<Mail>.Success(mail);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<Mail>.Fail("mail_detail_parse:" + e.Message);
+            }
         }
 
         /// <summary>단일 메일 수령 RPC. 보상 없음이면 빈 목록(no-op).</summary>
@@ -184,6 +175,40 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "delete_mail_failed");
 
             return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <summary>읽음·삭제 가능한 메일만 일괄 소프트 삭제. 반환값은 처리한 행 수.</summary>
+        public async Task<SupabaseResult<int>> DeleteReadMailsForUserRpcAsync(string accessToken)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<int>.Fail("access_token_empty");
+
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_delete_read_mails_for_user";
+            var response = await _httpClient.SendAsync(
+                method: "POST",
+                url: url,
+                jsonBody: "{}",
+                headers: CreateAuthHeaders(accessToken, prefer: null));
+
+            if (response == null)
+                return SupabaseResult<int>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<int>.Fail(response.ErrorMessage ?? response.Body ?? "delete_read_mails_failed");
+
+            var body = response.Body?.Trim();
+            if (string.IsNullOrEmpty(body))
+                return SupabaseResult<int>.Fail("delete_read_mails_empty_body");
+
+            try
+            {
+                var n = JsonConvert.DeserializeObject<int>(body);
+                return SupabaseResult<int>.Success(n);
+            }
+            catch (Exception e)
+            {
+                return SupabaseResult<int>.Fail("delete_read_mails_parse:" + e.Message);
+            }
         }
 
         /// <summary>미읽음·미수령 보상 메일 개수(JWT <c>auth.uid()</c> + 현재 프로필 서버).</summary>

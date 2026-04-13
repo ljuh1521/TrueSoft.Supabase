@@ -8,6 +8,9 @@ UPM **Examples** 샘플을 Import한 뒤 `MailboxTestSample` 컴포넌트를 씬
 
 (`11_mails.sql` 등 우편 스키마가 이미 적용되어 있어야 합니다.)
 
+- **읽은 메일 일괄 숨김**: DB RPC `ts_delete_read_mails_for_user` — Unity에서는 `Supabase.TryDeleteReadMailsAsync()` (반환: 삭제한 건수, 실패 시 `null`).
+- **PostgREST 직접 PATCH 방지(선택)**: `Sql/player/11_mails_client_hardening.sql` — 적용 전 주석의 체크리스트를 읽을 것.
+
 ## 2. Unity
 
 1. Package Manager → **Truesoft Supabase SDK** → Samples → **Examples** → **Import**

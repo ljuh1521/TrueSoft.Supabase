@@ -2,6 +2,7 @@
 -- 플레이어 스키마 — mails (우편함) + RLS + 수령·삭제·만료 정리 RPC
 -- 선행: 02_profiles.sql (auth_user_server_id), 01_game_servers.sql
 -- 서버 스코프: mails.server_id 컬럼 없음 — profiles.server_id + auth_user_server_id() 조인
+-- 선택: PostgREST 직접 변조 축소 — Sql/player/11_mails_client_hardening.sql
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -103,6 +104,65 @@ with check (
 );
 
 -- ---------------------------------------------------------------------------
+-- RPC: 메일 상세 조회 — items 없음(NULL/비배열/빈 배열)이면 읽음 처리 후 반환
+-- ---------------------------------------------------------------------------
+create or replace function public.ts_view_mail_for_user(p_mail_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  m public.mails%rowtype;
+  no_attachment boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select * into m from public.mails where id = p_mail_id for update;
+  if not found then
+    raise exception 'mail_not_found';
+  end if;
+
+  if m.account_id is null or m.account_id <> auth.uid() then
+    raise exception 'forbidden';
+  end if;
+
+  if not exists (
+    select 1 from public.profiles p
+    where p.account_id = auth.uid()
+      and p.user_id = m.user_id
+      and p.server_id is not null
+      and p.server_id = public.auth_user_server_id()
+  ) then
+    raise exception 'forbidden_server';
+  end if;
+
+  if m.deleted_at is not null then
+    raise exception 'mail_deleted';
+  end if;
+
+  no_attachment :=
+    m.items is null
+    or jsonb_typeof(m.items) <> 'array'
+    or jsonb_array_length(m.items) = 0;
+
+  if no_attachment then
+    update public.mails set is_read = true where id = p_mail_id;
+  end if;
+
+  return (select to_jsonb(t) from public.mails t where t.id = p_mail_id);
+end;
+$$;
+
+comment on function public.ts_view_mail_for_user(uuid) is
+  '본인·프로필 서버 일치 메일 1건 JSON. 보상 items 없으면 is_read 갱신. SECURITY DEFINER.';
+
+revoke all on function public.ts_view_mail_for_user(uuid) from public;
+grant execute on function public.ts_view_mail_for_user(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- RPC: 단일 메일 보상 일괄 수령 — 반환 jsonb 배열 [{index,key,count}, ...] (빈 배열 = no-op)
 -- ---------------------------------------------------------------------------
 create or replace function public.ts_claim_mail_items(p_mail_id uuid)
@@ -170,7 +230,10 @@ begin
     end;
   end loop;
 
-  update public.mails set items_claimed_at = now() where id = p_mail_id;
+  update public.mails
+  set items_claimed_at = now(),
+      is_read = true
+  where id = p_mail_id;
 
   select coalesce(
     jsonb_agg(
@@ -191,7 +254,7 @@ end;
 $$;
 
 comment on function public.ts_claim_mail_items(uuid) is
-  '본인·프로필 서버 일치 메일 보상 전부 수령. items 비면 [] 반환(no-op). SECURITY DEFINER.';
+  '본인·프로필 서버 일치 메일 보상 전부 수령(수령 시 읽음 처리). items 비면 [] 반환(no-op). SECURITY DEFINER.';
 
 revoke all on function public.ts_claim_mail_items(uuid) from public;
 grant execute on function public.ts_claim_mail_items(uuid) to authenticated;
@@ -252,7 +315,10 @@ begin
       end;
     end loop;
 
-    update public.mails set items_claimed_at = now() where id = r.id;
+    update public.mails
+    set items_claimed_at = now(),
+        is_read = true
+    where id = r.id;
 
     select coalesce(
       jsonb_agg(
@@ -277,7 +343,7 @@ end;
 $$;
 
 comment on function public.ts_claim_all_mail_items() is
-  '미수령 보상 메일 전부 일괄 수령. SECURITY DEFINER.';
+  '미수령 보상 메일 전부 일괄 수령(수령 시 각 메일 읽음 처리). SECURITY DEFINER.';
 
 revoke all on function public.ts_claim_all_mail_items() from public;
 grant execute on function public.ts_claim_all_mail_items() to authenticated;
@@ -340,6 +406,58 @@ comment on function public.ts_delete_mail_for_user(uuid) is
 
 revoke all on function public.ts_delete_mail_for_user(uuid) from public;
 grant execute on function public.ts_delete_mail_for_user(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- RPC: 읽음 처리된 우편 일괄 소프트 삭제 (미수령 보상이 있는 메일은 제외)
+-- ---------------------------------------------------------------------------
+create or replace function public.ts_delete_read_mails_for_user()
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  n int;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  with victims as (
+    select m.id
+    from public.mails m
+    where m.account_id = auth.uid()
+      and m.deleted_at is null
+      and m.is_read = true
+      and exists (
+        select 1 from public.profiles p
+        where p.account_id = auth.uid()
+          and p.user_id = m.user_id
+          and p.server_id is not null
+          and p.server_id = public.auth_user_server_id()
+      )
+      and not (
+        m.items is not null
+        and jsonb_typeof(m.items) = 'array'
+        and jsonb_array_length(m.items) > 0
+        and m.items_claimed_at is null
+      )
+  )
+  update public.mails u
+  set deleted_at = now()
+  from victims v
+  where u.id = v.id;
+
+  get diagnostics n = row_count;
+  return coalesce(n, 0);
+end;
+$$;
+
+comment on function public.ts_delete_read_mails_for_user() is
+  'is_read 이고 삭제 가능한(미수령 보상 없음) 메일만 일괄 숨김. 반환: 처리 행 수. SECURITY DEFINER.';
+
+revoke all on function public.ts_delete_read_mails_for_user() from public;
+grant execute on function public.ts_delete_read_mails_for_user() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 만료 메일 하드 삭제 (서비스 롤·cron 전용)

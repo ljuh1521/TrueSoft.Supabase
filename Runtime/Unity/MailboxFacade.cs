@@ -49,18 +49,6 @@ namespace Truesoft.Supabase.Unity
             return await _mailbox.GetMailByIdAsync(token, mailId);
         }
 
-        public Task<SupabaseResult<bool>> MarkAsReadAsync(string mailId) =>
-            MarkAsReadAsync(_sessionGetter?.Invoke(), mailId);
-
-        public async Task<SupabaseResult<bool>> MarkAsReadAsync(SupabaseSession session, string mailId)
-        {
-            var token = RequireToken(session);
-            if (token == null)
-                return SupabaseResult<bool>.Fail("auth_not_signed_in");
-
-            return await _mailbox.MarkAsReadAsync(token, mailId);
-        }
-
         /// <summary>미읽음 수. <paramref name="userId"/>는 계약 호환용(무시).</summary>
         public Task<SupabaseResult<int>> GetUnreadCountAsync(string userId = null) =>
             GetUnreadCountAsync(_sessionGetter?.Invoke(), userId);
@@ -189,6 +177,18 @@ namespace Truesoft.Supabase.Unity
                 return SupabaseResult<bool>.Fail("auth_not_signed_in");
 
             return await _mailbox.DeleteMailForUserRpcAsync(token, mailId);
+        }
+
+        public Task<SupabaseResult<int>> DeleteReadMailsAsync() =>
+            DeleteReadMailsAsync(_sessionGetter?.Invoke());
+
+        public async Task<SupabaseResult<int>> DeleteReadMailsAsync(SupabaseSession session)
+        {
+            var token = RequireToken(session);
+            if (token == null)
+                return SupabaseResult<int>.Fail("auth_not_signed_in");
+
+            return await _mailbox.DeleteReadMailsForUserRpcAsync(token);
         }
 
         private static string RequireToken(SupabaseSession session)
