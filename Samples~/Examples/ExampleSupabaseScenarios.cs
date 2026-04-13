@@ -594,7 +594,13 @@ namespace Truesoft.SupabaseUnity.Samples
             var result = await SupabaseClient.GetRemoteConfigAsync<object>(remoteConfigKey);
             if (result.IsSuccess == false)
             {
-                Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + result.ErrorMessage);
+                if (result.ErrorMessage == "remote_config_key_not_in_database")
+                    Debug.LogWarning(
+                        "[Sample] remote_config에 해당 key 행이 없거나(RLS/anon) 응답에 포함되지 않았습니다. " +
+                        "인스펙터의 Remote Config Key를 DB의 key 컬럼과 일치시키거나 Sql/player/10_remote_config.sql 등으로 행을 추가하세요. (key="
+                        + remoteConfigKey + ")");
+                else
+                    Debug.LogWarning("[Sample] remote config failed (key=" + remoteConfigKey + "): " + result.ErrorMessage);
                 return false;
             }
 

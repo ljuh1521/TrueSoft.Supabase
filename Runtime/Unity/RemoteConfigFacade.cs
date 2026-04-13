@@ -126,6 +126,10 @@ namespace Truesoft.Supabase.Unity
         /// Cold Start + Stale-While-Revalidate: 캐시에 없으면 키 단위로 fetch합니다.
         /// 캐시 유효 시간은 DB <c>max_stale_seconds</c>를 사용합니다(0 이하이면 300초).
         /// fetch 실패·키 없음·역직렬화 실패 시 <see cref="SupabaseResult{T}.Fail"/>를 반환합니다.
+        /// 실패 시 <see cref="SupabaseResult{T}.ErrorMessage"/> 예:
+        /// <c>remote_config_key_not_in_database</c>(테이블/RLS에 행 없음),
+        /// <c>remote_config_key_disabled</c>, <c>remote_config_key_requires_auth</c>,
+        /// <c>remote_config_key_client_version_mismatch</c>, <c>remote_config_value_must_be_object_json</c>.
         /// </summary>
         public async Task<SupabaseResult<T>> GetTypedAsync<T>(string key) where T : class, new()
         {
@@ -282,7 +286,58 @@ namespace Truesoft.Supabase.Unity
             if (result.Data != null)
                 ApplyRows(result.Data, replace: false);
 
+            foreach (var rawKey in keys)
+            {
+                if (string.IsNullOrWhiteSpace(rawKey))
+                    continue;
+
+                var k = rawKey.Trim();
+                if (_cache.TryGetValue(k, out var cached) && string.IsNullOrWhiteSpace(cached) == false)
+                    continue;
+
+                return new FetchOutcome(false, DiagnoseKeyNotCached(k, result.Data, accessToken));
+            }
+
             return new FetchOutcome(true, null);
+        }
+
+        /// <summary>
+        /// <see cref="ApplyRows"/> 이후에도 캐시에 없을 때, 서버 응답 행을 기준으로 이유를 좁힙니다.
+        /// </summary>
+        private string DiagnoseKeyNotCached(string key, SupabaseRemoteConfigService.RemoteConfigRow[] rows, string accessToken)
+        {
+            SupabaseRemoteConfigService.RemoteConfigRow match = null;
+            if (rows != null)
+            {
+                foreach (var r in rows)
+                {
+                    if (r == null || string.IsNullOrWhiteSpace(r.key))
+                        continue;
+                    if (string.Equals(r.key.Trim(), key, StringComparison.Ordinal))
+                    {
+                        match = r;
+                        break;
+                    }
+                }
+            }
+
+            if (match == null)
+                return "remote_config_key_not_in_database";
+
+            if (match.enabled == false)
+                return "remote_config_key_disabled";
+
+            if (match.requires_auth && string.IsNullOrWhiteSpace(accessToken))
+                return "remote_config_key_requires_auth";
+
+            if (PassesClientVersion(match) == false)
+                return "remote_config_key_client_version_mismatch";
+
+            var v = match.value_json ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(v) || IsObjectRootJson(v) == false)
+                return "remote_config_value_must_be_object_json";
+
+            return "remote_config_key_not_found_or_filtered";
         }
 
         private static int NormalizeMaxStaleSeconds(int secondsFromDb) => secondsFromDb > 0 ? secondsFromDb : 300;
