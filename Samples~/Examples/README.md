@@ -10,7 +10,8 @@
 - RemoteConfig 조회 예시
 - Edge Function 호출 예시
 - 서버 샤드 예시 — 로컬 서버 코드(`GetCurrentServerCode` / `SetCurrentServerCode`)와 DB의 `ts_my_server_id` 조회, 선택적으로 `TryTransferMyServerAsync`(RPC `ts_transfer_my_server`). 운영·Retool용 `ts_admin_transfer_user_server`는 루트 README 참고.
-- **우편함(Mailbox)** — `MailboxTestSample` + SQL `Sql/samples/MailboxTestData.sql`(패키지 루트 기준). 상세는 **README-MailboxTest.md** 참고.
+
+우편함 API는 런타임 `Supabase.TryGetMyMailsAsync` 등과 SQL `Sql/player/11_mails.sql` 을 참고합니다(별도 Unity 샘플 없음).
 
 ## 1. 샘플 가져오기
 
@@ -41,16 +42,12 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 1. 테스트 씬을 엽니다.
 2. GameObject에 **`ExampleSupabaseScenarios`** 컴포넌트를 붙입니다.
 3. 실행 방법
-   - 전체 실행: `Run All On Start` 체크 후 Play, 또는 우클릭 **Run All Examples**
-   - 개별 실행: 우클릭으로 각 함수 실행
-     - **Run Login Example**
-     - **Run Load User Save Example (static)** — 키 **R**
-     - **Run Save User Save Example (static, diff only)** — 키 **V**
-     - **Run RemoteConfig Example**
-     - **Run Function Example**
-     - **Run Logout Example** — 로그인된 상태에서만 의미 있음
-     - **Run Duplicate Login Info (Console)** — 두 기기에서 같은 계정으로 로그인해 볼 때의 동작 안내
-     - **Run Server Shard Example** — 로그인 필요; 키보드 테스트가 켜져 있으면 **N**
+   - 전체 실행: 인스펙터 **`Run All On Start`** 체크 후 Play
+   - 개별 실행: 인스펙터 **키보드 테스트**가 켜져 있으면 아래 단축키(기본값, 인스펙터에서 변경 가능)
+     - 로그인(익명) **Q**, 구글 **I**, 구글 연동 **P**, 로그아웃 **W**
+     - 유저 세이브 로드 **R**, 저장(변경분만) **V**
+     - RemoteConfig **T**, 즉시 동기화 **U**, Edge Function **Y**
+     - 공개 닉네임 **E**, 서버 시각 **S**, 서버 샤드 **N**, 중복 로그인 안내(콘솔) **L** 등 — 나머지 키는 인스펙터 **키보드 테스트** 블록 참고
 
 ## 4. 확인
 

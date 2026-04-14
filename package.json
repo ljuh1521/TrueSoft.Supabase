@@ -10,7 +10,7 @@
   "samples": [
     {
       "displayName": "Examples",
-      "description": "Practical examples: login, save/load, remote config, edge functions, server shard, mailbox (MailboxTestSample + Sql/samples/MailboxTestData.sql).",
+      "description": "Practical examples: login, save/load, remote config, edge functions, server shard (ExampleSupabaseScenarios + keyboard shortcuts).",
       "path": "Samples~/Examples"
     }
   ]

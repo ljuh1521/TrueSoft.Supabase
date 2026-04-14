@@ -11,6 +11,7 @@ namespace Truesoft.SupabaseUnity.Samples
 {
     /// <summary>
     /// 샘플: 서버 시각·로그인/데이터·서버 샤드(조회/이주)·RemoteConfig/Edge Function 예시를 각각 분리해 제공합니다.
+    /// 실행은 <c>Run All On Start</c> 또는 인스펙터에 표시된 키보드 단축키(옵션)로 합니다.
     /// </summary>
     public sealed class ExampleSupabaseScenarios : MonoBehaviour
     {
@@ -182,108 +183,6 @@ namespace Truesoft.SupabaseUnity.Samples
             {
                 _keyboardBusy = false;
             }
-        }
-
-        [ContextMenu("전체 예제 실행")]
-        public void RunAllExamples()
-        {
-            _ = RunAllExamplesAsync();
-        }
-
-        [ContextMenu("로그인 예제 실행")]
-        public void RunLoginExample()
-        {
-            _ = RunLoginExampleAsync();
-        }
-
-        [ContextMenu("구글 로그인 예제 실행")]
-        public void RunGoogleLoginExample()
-        {
-            _ = RunGoogleLoginExampleAsync();
-        }
-
-        [ContextMenu("구글 연동 예제 실행")]
-        public void RunGoogleLinkExample()
-        {
-            _ = RunGoogleLinkExampleAsync();
-        }
-
-        [ContextMenu("유저 세이브 로드 예제 실행")]
-        public void RunLoadUserSaveExample()
-        {
-            _ = RunLoadUserSaveExampleAsync();
-        }
-
-        [ContextMenu("유저 세이브 저장 예제 실행 (변경분만)")]
-        public void RunSaveUserSaveExample()
-        {
-            _ = RunSaveUserSaveExampleAsync();
-        }
-
-        [ContextMenu("원격 설정 예제 실행")]
-        public void RunRemoteConfigExample()
-        {
-            _ = RunRemoteConfigExampleAsync();
-        }
-
-        [ContextMenu("원격 설정 즉시 동기화 예제 실행")]
-        public void RunRemoteConfigOnDemandExample()
-        {
-            _ = RunRemoteConfigOnDemandExampleAsync();
-        }
-
-        [ContextMenu("엣지 함수 예제 실행")]
-        public void RunFunctionExample()
-        {
-            _ = RunFunctionExampleAsync();
-        }
-
-        [ContextMenu("공개 닉네임 예제 실행")]
-        public void RunPublicNicknameExample()
-        {
-            _ = RunPublicNicknameExampleAsync();
-        }
-
-        [ContextMenu("로그아웃 예제 실행")]
-        public void RunLogoutExample()
-        {
-            _ = RunLogoutExampleAsync();
-        }
-
-        [ContextMenu("중복 로그인 테스트 안내 (콘솔)")]
-        public void RunDuplicateLoginInfoExample()
-        {
-            LogDuplicateLoginHowToTest();
-        }
-
-        [ContextMenu("서버 시각 예제 실행")]
-        public void RunServerTimeExample()
-        {
-            _ = RunServerTimeExampleAsync();
-        }
-
-        [ContextMenu("탈퇴 요청 예제 실행")]
-        public void RunWithdrawalRequestExample()
-        {
-            _ = RunWithdrawalRequestExampleAsync();
-        }
-
-        [ContextMenu("탈퇴 상태 조회 예제 실행")]
-        public void RunWithdrawalStatusExample()
-        {
-            _ = RunWithdrawalStatusExampleAsync();
-        }
-
-        [ContextMenu("탈퇴 취소 예제 실행")]
-        public void RunWithdrawalCancelRedeemExample()
-        {
-            _ = RunWithdrawalCancelRedeemExampleAsync();
-        }
-
-        [ContextMenu("서버 샤드 예제 실행 (이주 옵션)")]
-        public void RunServerShardExample()
-        {
-            _ = RunServerShardExampleAsync();
         }
 
         private async Task<bool> RunLoginExampleAsync()
