@@ -15,6 +15,7 @@ namespace Truesoft.SupabaseUnity.Samples
     /// </summary>
     /// <remarks>
     /// 테스트 데이터: 패키지 루트 <c>Sql/samples/MailboxTestData.sql</c> — Supabase SQL Editor에서 실행 후 <c>YOUR_ACCOUNT_UUID</c> / <c>YOUR_USER_ID</c> 교체.<br/>
+    /// 무보상 읽음: 컨텍스트 <c>Test: 무보상 상세 → 읽음 확인</c> (데이터의 공지 메일·빈 배열 메일 등).<br/>
     /// 가이드: 동일 폴더 <c>README-MailboxTest.md</c><br/>
     /// 우편 API가 포함된 패키지 버전을 쓰는지 확인하세요. 구버전 DLL만 있으면 Try* 메일 API가 없어 컴파일이 실패합니다.
     /// </remarks>
@@ -168,6 +169,54 @@ namespace Truesoft.SupabaseUnity.Samples
             }
         }
 
+        /// <summary>DB 기준 무보상( <c>items</c> 없음·빈 배열 )과 동일하게 목록에서 판별.</summary>
+        private static bool IsTextOnlyMail(Mail m) =>
+            m != null && (m.Items == null || m.Items.Count == 0);
+
+        private async Task TestNoAttachmentDetailMarksRead()
+        {
+            Debug.Log("[Test] 무보상 메일 1통 골라 상세 조회 → 서버에서 읽음 처리되는지 확인...");
+
+            var mails = await SupabaseClient.TryGetMyMailsAsync(limit: 50);
+            if (mails == null)
+            {
+                Debug.LogError("[Mailbox] 목록 조회 실패");
+                return;
+            }
+
+            Mail pick = null;
+            foreach (var x in mails)
+            {
+                if (IsTextOnlyMail(x))
+                {
+                    pick = x;
+                    break;
+                }
+            }
+
+            if (pick == null)
+            {
+                Debug.LogWarning(
+                    "[Mailbox] 무보상 우편이 없습니다. Sql/samples/MailboxTestData.sql 의 " +
+                    "「서버 점검 안내」(items NULL) 또는 「보상 없는 메일 (빈 배열)」을 넣은 뒤 다시 실행하세요.");
+                return;
+            }
+
+            Debug.Log(
+                $"[Mailbox] 선택: '{pick.Title}' | 목록 시점 읽음={pick.IsRead}, 보상 줄 수={pick.Items?.Count ?? 0}");
+
+            var after = await SupabaseClient.TryGetMailDetailAsync(pick.Id);
+            if (after == null)
+            {
+                Debug.LogError("[Mailbox] 상세 조회 실패");
+                return;
+            }
+
+            Debug.Log(
+                $"[Mailbox] 상세 응답: 읽음={after.IsRead}, 보상 줄 수={after.Items?.Count ?? 0} " +
+                "(무보상이면 읽음=true 가 기대값. 보상 줄이 있는 메일은 상세만으로 읽음 처리되지 않습니다.)");
+        }
+
         private async Task TestClaimSingleMail(string mailId)
         {
             Debug.Log($"[Test] 단일 메일 수령: {mailId}");
@@ -308,6 +357,38 @@ namespace Truesoft.SupabaseUnity.Samples
             }
 
             _ = TestDeleteReadMailsBulk();
+        }
+
+        [ContextMenu("Test: 무보상 상세 → 읽음 확인")]
+        public void TestNoAttachmentReadFromMenu()
+        {
+            RegisterMailHandlers();
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
+            _ = TestNoAttachmentDetailMarksRead();
+        }
+
+        [ContextMenu("Test: testMailId 상세만")]
+        public void TestDetailForTestMailIdOnly()
+        {
+            RegisterMailHandlers();
+            if (!HasMailboxAuth(out var reason))
+            {
+                Debug.LogWarning("[Mailbox] " + reason);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(testMailId))
+            {
+                Debug.LogWarning("[Mailbox] Inspector에 testMailId를 넣거나 전체 흐름으로 먼저 채우세요.");
+                return;
+            }
+
+            _ = TestGetMailDetail(testMailId);
         }
 
         #endregion
