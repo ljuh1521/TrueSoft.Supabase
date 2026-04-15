@@ -1,4 +1,4 @@
-# Examples
+# Supabase SDK — Examples 샘플
 
 하나의 컴포넌트에서 Supabase 주요 기능 예시를 **함수별로 분리**해 제공합니다.
 
@@ -13,7 +13,9 @@
 
 우편함 API는 런타임 `Supabase.TryGetMyMailsAsync` 등과 SQL `Sql/player/11_mails.sql` 을 참고합니다(별도 Unity 샘플 없음).
 
-## 1. 샘플 가져오기
+**Truesoft Analytics**(`com.truesoft.analytics`)와 함께 쓸 때 서버 시각·`GameEvent` 연동은 두 패키지가 서로를 참조하지 않으므로 **호스트 프로젝트**에서만 연결하면 됩니다. 루트 README **「Truesoft Analytics와 함께 쓸 때」** 절을 참고하세요.
+
+## 샘플 가져오기
 
 1. Unity 메뉴 **Window** > **Package Manager**
 2. **Truesoft Supabase SDK** 선택
@@ -25,7 +27,7 @@ Import 후 예시 경로:
 Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 ```
 
-## 2. 실행 전 준비
+## 실행 전 준비
 
 1. **TrueSoft** > **Supabase** > **설정 에셋 만들기**로 `SupabaseSettings` 생성
 2. `projectUrl`, `publishableKey` 입력
@@ -37,7 +39,7 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
 8. (선택) `user_saves`에 `level int`, `coins int`, `updated_at timestamptz` 등이 있어야 합니다. **Run Load User Save Example** 또는 키 **R**: SDK `TryLoadUserSaveAttributedWithRowStateAsync`로 본인 행이 없으면(`hasRow == false`) 인스펙터 `level`/`coins`를 초기값으로 채웁니다. **Run Save User Save Example** 또는 키 **V**: 먼저 동일 로드로 스냅샷을 맞춘 뒤 인스펙터 값을 반영하고 `TrySaveIfChangedAsync`로 **서버와 다른 컬럼만** PATCH합니다(같으면 요청 없음). 쿨타임 자동 저장은 **Supabase 런타임**(`SupabaseRuntime`)과 프로퍼티 `MarkDirty` 경로를 쓰면 됩니다.
 9. 실제 프로젝트에서는 OpenAPI **유저 데이터 클래스 생성** 메뉴로 동일 패턴(`TryLoadAsync` / `TrySaveIfChangedAsync`)을 생성할 수 있습니다.
 
-## 3. 씬에서 실행
+## 씬에서 실행
 
 1. 테스트 씬을 엽니다.
 2. GameObject에 **`ExampleSupabaseScenarios`** 컴포넌트를 붙입니다.
@@ -49,12 +51,17 @@ Assets/Samples/Truesoft Supabase SDK/<버전>/Examples/
      - RemoteConfig **T**, 즉시 동기화 **U**, Edge Function **Y**
      - 공개 닉네임 **E**, 서버 시각 **S**, 서버 샤드 **N**, 중복 로그인 안내(콘솔) **L** 등 — 나머지 키는 인스펙터 **키보드 테스트** 블록 참고
 
-## 4. 확인
+## 확인
 
 - Console에 `[Supabase.*]` Try API 로그와 `[Sample] ...` 로그가 출력되면 정상입니다.
 - 로그인 필요 예시는 미로그인 상태에서 건너뛰도록 되어 있습니다.
 - 중복 로그인은 실제로 **다른 기기(또는 에뮬+실기)** 에서 같은 계정으로 다시 로그인해야 콘솔에 감지 로그가 뜹니다. 인스펙터에서 `subscribeDuplicateLoginOnEnable`(Duplicate login / Logout 섹션)이 켜져 있어야 `OnDuplicateLoginDetected`가 구독됩니다.
 
-## 5. 샘플 삭제
+## 샘플 삭제
 
 `Assets/Samples/.../Examples` 폴더를 삭제하면 됩니다.
+
+## 문의 및 기여
+
+이슈, 기능 제안, 버그 리포트는 GitHub Issue 탭을 통해 공유해 주세요.  
+내부 프로젝트 확장이나 기능 추가가 필요한 경우 담당자에게 직접 문의 바랍니다.

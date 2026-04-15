@@ -134,6 +134,10 @@ Temporary Items
 .apdisk
 
 # Custom
+# Local symlink to external GameAnalytics SDK (not part of this repo)
+/GameAnalytics
+GameAnalytics.meta
+
 # Cursor/agent session NDJSON logs (written at repo / Unity project root)
 /debug-*.log
 

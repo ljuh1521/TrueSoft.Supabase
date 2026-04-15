@@ -1,13 +1,20 @@
 # Truesoft Supabase SDK
 
-Unity Package Manager로 설치하는 Supabase Auth, REST API, Edge Functions용 SDK입니다.
+Unity에서 Supabase Auth, REST API, Edge Functions를 사용하기 위한 UPM 패키지입니다.
 
-## 설치
+## 설치 방법
 
-Window > Package Manager > + > Install package from git URL
+1. Unity Package Manager에서 다음 Git URL을 사용해 설치하세요.  
+   **Window** > **Package Manager** > **+** > **Add package from git URL**  
+   `https://github.com/your-org/com.truesoft.supabase.git`
 
-예시:
-https://github.com/your-org/com.truesoft.supabase.git#0.1.0
+2. 또는 `Packages/manifest.json`에 아래와 같이 직접 추가할 수 있습니다.  
+   `"com.truesoft.supabase": "https://github.com/your-org/com.truesoft.supabase.git"`
+
+3. 특정 버전을 설치하려는 경우  
+   `https://github.com/your-org/com.truesoft.supabase.git#0.1.0`  
+   와 같이 `#버전` 을 추가하여 설치할 수 있습니다.  
+   사용 가능한 버전은 [CHANGELOG.md](CHANGELOG.md)를 확인하세요.
 
 ## 준비
 
@@ -25,6 +32,13 @@ https://github.com/your-org/com.truesoft.supabase.git#0.1.0
 5. `SupabaseRuntime`은 선택 사항입니다.  
    - 인증/데이터/함수/채팅의 기본 비동기 API는 SDK 내부에서 초기화를 대기하고, 필요 시 `Resources/SupabaseSettings`로 자동 부트스트랩합니다.  
    - 자동 세션 복원/RemoteConfig 주기 폴링까지 씬 라이프사이클로 관리하려면 `SupabaseRuntime` 배치를 권장합니다.
+
+## Truesoft Analytics와 함께 쓸 때 (호스트 전용)
+
+`com.truesoft.supabase`와 `com.truesoft.analytics`(GameAnalytics)는 **패키지 간 참조가 없습니다.**  
+Analytics의 `GameEvent.SetUpdateTime`에 Supabase `TryGetServerUtcNowAsync`로 얻은 서버 시각을 넘기려면, **호스트 게임 프로젝트**에서 서버 시각을 **필드에 캐시**하고 getter로 연결합니다(`SetUpdateTime`은 동기 API이므로 getter 안에서 네트워크 호출을 하면 안 됩니다).
+
+- 초기화 순서 예: Supabase 부트스트랩 → 서버 시각 1회 이상 확보 → `GameEvent.SetUpdateTime` 등록.
 
 ## REST 테이블 이름 (프로젝트마다 테이블명이 다를 때)
 
@@ -230,7 +244,7 @@ Supabase **Auth로 계정을 삭제**하면 `auth.users` 행이 제거되고, SQ
 - **Edge Functions**: `TryInvokeFunctionAsync`
 - **채팅**: `TryJoinChatChannelAsync`, `TrySendChatMessageAsync`, 채널 이탈
 
-## 샘플
+## 샘플 가져오기
 
 Package Manager의 **Samples** 탭에서 **Import**로 프로젝트에 복사해 사용합니다.
 
@@ -341,3 +355,8 @@ Retool 예시:
 - 연동 성공 시에는 같은 `auth.users.id`를 유지하면서 `is_anonymous`가 false가 되어야 합니다.
 - 연동하려는 Google 계정이 이미 다른 사용자에 연결되어 있으면 연동은 실패하며, 현재 익명 세션은 유지됩니다.
 - 연동이 끝난 뒤 사용자가 다시 익명 로그인 버튼을 누르면, 기존 연동 계정을 복원하지 않고 **새 익명 계정**을 만듭니다.
+
+## 문의 및 기여
+
+이슈, 기능 제안, 버그 리포트는 GitHub Issue 탭을 통해 공유해 주세요.  
+내부 프로젝트 확장이나 기능 추가가 필요한 경우 담당자에게 직접 문의 바랍니다.
