@@ -9,8 +9,8 @@ using Truesoft.Supabase.Core.Http;
 namespace Truesoft.Supabase.Core.Data
 {
     /// <summary>
-    /// 공개 프로필(soft 탈퇴 시각) 및 표시 이름(displayName) 관련 API.
-    /// - DB: <c>profiles</c> (user_id / account_id / withdrawn_at)
+    /// 공개 프로필(soft 탈퇴 시각, 활동 시각) 및 표시 이름(displayName) 관련 API.
+    /// - DB: <c>profiles</c> (user_id / account_id / withdrawn_at / last_activity_at)
     /// - 표시 이름: Edge Function <c>displayname-get</c> (내부적으로 <c>display_names</c> 테이블 사용)
     /// - 유니크 강제: <c>display_names</c>의 unique index (<c>server_id</c>, lower(trim(display_name)))
     /// </summary>
@@ -481,6 +481,40 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
+        /// 본인 행의 <c>last_activity_at</c>을 현재 시각으로 갱신합니다. Retool 운영 대시보드 모니터링용.
+        /// </summary>
+        public async Task<SupabaseResult<bool>> PatchMyLastActivityAtAsync(
+            string accessToken,
+            string accountId)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return SupabaseResult<bool>.Fail("access_token_empty");
+
+            if (string.IsNullOrWhiteSpace(accountId))
+                return SupabaseResult<bool>.Fail("account_id_empty");
+
+            var url =
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _profilesTable)}" +
+                $"?account_id=eq.{Uri.EscapeDataString(accountId.Trim())}";
+
+            var jsonBody = _jsonSerializer.ToJson(new LastActivityAtPatchBody { last_activity_at = DateTime.UtcNow.ToString("o") });
+
+            var response = await _httpClient.SendAsync(
+                method: "PATCH",
+                url: url,
+                jsonBody: jsonBody,
+                headers: CreateUserHeaders(accessToken, "return=minimal"));
+
+            if (response == null)
+                return SupabaseResult<bool>.Fail("http_response_null");
+
+            if (response.IsSuccess == false)
+                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "last_activity_at_patch_failed");
+
+            return SupabaseResult<bool>.Success(true);
+        }
+
+        /// <summary>
         /// 서버에서 현재 시각 기준으로 유예 기간(일) 뒤의 <c>withdrawn_at</c>을 계산해 예약합니다.
         /// RPC: <c>ts_request_withdrawal</c>.
         /// </summary>
@@ -665,6 +699,12 @@ namespace Truesoft.Supabase.Core.Data
         private sealed class WithdrawnPatchBody
         {
             public string withdrawn_at;
+        }
+
+        [Serializable]
+        private sealed class LastActivityAtPatchBody
+        {
+            public string last_activity_at;
         }
 
         [Serializable]

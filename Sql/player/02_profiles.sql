@@ -11,7 +11,8 @@ create table if not exists public.profiles (
   user_id text not null,
   account_id uuid unique references auth.users (id) on delete set null,
   server_id uuid references public.game_servers (id) on delete restrict,
-  withdrawn_at timestamptz null
+  withdrawn_at timestamptz null,
+  last_activity_at timestamptz default now()
 );
 
 -- 기존 DB에 컬럼만 없을 때 보강(신규 생성 테이블에서는 IF NOT EXISTS 로 무시됨)
@@ -19,6 +20,7 @@ alter table public.profiles add column if not exists user_id text;
 alter table public.profiles add column if not exists account_id uuid;
 alter table public.profiles add column if not exists server_id uuid;
 alter table public.profiles add column if not exists withdrawn_at timestamptz;
+alter table public.profiles add column if not exists last_activity_at timestamptz default now();
 
 update public.profiles p
 set server_id = public.ts_default_server_id()
@@ -94,6 +96,8 @@ comment on table public.profiles is '공개 프로필. 게임 RLS는 account_id.
 comment on column public.profiles.user_id is '플레이어 고유 id (동일 Google 등이면 재가입 후에도 동일 값 가능).';
 comment on column public.profiles.account_id is 'auth.users.id. 탈퇴 시 NULL. 게임 조회·수정 기준.';
 comment on column public.profiles.server_id is '플레이어가 속한 서버 id (public.game_servers.id).';
+comment on column public.profiles.withdrawn_at is '탈퇴 표시 시각 (운영 정책에 따라 설정/해제 가능).';
+comment on column public.profiles.last_activity_at is '마지막 게임 활동 시각. Retool 운영 대시보드용 활동 추적.';
 
 create index if not exists profiles_user_id_idx on public.profiles (user_id);
 create index if not exists profiles_server_id_idx on public.profiles (server_id);

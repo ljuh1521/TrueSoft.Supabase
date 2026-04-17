@@ -1603,6 +1603,22 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
+        /// 본인의 <c>profiles.last_activity_at</c>을 현재 시각으로 갱신합니다. Retool 운영 대시보드 모니터링용.
+        /// </summary>
+        public static async Task<bool> TryUpdateLastActivityAtAsync()
+        {
+            var ready = await EnsureReadySessionAsync();
+            if (!ready.IsSuccess)
+                return LogAndReturn("Supabase.Profile.LastActivityAt", ready, false);
+
+            if (_bootstrap?.PublicProfileService == null)
+                return LogAndReturn("Supabase.Profile.LastActivityAt", SupabaseResult<bool>.Fail("sdk_not_initialized"), false);
+
+            var r = await _bootstrap.PublicProfileService.PatchMyLastActivityAtAsync(_currentSession.AccessToken, _currentSession.User.Id);
+            return LogAndReturn("Supabase.Profile.LastActivityAt", r);
+        }
+
+        /// <summary>
         /// 로그인한 본인의 탈퇴 예약 게이트 상태(닉네임/예약 시각/남은 시간)를 조회합니다.
         /// </summary>
         public static async Task<SupabaseResult<MyWithdrawalStatus>> GetMyWithdrawalStatusAsync()

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__rider__list_directory_tree",
+      "mcp__rider__get_file_text_by_path"
+    ]
+  }
+}

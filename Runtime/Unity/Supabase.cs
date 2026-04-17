@@ -345,6 +345,10 @@ namespace Truesoft.Supabase.Unity
         public static Task<bool> TrySetMyWithdrawnAtAsync(string withdrawnAtIsoUtc) =>
             SupabaseSDK.TrySetMyWithdrawnAtAsync(withdrawnAtIsoUtc);
 
+        /// <inheritdoc cref="SupabaseSDK.TryUpdateLastActivityAtAsync"/>
+        public static Task<bool> TryUpdateLastActivityAtAsync() =>
+            SupabaseSDK.TryUpdateLastActivityAtAsync();
+
         /// <summary>특정 key가 갱신될 때마다 콜백 (코드 연결, 실제 JSON 문자열 전달).</summary>
         public static void SubscribeRemoteConfig(string key, Action<string> onValueChanged, bool invokeIfCached = true) =>
             SupabaseSDK.SubscribeRemoteConfig(key, onValueChanged, invokeIfCached);
