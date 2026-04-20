@@ -2492,7 +2492,7 @@ namespace Truesoft.Supabase.Unity
             if (refreshResult == null || refreshResult.IsSuccess == false || refreshResult.Data == null)
             {
                 UnityEngine.Debug.Log($"[Supabase.DEBUG] AnonymousRecovery RefreshSession failed. ErrorMessage='{refreshResult?.ErrorMessage}'");
-                if (refreshResult?.ErrorMessage?.Contains("user_banned") == true)
+                if (refreshResult?.ErrorMessage?.IndexOf("banned", StringComparison.OrdinalIgnoreCase) >= 0)
                     return new AnonymousRecoveryResult(AnonymousRecoveryKind.Banned);
                 return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
             }
