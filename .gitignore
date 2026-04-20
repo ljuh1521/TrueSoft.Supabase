@@ -141,5 +141,8 @@ GameAnalytics.meta
 # Cursor/agent session NDJSON logs (written at repo / Unity project root)
 /debug-*.log
 
+# Claude Code worktrees
+.claude/worktrees/
+
 Assets/GoogleMobileAds/link.xml.meta
 Assets/StreamingAssets/google-services-desktop.json.meta

@@ -66,13 +66,14 @@ namespace Truesoft.Supabase.Unity
             Google = 2
         }
 
-        /// <summary>익명 복구 RPC 경로 결과. GateBlocked/GuardFailed 시 새 익명 가입을 하면 안 된다.</summary>
+        /// <summary>익명 복구 RPC 경로 결과. GateBlocked/GuardFailed/Banned 시 새 익명 가입을 하면 안 된다.</summary>
         private enum AnonymousRecoveryKind
         {
             None,
             Restored,
             GateBlocked,
-            GuardFailed
+            GuardFailed,
+            Banned
         }
 
         private readonly struct AnonymousRecoveryResult
@@ -905,6 +906,8 @@ namespace Truesoft.Supabase.Unity
                 if (recovery.Kind == AnonymousRecoveryKind.GuardFailed)
                     return SupabaseResult<SupabaseSession>.Fail(
                         string.IsNullOrWhiteSpace(recovery.ErrorMessage) ? "withdrawal_guard_failed" : recovery.ErrorMessage);
+                if (recovery.Kind == AnonymousRecoveryKind.Banned)
+                    return SupabaseResult<SupabaseSession>.Fail("user_banned");
                 if (recovery.Kind == AnonymousRecoveryKind.Restored && IsLoggedIn)
                 {
                     if (!IsAnonymousSession(_currentSession))
@@ -2149,6 +2152,7 @@ namespace Truesoft.Supabase.Unity
                 return true;
             }
 
+            UnityEngine.Debug.Log($"[Supabase.DEBUG] RestoreSessionCore RefreshSession failed. ErrorMessage='{result?.ErrorMessage}'");
             PlayerPrefs.DeleteKey(RefreshTokenKey);
             return false;
         }
@@ -2486,7 +2490,12 @@ namespace Truesoft.Supabase.Unity
 
             var refreshResult = await RefreshSessionAsync(tokenResult.Data, saveSessionToStorage: true);
             if (refreshResult == null || refreshResult.IsSuccess == false || refreshResult.Data == null)
+            {
+                UnityEngine.Debug.Log($"[Supabase.DEBUG] AnonymousRecovery RefreshSession failed. ErrorMessage='{refreshResult?.ErrorMessage}'");
+                if (refreshResult?.ErrorMessage?.Contains("user_banned") == true)
+                    return new AnonymousRecoveryResult(AnonymousRecoveryKind.Banned);
                 return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
+            }
 
             // 사용자가 "익명 로그인 버튼"을 눌렀다고 가정하고, 만료(삭제 필요) 계정이면
             // allowRecreate=true 로 처리합니다(자동 복원 경로와 분리 목적).
