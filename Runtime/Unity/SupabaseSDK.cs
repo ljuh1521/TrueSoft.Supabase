@@ -1612,10 +1612,10 @@ namespace Truesoft.Supabase.Unity
         {
             var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
-                return LogAndReturn("Supabase.Profile.LastActivityAt", ready, false);
+                return LogAndReturn("Supabase.Profile.LastActivityAt", ready);
 
             if (_bootstrap?.PublicProfileService == null)
-                return LogAndReturn("Supabase.Profile.LastActivityAt", SupabaseResult<bool>.Fail("sdk_not_initialized"), false);
+                return LogAndReturn("Supabase.Profile.LastActivityAt", SupabaseResult<bool>.Fail("sdk_not_initialized"));
 
             var r = await _bootstrap.PublicProfileService.PatchMyLastActivityAtAsync(_currentSession.AccessToken, _currentSession.User.Id);
             return LogAndReturn("Supabase.Profile.LastActivityAt", r);
