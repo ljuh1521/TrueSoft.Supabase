@@ -2152,7 +2152,6 @@ namespace Truesoft.Supabase.Unity
                 return true;
             }
 
-            UnityEngine.Debug.Log($"[Supabase.DEBUG] RestoreSessionCore RefreshSession failed. ErrorMessage='{result?.ErrorMessage}'");
             PlayerPrefs.DeleteKey(RefreshTokenKey);
             return false;
         }
@@ -2491,7 +2490,6 @@ namespace Truesoft.Supabase.Unity
             var refreshResult = await RefreshSessionAsync(tokenResult.Data, saveSessionToStorage: true);
             if (refreshResult == null || refreshResult.IsSuccess == false || refreshResult.Data == null)
             {
-                UnityEngine.Debug.Log($"[Supabase.DEBUG] AnonymousRecovery RefreshSession failed. ErrorMessage='{refreshResult?.ErrorMessage}'");
                 if (refreshResult?.ErrorMessage?.IndexOf("banned", StringComparison.OrdinalIgnoreCase) >= 0)
                     return new AnonymousRecoveryResult(AnonymousRecoveryKind.Banned);
                 return new AnonymousRecoveryResult(AnonymousRecoveryKind.None);
