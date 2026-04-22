@@ -6,15 +6,6 @@ namespace Truesoft.Supabase
         public string PublishableKey;
         public int TimeoutSeconds = 30;
 
-        /// <summary>유저 세이브 REST 테이블 (기본 <c>user_saves</c>).</summary>
-        public string UserSavesTable = "user_saves";
-
-        /// <summary>
-        /// 유저 세이브 로드 시 기본 select 컬럼 CSV(예: <c>"level,coins,updated_at"</c>).
-        /// 프로젝트별 스키마가 다르므로, 비워 두면 호출자가 select를 명시해야 합니다.
-        /// </summary>
-        public string UserSavesDefaultSelectColumnsCsv = "";
-
         /// <summary>Remote Config REST 테이블 (기본 <c>remote_config</c>).</summary>
         public string RemoteConfigTable = "remote_config";
 

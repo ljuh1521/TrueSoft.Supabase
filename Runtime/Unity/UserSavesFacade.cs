@@ -19,16 +19,16 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 로그인 직후 본인 <c>user_saves</c> 행이 존재하도록 보장합니다.
-        /// DB RPC: <c>ts_ensure_my_user_save_row</c>.
+        /// 로그인 직후 <typeparamref name="T"/>의 <see cref="UserSaveTableAttribute"/> 테이블에 본인 행이 존재하도록 보장합니다.
+        /// DB RPC: <c>ts_ensure_my_row(table, user_id)</c>.
         /// </summary>
-        public Task<SupabaseResult<bool>> EnsureMyRowAsync()
+        public Task<SupabaseResult<bool>> EnsureMyRowAsync<T>()
         {
             var session = _sessionGetter?.Invoke();
-            return EnsureMyRowAsync(session);
+            return EnsureMyRowAsync<T>(session);
         }
 
-        public async Task<SupabaseResult<bool>> EnsureMyRowAsync(SupabaseSession session)
+        public async Task<SupabaseResult<bool>> EnsureMyRowAsync<T>(SupabaseSession session)
         {
             if (session == null)
                 return SupabaseResult<bool>.Fail("session_null");
@@ -37,23 +37,29 @@ namespace Truesoft.Supabase.Unity
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<bool>.Fail("auth_not_signed_in");
 
-            return await _userDataService.EnsureMyRowAsync(accessToken, session.User?.PlayerUserId);
+            string tableName;
+            try { tableName = UserSaveSchema.ResolveTableName<T>(); }
+            catch (Exception e) { return SupabaseResult<bool>.Fail("user_save_schema_invalid:" + e.Message); }
+
+            return await _userDataService.EnsureMyRowAsync(accessToken, tableName, session.User?.PlayerUserId);
         }
 
         /// <summary>
-        /// 변경된 값만 부분 저장(PATCH)합니다. <paramref name="patch"/>에는 변경된 필드만 넣는 것을 권장합니다.
+        /// 변경된 값만 부분 저장(PATCH)합니다. <paramref name="tableName"/>은 대상 테이블을 명시합니다.
         /// </summary>
         public Task<SupabaseResult<bool>> PatchAsync(
+            string tableName,
             Dictionary<string, object> patch,
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true)
         {
             var session = _sessionGetter?.Invoke();
-            return PatchAsync(session, patch, ensureRowFirst, setUpdatedAtIsoUtc);
+            return PatchAsync(session, tableName, patch, ensureRowFirst, setUpdatedAtIsoUtc);
         }
 
         public async Task<SupabaseResult<bool>> PatchAsync(
             SupabaseSession session,
+            string tableName,
             Dictionary<string, object> patch,
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true)
@@ -71,6 +77,7 @@ namespace Truesoft.Supabase.Unity
                 accessToken: accessToken,
                 accountId: userId,
                 playerUserId: session.User.PlayerUserId,
+                tableName: tableName,
                 patch: patch,
                 ensureRowFirst: ensureRowFirst,
                 setUpdatedAtIsoUtc: setUpdatedAtIsoUtc);
@@ -79,13 +86,16 @@ namespace Truesoft.Supabase.Unity
         /// <summary>
         /// 프로젝트별 명시 컬럼을 select로 지정해 로드합니다.
         /// </summary>
-        public Task<SupabaseResult<T>> LoadColumnsAsync<T>(string selectColumnsCsv) where T : class, new()
+        public Task<SupabaseResult<T>> LoadColumnsAsync<T>(string tableName, string selectColumnsCsv) where T : class, new()
         {
             var session = _sessionGetter?.Invoke();
-            return LoadColumnsAsync<T>(session, selectColumnsCsv);
+            return LoadColumnsAsync<T>(session, tableName, selectColumnsCsv);
         }
 
-        public async Task<SupabaseResult<T>> LoadColumnsAsync<T>(SupabaseSession session, string selectColumnsCsv) where T : class, new()
+        public async Task<SupabaseResult<T>> LoadColumnsAsync<T>(
+            SupabaseSession session,
+            string tableName,
+            string selectColumnsCsv) where T : class, new()
         {
             if (session == null)
                 return SupabaseResult<T>.Fail("session_null");
@@ -99,19 +109,22 @@ namespace Truesoft.Supabase.Unity
             return await _userDataService.LoadColumnsAsync<T>(
                 accessToken: accessToken,
                 accountId: userId,
+                tableName: tableName,
                 selectColumnsCsv: selectColumnsCsv);
         }
 
-        /// <inheritdoc cref="SupabaseUserDataService.LoadColumnsWithRowStateAsync{T}(string, string, string)"/>
-        public Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(string selectColumnsCsv)
-            where T : class, new()
+        /// <inheritdoc cref="SupabaseUserDataService.LoadColumnsWithRowStateAsync{T}(string, string, string, string)"/>
+        public Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(
+            string tableName,
+            string selectColumnsCsv) where T : class, new()
         {
             var session = _sessionGetter?.Invoke();
-            return LoadColumnsWithRowStateAsync<T>(session, selectColumnsCsv);
+            return LoadColumnsWithRowStateAsync<T>(session, tableName, selectColumnsCsv);
         }
 
         public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(
             SupabaseSession session,
+            string tableName,
             string selectColumnsCsv) where T : class, new()
         {
             if (session == null)
@@ -126,11 +139,13 @@ namespace Truesoft.Supabase.Unity
             return await _userDataService.LoadColumnsWithRowStateAsync<T>(
                 accessToken: accessToken,
                 accountId: userId,
+                tableName: tableName,
                 selectColumnsCsv: selectColumnsCsv);
         }
 
         /// <summary>
         /// <see cref="UserSaveColumnAttribute"/>로 표시한 컬럼만 모아 로드합니다.
+        /// 대상 타입에 <see cref="UserSaveTableAttribute"/>가 필요합니다.
         /// </summary>
         public Task<SupabaseResult<T>> LoadAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new()
         {
@@ -184,6 +199,7 @@ namespace Truesoft.Supabase.Unity
 
         /// <summary>
         /// <see cref="UserSaveSchema.BuildPatch{T}(T, T)"/>로 변경분만 PATCH합니다.
+        /// 대상 타입에 <see cref="UserSaveTableAttribute"/>가 필요합니다.
         /// </summary>
         public Task<SupabaseResult<bool>> PatchDiffAsync<T>(
             T previous,

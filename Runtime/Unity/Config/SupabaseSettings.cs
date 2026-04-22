@@ -32,12 +32,6 @@ namespace Truesoft.Supabase.Unity
         public int timeoutSeconds = 30;
 
         [Header("테이블")]
-        [Tooltip("유저 세이브 테이블. 스키마는 schema.table.")]
-        public string userSavesTable = "user_saves";
-
-        [Tooltip("기본 select CSV. 비우면 코드에서 지정.")]
-        public string userSavesDefaultSelectColumnsCsv = "";
-
         [Tooltip("RemoteConfig 테이블.")]
         public string remoteConfigTable = "remote_config";
 
@@ -93,8 +87,6 @@ namespace Truesoft.Supabase.Unity
                 ProjectURL = projectUrl,
                 PublishableKey = publishableKey,
                 TimeoutSeconds = timeoutSeconds,
-                UserSavesTable = string.IsNullOrWhiteSpace(userSavesTable) ? "user_saves" : userSavesTable.Trim(),
-                UserSavesDefaultSelectColumnsCsv = userSavesDefaultSelectColumnsCsv == null ? "" : userSavesDefaultSelectColumnsCsv.Trim(),
                 RemoteConfigTable = string.IsNullOrWhiteSpace(remoteConfigTable) ? "remote_config" : remoteConfigTable.Trim(),
                 ChatMessagesTable = string.IsNullOrWhiteSpace(chatMessagesTable) ? "chat_messages" : chatMessagesTable.Trim(),
                 MailsTable = string.IsNullOrWhiteSpace(mailsTable) ? "mails" : mailsTable.Trim(),

@@ -124,20 +124,23 @@ namespace Truesoft.Supabase.Unity
             bool saveSessionToStorage = true) =>
             SupabaseSDK.RefreshSessionAsync(refreshToken, saveSessionToStorage);
 
-        /// <summary>로그인 직후 본인 user_saves 행 보장 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<bool>> EnsureMyUserSaveRowAsync() =>
-            SupabaseSDK.EnsureMyUserSaveRowAsync();
+        /// <summary>로그인 직후 <typeparamref name="T"/>의 테이블 행 보장 (내부 Result API).</summary>
+        internal static Task<SupabaseResult<bool>> EnsureMyRowAsync<T>() =>
+            SupabaseSDK.EnsureMyRowAsync<T>();
 
         /// <summary>변경된 컬럼만 부분 저장(PATCH) (내부 Result API).</summary>
         internal static Task<SupabaseResult<bool>> PatchUserDataAsync(
+            string tableName,
             System.Collections.Generic.Dictionary<string, object> patch,
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true) =>
-            SupabaseSDK.PatchUserDataAsync(patch, ensureRowFirst, setUpdatedAtIsoUtc);
+            SupabaseSDK.PatchUserDataAsync(tableName, patch, ensureRowFirst, setUpdatedAtIsoUtc);
 
         /// <summary>프로젝트별 select 컬럼으로 로드 (내부 Result API).</summary>
-        internal static Task<SupabaseResult<T>> LoadUserDataColumnsAsync<T>(string selectColumnsCsv = null) where T : class, new() =>
-            SupabaseSDK.LoadUserDataColumnsAsync<T>(selectColumnsCsv);
+        internal static Task<SupabaseResult<T>> LoadUserDataColumnsAsync<T>(
+            string tableName,
+            string selectColumnsCsv) where T : class, new() =>
+            SupabaseSDK.LoadUserDataColumnsAsync<T>(tableName, selectColumnsCsv);
 
         /// <summary><see cref="SupabaseSDK.LoadUserSaveAttributedAsync{T}(bool)"/> (내부 Result API).</summary>
         internal static Task<SupabaseResult<T>> LoadUserSaveAttributedAsync<T>(bool includeUpdatedAt = true) where T : class, new() =>
@@ -153,18 +156,22 @@ namespace Truesoft.Supabase.Unity
 
         /// <inheritdoc cref="SupabaseSDK.PatchUserDataAsync"/>
         public static async Task<bool> TryPatchUserDataAsync(
+            string tableName,
             System.Collections.Generic.Dictionary<string, object> patch,
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true)
         {
-            var r = await PatchUserDataAsync(patch, ensureRowFirst, setUpdatedAtIsoUtc);
+            var r = await PatchUserDataAsync(tableName, patch, ensureRowFirst, setUpdatedAtIsoUtc);
             return r != null && r.IsSuccess;
         }
 
-        /// <inheritdoc cref="SupabaseSDK.LoadUserDataColumnsAsync{T}(string)"/>
-        public static async Task<T> TryLoadUserDataColumnsAsync<T>(string selectColumnsCsv = null, T defaultValue = default) where T : class, new()
+        /// <inheritdoc cref="SupabaseSDK.LoadUserDataColumnsAsync{T}(string, string)"/>
+        public static async Task<T> TryLoadUserDataColumnsAsync<T>(
+            string tableName,
+            string selectColumnsCsv,
+            T defaultValue = default) where T : class, new()
         {
-            var r = await LoadUserDataColumnsAsync<T>(selectColumnsCsv);
+            var r = await LoadUserDataColumnsAsync<T>(tableName, selectColumnsCsv);
             return r != null && r.IsSuccess ? r.Data : defaultValue;
         }
 
@@ -183,16 +190,18 @@ namespace Truesoft.Supabase.Unity
             bool includeUpdatedAt = true) where T : class, new() =>
             SupabaseSDK.TryLoadUserSaveAttributedWithRowStateAsync(defaultWhenFailed, includeUpdatedAt);
 
-        /// <inheritdoc cref="SupabaseSDK.LoadUserDataColumnsWithRowStateAsync{T}(string)"/>
+        /// <inheritdoc cref="SupabaseSDK.LoadUserDataColumnsWithRowStateAsync{T}(string, string)"/>
         public static Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserDataColumnsWithRowStateAsync<T>(
-            string selectColumnsCsv = null) where T : class, new() =>
-            SupabaseSDK.LoadUserDataColumnsWithRowStateAsync<T>(selectColumnsCsv);
+            string tableName,
+            string selectColumnsCsv) where T : class, new() =>
+            SupabaseSDK.LoadUserDataColumnsWithRowStateAsync<T>(tableName, selectColumnsCsv);
 
-        /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataColumnsWithRowStateAsync{T}(T, string)"/>
+        /// <inheritdoc cref="SupabaseSDK.TryLoadUserDataColumnsWithRowStateAsync{T}(string, string, T)"/>
         public static Task<(bool success, bool hasRow, T row)> TryLoadUserDataColumnsWithRowStateAsync<T>(
-            T defaultWhenFailed = default,
-            string selectColumnsCsv = null) where T : class, new() =>
-            SupabaseSDK.TryLoadUserDataColumnsWithRowStateAsync(defaultWhenFailed, selectColumnsCsv);
+            string tableName,
+            string selectColumnsCsv,
+            T defaultWhenFailed = default) where T : class, new() =>
+            SupabaseSDK.TryLoadUserDataColumnsWithRowStateAsync(tableName, selectColumnsCsv, defaultWhenFailed);
 
         /// <inheritdoc cref="SupabaseSDK.TryPatchUserSaveDiffAsync{T}(T, T, bool, bool)"/>
         public static Task<bool> TryPatchUserSaveDiffAsync<T>(
