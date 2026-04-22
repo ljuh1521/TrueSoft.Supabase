@@ -24,7 +24,7 @@ alter table public.display_names add column if not exists updated_at timestamptz
 
 update public.display_names d
 set server_id = coalesce(p.server_id, public.ts_default_server_id())
-from public.profiles p
+from public.user_profiles p
 where p.account_id = d.account_id
   and d.server_id is null;
 

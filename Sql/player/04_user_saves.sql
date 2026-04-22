@@ -28,7 +28,7 @@ alter table public.user_saves add column if not exists updated_at timestamptz no
 
 update public.user_saves u
 set server_id = coalesce(p.server_id, public.ts_default_server_id())
-from public.profiles p
+from public.user_profiles p
 where p.account_id = u.account_id
   and u.server_id is null;
 

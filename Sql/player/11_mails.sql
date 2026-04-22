@@ -76,7 +76,7 @@ using (
   and deleted_at is null
   and exists (
     select 1
-    from public.profiles p
+    from public.user_profiles p
     where p.account_id = auth.uid()
       and p.user_id = mails.user_id
       and p.server_id is not null
@@ -91,7 +91,7 @@ using (
   and account_id = auth.uid()
   and exists (
     select 1
-    from public.profiles p
+    from public.user_profiles p
     where p.account_id = auth.uid()
       and p.user_id = mails.user_id
       and p.server_id is not null
@@ -130,7 +130,7 @@ begin
   end if;
 
   if not exists (
-    select 1 from public.profiles p
+    select 1 from public.user_profiles p
     where p.account_id = auth.uid()
       and p.user_id = m.user_id
       and p.server_id is not null
@@ -190,7 +190,7 @@ begin
   end if;
 
   if not exists (
-    select 1 from public.profiles p
+    select 1 from public.user_profiles p
     where p.account_id = auth.uid()
       and p.user_id = m.user_id
       and p.server_id is not null
@@ -291,7 +291,7 @@ begin
       and jsonb_typeof(m.items) = 'array'
       and jsonb_array_length(m.items) > 0
       and exists (
-        select 1 from public.profiles p
+        select 1 from public.user_profiles p
         where p.account_id = auth.uid()
           and p.user_id = m.user_id
           and p.server_id is not null
@@ -375,7 +375,7 @@ begin
   end if;
 
   if not exists (
-    select 1 from public.profiles p
+    select 1 from public.user_profiles p
     where p.account_id = auth.uid()
       and p.user_id = m.user_id
       and p.server_id is not null
@@ -430,7 +430,7 @@ begin
       and m.deleted_at is null
       and m.is_read = true
       and exists (
-        select 1 from public.profiles p
+        select 1 from public.user_profiles p
         where p.account_id = auth.uid()
           and p.user_id = m.user_id
           and p.server_id is not null
@@ -519,7 +519,7 @@ as $$
           and m.expires_at > now()
           and exists (
             select 1
-            from public.profiles p
+            from public.user_profiles p
             where p.account_id = auth.uid()
               and p.user_id = m.user_id
               and p.server_id is not null
@@ -539,7 +539,7 @@ as $$
           and jsonb_array_length(m.items) > 0
           and exists (
             select 1
-            from public.profiles p
+            from public.user_profiles p
             where p.account_id = auth.uid()
               and p.user_id = m.user_id
               and p.server_id is not null

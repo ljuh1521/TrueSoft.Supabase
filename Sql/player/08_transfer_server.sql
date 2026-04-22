@@ -49,7 +49,7 @@ begin
   end if;
 
   select p.server_id into v_current_server_id
-  from public.profiles p
+  from public.user_profiles p
   where p.account_id = p_account_id
   limit 1;
 
@@ -80,7 +80,7 @@ begin
     return;
   end if;
 
-  update public.profiles
+  update public.user_profiles
   set server_id = v_target_server_id
   where account_id = p_account_id;
 

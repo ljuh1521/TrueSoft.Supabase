@@ -17,7 +17,7 @@ declare
 begin
   if new.account_id is not null then
     select p.server_id into v_server_id
-    from public.profiles p
+    from public.user_profiles p
     where p.account_id = new.account_id
     limit 1;
   end if;

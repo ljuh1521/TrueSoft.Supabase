@@ -37,7 +37,7 @@ begin
 
   for rec in
     select account_id
-    from public.profiles
+    from public.user_profiles
     where withdrawn_at is not null
       and withdrawn_at <= now()
     limit p_batch

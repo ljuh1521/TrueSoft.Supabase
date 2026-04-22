@@ -37,7 +37,7 @@ begin
     else now() + make_interval(days => v_delay_days)
   end;
 
-  insert into public.profiles (user_id, account_id, withdrawn_at)
+  insert into public.user_profiles (user_id, account_id, withdrawn_at)
   values (v_user_id, v_account_id, v_scheduled_at)
   on conflict (account_id)
   do update set

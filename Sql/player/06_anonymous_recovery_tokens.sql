@@ -25,7 +25,7 @@ alter table public.anonymous_recovery_tokens add column if not exists updated_at
 
 update public.anonymous_recovery_tokens t
 set server_id = coalesce(p.server_id, public.ts_default_server_id())
-from public.profiles p
+from public.user_profiles p
 where p.account_id = t.account_id
   and t.server_id is null;
 
@@ -190,7 +190,7 @@ begin
 
   if p_account_id is not null then
     select p.server_id into v_server_id
-    from public.profiles p
+    from public.user_profiles p
     where p.account_id = p_account_id
     limit 1;
   end if;

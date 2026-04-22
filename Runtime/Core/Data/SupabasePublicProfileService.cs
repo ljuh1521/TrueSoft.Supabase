@@ -37,7 +37,7 @@ namespace Truesoft.Supabase.Core.Data
             string publishableKey,
             ISupabaseHttpClient httpClient,
             ISupabaseJsonSerializer jsonSerializer,
-            string profilesTable = "profiles",
+            string profilesTable = "user_profiles",
             string displayNamesTable = "display_names",
             string defaultServerCode = "GLOBAL")
         {

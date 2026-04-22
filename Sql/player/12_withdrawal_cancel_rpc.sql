@@ -23,7 +23,7 @@ begin
 
   -- 현재 withdrawn_at 조회
   select withdrawn_at into v_withdrawn_at
-  from public.profiles
+  from public.user_profiles
   where account_id = v_account_id;
 
   -- 유효성 검사
@@ -36,7 +36,7 @@ begin
   end if;
 
   -- withdrawn_at 초기화 (탈퇴 취소)
-  update public.profiles
+  update public.user_profiles
   set withdrawn_at = null
   where account_id = v_account_id;
 

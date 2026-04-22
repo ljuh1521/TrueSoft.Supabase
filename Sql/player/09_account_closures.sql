@@ -39,7 +39,7 @@ create index if not exists account_closures_closed_at_idx on public.account_clos
 
 -- 탈퇴 예약 만료 조회(정리 배치/로그인 가드) 성능용 인덱스
 create index if not exists profiles_withdrawn_at_idx
-  on public.profiles (withdrawn_at)
+  on public.user_profiles (withdrawn_at)
   where withdrawn_at is not null;
 
 alter table public.account_closures enable row level security;

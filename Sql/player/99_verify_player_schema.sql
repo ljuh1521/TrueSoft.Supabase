@@ -24,7 +24,7 @@ from (
     null::text as detail
   from (
     values
-      ('profiles'),
+      ('user_profiles'),
       ('game_servers'),
       ('user_saves'),
       ('display_names'),

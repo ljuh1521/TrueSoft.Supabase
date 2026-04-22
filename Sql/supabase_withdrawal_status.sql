@@ -29,7 +29,7 @@ as $$
     select
       dn.display_name,
       p.withdrawn_at
-    from public.profiles p
+    from public.user_profiles p
     left join public.display_names dn on dn.account_id = p.account_id
     where p.account_id = auth.uid()
     limit 1

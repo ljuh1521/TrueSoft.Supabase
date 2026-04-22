@@ -21,7 +21,7 @@ alter table public.user_sessions add column if not exists updated_at timestamptz
 
 update public.user_sessions s
 set server_id = coalesce(p.server_id, public.ts_default_server_id())
-from public.profiles p
+from public.user_profiles p
 where p.account_id = s.account_id
   and s.server_id is null;
 

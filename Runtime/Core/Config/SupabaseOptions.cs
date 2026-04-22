@@ -30,8 +30,8 @@ namespace Truesoft.Supabase
         /// <summary>우편함 폴링 권장 간격(초). 0이면 폴링 비활성 안내용.</summary>
         public int MailPollingIntervalSeconds = 0;
 
-        /// <summary>공개 프로필 REST 테이블 — <c>id</c>(row PK), <c>user_id</c>, <c>account_id</c>, <c>withdrawn_at</c> (기본 <c>profiles</c>).</summary>
-        public string PublicProfilesTable = "profiles";
+        /// <summary>공개 프로필 REST 테이블 — <c>id</c>(row PK), <c>user_id</c>, <c>account_id</c>, <c>withdrawn_at</c> (기본 <c>user_profiles</c>).</summary>
+        public string PublicProfilesTable = "user_profiles";
 
         /// <summary>중복 로그인 감지용 세션 토큰 테이블 (기본 <c>user_sessions</c>).</summary>
         public string UserSessionsTable = "user_sessions";

@@ -54,7 +54,7 @@ namespace Truesoft.Supabase.Unity
         public int mailPollingIntervalSeconds = 0;
 
         [Tooltip("공개 프로필 테이블.")]
-        public string publicProfilesTable = "profiles";
+        public string publicProfilesTable = "user_profiles";
 
         [Header("서버 샤드")]
         [Tooltip("기본 server_code. DB game_servers와 맞출 것.")]
@@ -100,7 +100,7 @@ namespace Truesoft.Supabase.Unity
                 MailsTable = string.IsNullOrWhiteSpace(mailsTable) ? "mails" : mailsTable.Trim(),
                 DefaultMailExpirationDays = defaultMailExpirationDays < 1 ? 1 : defaultMailExpirationDays,
                 MailPollingIntervalSeconds = mailPollingIntervalSeconds < 0 ? 0 : mailPollingIntervalSeconds,
-                PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "profiles" : publicProfilesTable.Trim(),
+                PublicProfilesTable = string.IsNullOrWhiteSpace(publicProfilesTable) ? "user_profiles" : publicProfilesTable.Trim(),
                 UserSessionsTable = string.IsNullOrWhiteSpace(userSessionsTable) ? "user_sessions" : userSessionsTable.Trim(),
                 DefaultServerCode = string.IsNullOrWhiteSpace(defaultServerCode) ? "GLOBAL" : defaultServerCode.Trim(),
                 DuplicateSessionActionCheckCooldownSeconds = duplicateSessionActionCheckCooldownSeconds < 0f
