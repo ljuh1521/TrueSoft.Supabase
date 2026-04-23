@@ -26,7 +26,7 @@ from (
     values
       ('user_profiles'),
       ('game_servers'),
-      ('user_saves'),
+      -- ('user_saves') -- 제거됨. 커스텀 세이브 테이블은 프로젝트별로 직접 추가.
       ('display_names'),
       ('user_sessions'),
       ('anonymous_recovery_tokens'),

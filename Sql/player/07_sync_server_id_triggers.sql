@@ -37,11 +37,8 @@ before insert or update on public.display_names
 for each row
 execute function public.ts_sync_server_id_by_account();
 
-drop trigger if exists trg_user_saves_sync_server_id on public.user_saves;
-create trigger trg_user_saves_sync_server_id
-before insert or update on public.user_saves
-for each row
-execute function public.ts_sync_server_id_by_account();
+-- user_saves 테이블이 제거되었으므로 해당 트리거 삭제됨.
+-- 커스텀 세이브 테이블에는 프로젝트별로 ts_sync_server_id_by_account 트리거를 직접 추가하세요.
 
 drop trigger if exists trg_user_sessions_sync_server_id on public.user_sessions;
 create trigger trg_user_sessions_sync_server_id

@@ -117,6 +117,25 @@ namespace Truesoft.Supabase.Core.Data
             return m.Name;
         }
 
+        /// <summary>
+        /// <typeparamref name="T"/>에 <see cref="UserSaveTableAttribute"/>가 있으면 해당 테이블명을 반환합니다.
+        /// 없으면 <see cref="InvalidOperationException"/>을 던집니다.
+        /// </summary>
+        public static string ResolveTableName<T>() => ResolveTableName(typeof(T));
+
+        /// <summary>
+        /// <paramref name="t"/>에 <see cref="UserSaveTableAttribute"/>가 있으면 해당 테이블명을 반환합니다.
+        /// 없으면 <see cref="InvalidOperationException"/>을 던집니다.
+        /// </summary>
+        public static string ResolveTableName(Type t)
+        {
+            var attr = t.GetCustomAttribute<UserSaveTableAttribute>();
+            if (attr == null)
+                throw new InvalidOperationException(
+                    $"[UserSaveTable] attribute is missing on {t.Name}. missing_UserSaveTable_attribute");
+            return attr.TableName;
+        }
+
         private static object GetValue(MemberInfo m, object instance)
         {
             if (instance == null)

@@ -588,28 +588,26 @@ namespace Truesoft.Supabase.Unity
         /// 명시 <c>select</c> 컬럼 로드에 행 존재 여부를 포함합니다.
         /// </summary>
         public static async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadUserDataColumnsWithRowStateAsync<T>(
-            string selectColumnsCsv = null) where T : class, new()
+            string tableName,
+            string selectColumnsCsv) where T : class, new()
         {
             var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            var select = string.IsNullOrWhiteSpace(selectColumnsCsv)
-                ? (_bootstrap?.UserSavesDefaultSelectColumnsCsv ?? "")
-                : selectColumnsCsv.Trim();
-
-            if (string.IsNullOrWhiteSpace(select))
+            if (string.IsNullOrWhiteSpace(selectColumnsCsv))
                 return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("select_columns_empty");
 
-            return await UserSaves.LoadColumnsWithRowStateAsync<T>(select);
+            return await UserSaves.LoadColumnsWithRowStateAsync<T>(tableName, selectColumnsCsv);
         }
 
-        /// <inheritdoc cref="LoadUserDataColumnsWithRowStateAsync{T}(string)"/>
+        /// <inheritdoc cref="LoadUserDataColumnsWithRowStateAsync{T}(string, string)"/>
         public static async Task<(bool success, bool hasRow, T row)> TryLoadUserDataColumnsWithRowStateAsync<T>(
-            T defaultWhenFailed = default,
-            string selectColumnsCsv = null) where T : class, new()
+            string tableName,
+            string selectColumnsCsv,
+            T defaultWhenFailed = default) where T : class, new()
         {
-            var r = await LoadUserDataColumnsWithRowStateAsync<T>(selectColumnsCsv);
+            var r = await LoadUserDataColumnsWithRowStateAsync<T>(tableName, selectColumnsCsv);
             var ok = r != null && r.IsSuccess;
             LogApiResult(ApiLogTags.UserDataLoadColumnsRowState, ok, ok ? null : r?.ErrorMessage);
             if (!ok)
@@ -1245,22 +1243,23 @@ namespace Truesoft.Supabase.Unity
         }
 
         /// <summary>
-        /// 로그인 직후 본인 <c>user_saves</c> 행이 존재하도록 보장합니다.
-        /// DB RPC: <c>ts_ensure_my_user_save_row</c>.
+        /// 로그인 직후 <typeparamref name="T"/>의 <see cref="UserSaveTableAttribute"/> 테이블에 본인 행이 존재하도록 보장합니다.
+        /// DB RPC: <c>ts_ensure_my_row(table, user_id)</c>.
         /// </summary>
-        public static async Task<SupabaseResult<bool>> EnsureMyUserSaveRowAsync()
+        public static async Task<SupabaseResult<bool>> EnsureMyRowAsync<T>()
         {
             var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            return await UserSaves.EnsureMyRowAsync();
+            return await UserSaves.EnsureMyRowAsync<T>();
         }
 
         /// <summary>
-        /// 변경된 컬럼만 부분 저장(PATCH)합니다. <paramref name="patch"/>에는 변경된 필드만 넣는 것을 권장합니다.
+        /// 변경된 컬럼만 부분 저장(PATCH)합니다. <paramref name="tableName"/>은 대상 테이블을 명시합니다.
         /// </summary>
         public static async Task<SupabaseResult<bool>> PatchUserDataAsync(
+            string tableName,
             Dictionary<string, object> patch,
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true)
@@ -1269,27 +1268,24 @@ namespace Truesoft.Supabase.Unity
             if (!ready.IsSuccess)
                 return SupabaseResult<bool>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            return await UserSaves.PatchAsync(patch, ensureRowFirst, setUpdatedAtIsoUtc);
+            return await UserSaves.PatchAsync(tableName, patch, ensureRowFirst, setUpdatedAtIsoUtc);
         }
 
         /// <summary>
         /// 프로젝트별 명시 컬럼을 select로 지정해 유저 데이터를 로드합니다.
-        /// <paramref name="selectColumnsCsv"/>가 비어 있으면 <see cref="Config.SupabaseUnityBootstrap.UserSavesDefaultSelectColumnsCsv"/>를 사용합니다.
         /// </summary>
-        public static async Task<SupabaseResult<T>> LoadUserDataColumnsAsync<T>(string selectColumnsCsv = null) where T : class, new()
+        public static async Task<SupabaseResult<T>> LoadUserDataColumnsAsync<T>(
+            string tableName,
+            string selectColumnsCsv) where T : class, new()
         {
             var ready = await EnsureReadySessionAsync();
             if (!ready.IsSuccess)
                 return SupabaseResult<T>.Fail(ready.ErrorMessage ?? "auth_not_signed_in");
 
-            var select = string.IsNullOrWhiteSpace(selectColumnsCsv)
-                ? (_bootstrap?.UserSavesDefaultSelectColumnsCsv ?? "")
-                : selectColumnsCsv.Trim();
-
-            if (string.IsNullOrWhiteSpace(select))
+            if (string.IsNullOrWhiteSpace(selectColumnsCsv))
                 return SupabaseResult<T>.Fail("select_columns_empty");
 
-            return await UserSaves.LoadColumnsAsync<T>(select);
+            return await UserSaves.LoadColumnsAsync<T>(tableName, selectColumnsCsv);
         }
 
         /// <summary>

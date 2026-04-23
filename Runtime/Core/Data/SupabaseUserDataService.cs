@@ -11,7 +11,6 @@ namespace Truesoft.Supabase.Core.Data
     {
         private readonly string _supabaseUrl;
         private readonly string _publishableKey;
-        private readonly string _userSavesTable;
         private readonly ISupabaseHttpClient _httpClient;
         private readonly ISupabaseJsonSerializer _jsonSerializer;
 
@@ -19,31 +18,37 @@ namespace Truesoft.Supabase.Core.Data
             string supabaseUrl,
             string publishableKey,
             ISupabaseHttpClient httpClient,
-            ISupabaseJsonSerializer jsonSerializer,
-            string userSavesTable = "user_saves")
+            ISupabaseJsonSerializer jsonSerializer)
         {
             _supabaseUrl = supabaseUrl?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(supabaseUrl));
             _publishableKey = publishableKey ?? throw new ArgumentNullException(nameof(publishableKey));
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException(nameof(jsonSerializer));
-            _userSavesTable = SupabaseRestTableRef.Normalize(userSavesTable, nameof(userSavesTable));
         }
 
         /// <summary>
-        /// 로그인 직후 본인 <c>user_saves</c> 행이 존재하도록 보장합니다.
-        /// DB RPC: <c>ts_ensure_my_user_save_row</c> (SECURITY DEFINER).
+        /// 로그인 직후 지정 테이블에 본인 행이 존재하도록 보장합니다.
+        /// DB RPC: <c>ts_ensure_my_row(p_table, p_user_id)</c> (SECURITY DEFINER).
         /// </summary>
         public async Task<SupabaseResult<bool>> EnsureMyRowAsync(
             string accessToken,
+            string tableName,
             string playerUserId)
         {
             if (string.IsNullOrWhiteSpace(accessToken))
                 return SupabaseResult<bool>.Fail("access_token_empty");
 
+            if (string.IsNullOrWhiteSpace(tableName))
+                return SupabaseResult<bool>.Fail("table_name_empty");
+
             var stable = string.IsNullOrWhiteSpace(playerUserId) ? null : playerUserId.Trim();
 
-            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_ensure_my_user_save_row";
-            var bodyJson = _jsonSerializer.ToJson(new EnsureMyUserSaveRowBody { p_user_id = stable });
+            var url = $"{_supabaseUrl}/rest/v1/rpc/ts_ensure_my_row";
+            var bodyJson = _jsonSerializer.ToJson(new EnsureMyRowBody
+            {
+                p_table = tableName.Trim(),
+                p_user_id = stable
+            });
 
             var response = await _httpClient.SendAsync(
                 method: "POST",
@@ -55,21 +60,19 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<bool>.Fail("http_response_null");
 
             if (response.IsSuccess == false)
-                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "ensure_user_save_row_failed");
+                return SupabaseResult<bool>.Fail(response.ErrorMessage ?? response.Body ?? "ensure_row_failed");
 
             return SupabaseResult<bool>.Success(true);
         }
 
         /// <summary>
         /// 명시 컬럼 기반으로 부분 저장(PATCH)합니다. <paramref name="patch"/>에는 변경된 필드만 넣는 것을 전제로 합니다.
-        /// <para>
-        /// 주의: 이 API는 <c>save_data(jsonb)</c>를 병합하지 않습니다(프로젝트별 컬럼/정규화 테이블 전제).
-        /// </para>
         /// </summary>
         public async Task<SupabaseResult<bool>> PatchAsync(
             string accessToken,
             string accountId,
             string playerUserId,
+            string tableName,
             Dictionary<string, object> patch,
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true)
@@ -80,18 +83,21 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(accountId))
                 return SupabaseResult<bool>.Fail("account_id_empty");
 
+            if (string.IsNullOrWhiteSpace(tableName))
+                return SupabaseResult<bool>.Fail("table_name_empty");
+
             if (patch == null || patch.Count == 0)
                 return SupabaseResult<bool>.Fail("patch_empty");
 
             if (ensureRowFirst)
             {
-                var ensured = await EnsureMyRowAsync(accessToken, playerUserId);
+                var ensured = await EnsureMyRowAsync(accessToken, tableName, playerUserId);
                 if (ensured == null || !ensured.IsSuccess)
-                    return SupabaseResult<bool>.Fail(ensured?.ErrorMessage ?? "ensure_user_save_row_failed");
+                    return SupabaseResult<bool>.Fail(ensured?.ErrorMessage ?? "ensure_row_failed");
             }
 
             var url =
-                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, tableName)}" +
                 $"?account_id=eq.{Uri.EscapeDataString(accountId.Trim())}";
 
             var payload = patch;
@@ -120,25 +126,27 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         /// <summary>
-        /// 프로젝트별 명시 컬럼을 select로 지정해 로드합니다. 행 0건이면 <c>new T()</c>만 반환하고 <see cref="LoadColumnsWithRowStateAsync{T}"/>와 달리 구분 정보는 없습니다.
+        /// 프로젝트별 명시 컬럼을 select로 지정해 로드합니다.
         /// </summary>
         public async Task<SupabaseResult<T>> LoadColumnsAsync<T>(
             string accessToken,
             string accountId,
+            string tableName,
             string selectColumnsCsv) where T : class, new()
         {
-            var r = await LoadColumnsWithRowStateAsync<T>(accessToken, accountId, selectColumnsCsv);
+            var r = await LoadColumnsWithRowStateAsync<T>(accessToken, accountId, tableName, selectColumnsCsv);
             if (!r.IsSuccess)
                 return SupabaseResult<T>.Fail(r.ErrorMessage ?? "load_failed");
             return SupabaseResult<T>.Success(r.Data.Row);
         }
 
         /// <summary>
-        /// 본인 <c>account_id</c>에 해당하는 행이 응답에 포함되었는지(<see cref="UserSaveColumnsLoadResult{T}.HasRow"/>)와 함께 로드합니다.
+        /// 본인 행 존재 여부(<see cref="UserSaveColumnsLoadResult{T}.HasRow"/>)와 함께 로드합니다.
         /// </summary>
         public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadColumnsWithRowStateAsync<T>(
             string accessToken,
             string accountId,
+            string tableName,
             string selectColumnsCsv) where T : class, new()
         {
             if (string.IsNullOrWhiteSpace(accessToken))
@@ -147,11 +155,14 @@ namespace Truesoft.Supabase.Core.Data
             if (string.IsNullOrWhiteSpace(accountId))
                 return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("account_id_empty");
 
+            if (string.IsNullOrWhiteSpace(tableName))
+                return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("table_name_empty");
+
             if (string.IsNullOrWhiteSpace(selectColumnsCsv))
                 return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("select_columns_empty");
 
             var url =
-                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, _userSavesTable)}" +
+                $"{SupabaseRestTableRef.BuildTableUrl(_supabaseUrl, tableName)}" +
                 $"?select={Uri.EscapeDataString(selectColumnsCsv.Trim())}" +
                 $"&account_id=eq.{Uri.EscapeDataString(accountId.Trim())}" +
                 $"&limit=1";
@@ -188,15 +199,18 @@ namespace Truesoft.Supabase.Core.Data
 
         /// <summary>
         /// <see cref="UserSaveColumnAttribute"/>로 표시한 컬럼만 모아 <c>select</c> 후 로드합니다.
+        /// 대상 타입에 <see cref="UserSaveTableAttribute"/>가 필요합니다.
         /// </summary>
         public async Task<SupabaseResult<T>> LoadAttributedAsync<T>(
             string accessToken,
             string accountId,
             bool includeUpdatedAt = true) where T : class, new()
         {
+            string tableName;
             string csv;
             try
             {
+                tableName = UserSaveSchema.ResolveTableName<T>();
                 csv = UserSaveSchema.GetSelectColumnsCsv<T>(includeUpdatedAt);
             }
             catch (Exception e)
@@ -204,18 +218,20 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<T>.Fail("user_save_schema_invalid:" + e.Message);
             }
 
-            return await LoadColumnsAsync<T>(accessToken, accountId, csv);
+            return await LoadColumnsAsync<T>(accessToken, accountId, tableName, csv);
         }
 
-        /// <inheritdoc cref="LoadColumnsWithRowStateAsync{T}(string, string, string)"/>
+        /// <inheritdoc cref="LoadColumnsWithRowStateAsync{T}(string, string, string, string)"/>
         public async Task<SupabaseResult<UserSaveColumnsLoadResult<T>>> LoadAttributedWithRowStateAsync<T>(
             string accessToken,
             string accountId,
             bool includeUpdatedAt = true) where T : class, new()
         {
+            string tableName;
             string csv;
             try
             {
+                tableName = UserSaveSchema.ResolveTableName<T>();
                 csv = UserSaveSchema.GetSelectColumnsCsv<T>(includeUpdatedAt);
             }
             catch (Exception e)
@@ -223,11 +239,12 @@ namespace Truesoft.Supabase.Core.Data
                 return SupabaseResult<UserSaveColumnsLoadResult<T>>.Fail("user_save_schema_invalid:" + e.Message);
             }
 
-            return await LoadColumnsWithRowStateAsync<T>(accessToken, accountId, csv);
+            return await LoadColumnsWithRowStateAsync<T>(accessToken, accountId, tableName, csv);
         }
 
         /// <summary>
         /// <see cref="UserSaveSchema.BuildPatch{T}(T, T)"/>로 변경분만 PATCH합니다.
+        /// 대상 타입에 <see cref="UserSaveTableAttribute"/>가 필요합니다.
         /// </summary>
         public async Task<SupabaseResult<bool>> PatchDiffAsync<T>(
             string accessToken,
@@ -238,9 +255,11 @@ namespace Truesoft.Supabase.Core.Data
             bool ensureRowFirst = true,
             bool setUpdatedAtIsoUtc = true)
         {
+            string tableName;
             Dictionary<string, object> patch;
             try
             {
+                tableName = UserSaveSchema.ResolveTableName<T>();
                 patch = UserSaveSchema.BuildPatch(previous, current);
             }
             catch (Exception e)
@@ -255,6 +274,7 @@ namespace Truesoft.Supabase.Core.Data
                 accessToken,
                 accountId,
                 playerUserId,
+                tableName,
                 patch,
                 ensureRowFirst,
                 setUpdatedAtIsoUtc);
@@ -276,8 +296,9 @@ namespace Truesoft.Supabase.Core.Data
         }
 
         [Serializable]
-        private sealed class EnsureMyUserSaveRowBody
+        private sealed class EnsureMyRowBody
         {
+            public string p_table;
             public string p_user_id;
         }
     }

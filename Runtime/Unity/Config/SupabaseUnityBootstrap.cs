@@ -23,9 +23,6 @@ namespace Truesoft.Supabase.Unity.Config
         public SupabaseServerTimeService ServerTimeService { get; private set; }
         public SupabaseMailboxService MailboxService { get; private set; }
 
-        /// <summary><see cref="SupabaseSettings.userSavesDefaultSelectColumnsCsv"/>.</summary>
-        public string UserSavesDefaultSelectColumnsCsv { get; private set; } = "";
-
         /// <summary><see cref="SupabaseSettings.enableDuplicateSessionMonitor"/>.</summary>
         public bool EnableDuplicateSessionMonitor { get; private set; }
 
@@ -70,8 +67,7 @@ namespace Truesoft.Supabase.Unity.Config
                 options.ProjectURL,
                 options.PublishableKey,
                 http,
-                json,
-                options.UserSavesTable);
+                json);
 
             RemoteConfigService = new SupabaseRemoteConfigService(
                 options.ProjectURL,
@@ -137,10 +133,6 @@ namespace Truesoft.Supabase.Unity.Config
                 : options.WithdrawalGuardFunctionName.Trim();
             ApplyAnonymousDisplayNameOnNewGoogleSignUp = options.ApplyAnonymousDisplayNameOnNewGoogleSignUp;
             DefaultServerCode = string.IsNullOrWhiteSpace(options.DefaultServerCode) ? "GLOBAL" : options.DefaultServerCode.Trim();
-            UserSavesDefaultSelectColumnsCsv = options.UserSavesDefaultSelectColumnsCsv == null
-                ? ""
-                : options.UserSavesDefaultSelectColumnsCsv.Trim();
-
             SupabaseSDK.Initialize(this);
         }
     }
